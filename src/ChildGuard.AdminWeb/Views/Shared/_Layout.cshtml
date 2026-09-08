@@ -1,0 +1,58 @@
+@{
+    var currentController = ViewContext.RouteData.Values["controller"]?.ToString() ?? "";
+    bool IsActive(string c) => string.Equals(currentController, c, StringComparison.OrdinalIgnoreCase);
+    string NavClass(string c) => IsActive(c) ? "active" : "";
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@ViewData["Title"] — ChildGuard Admin</title>
+    <link rel="stylesheet" href="~/css/site.css" />
+</head>
+<body>
+@if (User.Identity?.IsAuthenticated == true)
+{
+    <div class="cg-app">
+        <aside class="cg-sidebar">
+            <div class="cg-sidebar__brand">Child<span>Guard</span></div>
+            <ul class="cg-nav">
+                <li><a class="@NavClass("Dashboard")" href="/Dashboard">Dashboard</a></li>
+                <li class="cg-nav__section">Records</li>
+                <li><a class="@NavClass("Students")" href="/Students">Students</a></li>
+                <li><a class="@NavClass("Rfid")" href="/Rfid">RFID</a></li>
+                <li><a class="@NavClass("Guardians")" href="/Guardians">Guardians</a></li>
+                <li><a class="@NavClass("Transportation")" href="/Transportation">Transportation</a></li>
+                <li class="cg-nav__section">Operations</li>
+                <li><a class="@NavClass("Attendance")" href="/Attendance">Attendance</a></li>
+                <li><a class="@NavClass("Journey")" href="/Journey">Journey</a></li>
+                <li><a class="@NavClass("Verification")" href="/Verification">Drop-off &amp; Pickup</a></li>
+                <li class="cg-nav__section">Insights</li>
+                <li><a class="@NavClass("Reports")" href="/Reports">Reports</a></li>
+                <li class="cg-nav__section">Account</li>
+                <li><a class="@NavClass("Profile")" href="/Profile">Profile</a></li>
+                <li><a href="/Account/Logout">Logout</a></li>
+            </ul>
+        </aside>
+        <div class="cg-main">
+            <header class="cg-header">
+                <div class="cg-header__title">@ViewData["Title"]</div>
+                <div class="cg-header__user">
+                    <span>@User.Identity!.Name</span>
+                    <span class="cg-badge cg-badge--neutral">Admin</span>
+                </div>
+            </header>
+            <main class="cg-content">
+                @RenderBody()
+            </main>
+        </div>
+    </div>
+}
+else
+{
+    @RenderBody()
+}
+@await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

@@ -1,0 +1,27 @@
+@model UpdateStudentRequest
+@{ ViewData["Title"] = "Edit Student"; var id = ViewData["StudentId"]; }
+
+<div class="cg-card" style="max-width:480px;">
+    <h3 class="cg-card__title">Edit Student</h3>
+    @if (!ViewData.ModelState.IsValid)
+    {
+        <div class="cg-alert cg-alert--error">@Html.ValidationSummary()</div>
+    }
+    <form asp-action="Edit" asp-route-id="@id" method="post">
+        @Html.AntiForgeryToken()
+        <div class="cg-form-group">
+            <label class="cg-label">Full Name</label>
+            <input class="cg-input" name="FullName" value="@Model.FullName" required />
+        </div>
+        <div class="cg-form-group">
+            <label class="cg-label">Date of Birth</label>
+            <input class="cg-input" type="date" name="DateOfBirth" value="@Model.DateOfBirth.ToString("yyyy-MM-dd")" required />
+        </div>
+        <div class="cg-form-group">
+            <label class="cg-label">Grade</label>
+            <input class="cg-input" name="Grade" value="@Model.Grade" />
+        </div>
+        <button class="cg-btn cg-btn--primary" type="submit">Save Changes</button>
+        <a class="cg-btn cg-btn--secondary" href="/Students/Details/@id">Cancel</a>
+    </form>
+</div>

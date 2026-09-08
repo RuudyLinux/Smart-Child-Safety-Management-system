@@ -1,0 +1,27 @@
+@model List<JourneyEventDto>
+@{ ViewData["Title"] = "Journey"; }
+
+<div class="cg-card">
+    <h3 class="cg-card__title">Recent Journey Events</h3>
+    <p class="cg-help">Enter a Student ID in the URL bar as <code>/Journey/Student/{id}</code> for a per-student timeline, or click a student name below.</p>
+    <div class="cg-table-wrap">
+        <table class="cg-table">
+            <thead><tr><th>Student</th><th>Event</th><th>Time</th><th>Source</th></tr></thead>
+            <tbody>
+            @if (!Model.Any())
+            {
+                <tr><td colspan="4" class="cg-muted">No journey events recorded.</td></tr>
+            }
+            @foreach (var e in Model)
+            {
+                <tr>
+                    <td><a href="/Journey/Student/@e.StudentId">@e.StudentName</a></td>
+                    <td><span class="cg-badge cg-badge--neutral">@e.EventType</span></td>
+                    <td>@e.Timestamp.ToLocalTime().ToString("g")</td>
+                    <td>@e.Source</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>

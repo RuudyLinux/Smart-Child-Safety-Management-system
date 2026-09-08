@@ -1,0 +1,40 @@
+# --- .NET ---
+bin/
+obj/
+*.user
+*.suo
+.vs/
+
+# --- Logs ---
+logs/
+*.log
+
+# --- Python / face-service ---
+face-service/.venv/
+face-service/__pycache__/
+face-service/**/__pycache__/
+face-service/*.egg-info/
+**/*.pyc
+
+# --- Flutter ---
+guardian_app/.dart_tool/
+guardian_app/.flutter-plugins
+guardian_app/.flutter-plugins-dependencies
+guardian_app/build/
+guardian_app/android/.gradle/
+guardian_app/android/local.properties
+guardian_app/ios/Pods/
+guardian_app/ios/.symlinks/
+guardian_app/*.iml
+
+# --- Secrets / local config (never commit real values) ---
+appsettings.*.local.json
+*.pfx
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.idea/
+
+# --- Local tooling artifacts ---
+.playwright-mcp/

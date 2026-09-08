@@ -1,0 +1,28 @@
+@{ ViewData["Title"] = "Profile"; }
+
+@if (TempData["Success"] != null) { <div class="cg-alert cg-alert--success">@TempData["Success"]</div> }
+@if (TempData["Error"] != null) { <div class="cg-alert cg-alert--error">@TempData["Error"]</div> }
+
+<div class="cg-card" style="max-width:480px;">
+    <h3 class="cg-card__title">Account</h3>
+    <p><strong>Name:</strong> @User.Identity!.Name</p>
+    <p><strong>Email:</strong> @User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value</p>
+    <p><strong>Role:</strong> <span class="cg-badge cg-badge--neutral">@User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value</span></p>
+</div>
+
+<div class="cg-card" style="max-width:480px;">
+    <h3 class="cg-card__title">Change Password</h3>
+    <form asp-action="ChangePassword" method="post">
+        @Html.AntiForgeryToken()
+        <div class="cg-form-group">
+            <label class="cg-label">Current Password</label>
+            <input class="cg-input" type="password" name="currentPassword" autocomplete="current-password" required />
+        </div>
+        <div class="cg-form-group">
+            <label class="cg-label">New Password</label>
+            <input class="cg-input" type="password" name="newPassword" autocomplete="new-password" required minlength="8" />
+            <p class="cg-help">At least 8 characters, one uppercase letter, one digit.</p>
+        </div>
+        <button class="cg-btn cg-btn--primary" type="submit">Update Password</button>
+    </form>
+</div>

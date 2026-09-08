@@ -1,0 +1,31 @@
+@model List<AttendanceRecordDto>
+@{ ViewData["Title"] = "Attendance"; }
+
+<div class="cg-card">
+    <form method="get" class="cg-toolbar">
+        <input class="cg-input" name="studentId" type="number" placeholder="Student ID" value="@ViewData["StudentId"]" style="max-width:140px;" />
+        <input class="cg-input" name="from" type="date" value="@ViewData["From"]" />
+        <input class="cg-input" name="to" type="date" value="@ViewData["To"]" />
+        <button class="cg-btn cg-btn--secondary" type="submit">Filter</button>
+    </form>
+    <div class="cg-table-wrap">
+        <table class="cg-table">
+            <thead><tr><th>Student</th><th>Event</th><th>Date</th><th>Time</th></tr></thead>
+            <tbody>
+            @if (!Model.Any())
+            {
+                <tr><td colspan="4" class="cg-muted">No attendance records.</td></tr>
+            }
+            @foreach (var a in Model)
+            {
+                <tr>
+                    <td>@a.StudentName</td>
+                    <td><span class="cg-badge cg-badge--neutral">@a.EventType</span></td>
+                    <td>@a.Date.ToString("d MMM yyyy")</td>
+                    <td>@a.Time.ToString("h:mm tt")</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>

@@ -1,0 +1,49 @@
+@model List<StudentListItemDto>
+@{ ViewData["Title"] = "Students"; }
+
+<div class="cg-toolbar">
+    <form method="get" class="cg-flex" style="flex:1;">
+        <input class="cg-input" name="search" value="@ViewData["Search"]" placeholder="Search by name..." style="max-width:280px;" />
+        <button class="cg-btn cg-btn--secondary" type="submit">Search</button>
+    </form>
+    <a class="cg-btn cg-btn--primary" href="/Students/Create">+ Add Student</a>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="cg-alert cg-alert--success">@TempData["Success"]</div>
+}
+
+<div class="cg-card">
+    <div class="cg-table-wrap">
+        <table class="cg-table">
+            <thead><tr><th>Name</th><th>Grade</th><th>RFID</th><th>Guardians</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+            @if (!Model.Any())
+            {
+                <tr><td colspan="6" class="cg-muted">No students found.</td></tr>
+            }
+            @foreach (var s in Model)
+            {
+                <tr>
+                    <td>@s.FullName</td>
+                    <td>@(s.Grade ?? "—")</td>
+                    <td>@(s.MaskedRfid ?? "Not assigned")</td>
+                    <td>@s.GuardianCount</td>
+                    <td>
+                        @if (s.Status == RecordStatus.Active)
+                        {
+                            <span class="cg-badge cg-badge--success">Active</span>
+                        }
+                        else
+                        {
+                            <span class="cg-badge cg-badge--neutral">Inactive</span>
+                        }
+                    </td>
+                    <td><a href="/Students/Details/@s.StudentId">View</a></td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>

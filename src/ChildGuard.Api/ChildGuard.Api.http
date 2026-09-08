@@ -1,0 +1,6 @@
+@ChildGuard.Api_HostAddress = http://localhost:5275
+
+GET {{ChildGuard.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

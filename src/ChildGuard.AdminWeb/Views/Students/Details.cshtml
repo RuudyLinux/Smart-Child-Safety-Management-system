@@ -1,0 +1,89 @@
+@model StudentDetailDto
+@{ ViewData["Title"] = "Student Details"; }
+
+@if (TempData["Success"] != null)
+{
+    <div class="cg-alert cg-alert--success">@TempData["Success"]</div>
+}
+@if (TempData["Error"] != null)
+{
+    <div class="cg-alert cg-alert--error">@TempData["Error"]</div>
+}
+
+<div class="cg-card">
+    <div class="cg-flex-between">
+        <h3 class="cg-card__title cg-mt-0">@Model.FullName</h3>
+        <div class="cg-flex">
+            <a class="cg-btn cg-btn--secondary" href="/Students/Edit/@Model.StudentId">Edit</a>
+            @if (Model.Status == RecordStatus.Active)
+            {
+                <form asp-action="UpdateStatus" asp-route-id="@Model.StudentId" method="post" style="display:inline;">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="status" value="Inactive" />
+                    <button class="cg-btn cg-btn--danger" type="submit">Deactivate</button>
+                </form>
+            }
+            else
+            {
+                <form asp-action="UpdateStatus" asp-route-id="@Model.StudentId" method="post" style="display:inline;">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="status" value="Active" />
+                    <button class="cg-btn cg-btn--success" type="submit">Activate</button>
+                </form>
+            }
+        </div>
+    </div>
+    <p><strong>Grade:</strong> @(Model.Grade ?? "—") &nbsp; <strong>DOB:</strong> @Model.DateOfBirth.ToString("d MMM yyyy") &nbsp;
+        <strong>RFID:</strong> @(Model.MaskedRfid ?? "Not assigned") &nbsp;
+        <strong>Status:</strong>
+        @if (Model.Status == RecordStatus.Active) { <span class="cg-badge cg-badge--success">Active</span> } else { <span class="cg-badge cg-badge--neutral">Inactive</span> }
+    </p>
+</div>
+
+<div class="cg-card">
+    <h3 class="cg-card__title">Guardians</h3>
+    <div class="cg-table-wrap">
+        <table class="cg-table">
+            <thead><tr><th>Name</th><th>Email</th><th>Relationship</th><th>Pickup Authorized</th></tr></thead>
+            <tbody>
+            @if (!Model.Guardians.Any())
+            {
+                <tr><td colspan="4" class="cg-muted">No guardians linked.</td></tr>
+            }
+            @foreach (var g in Model.Guardians)
+            {
+                <tr>
+                    <td>@g.FullName</td>
+                    <td>@g.Email</td>
+                    <td>@(g.Relationship ?? "—")</td>
+                    <td>
+                        @if (g.IsAuthorizedForPickup) { <span class="cg-badge cg-badge--success">Yes</span> } else { <span class="cg-badge cg-badge--neutral">No</span> }
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+
+    <h4 style="margin-top:20px;">Link a Guardian</h4>
+    @{ var availableGuardians = (List<GuardianListItemDto>)ViewBag.AvailableGuardians; }
+    @if (!availableGuardians.Any())
+    {
+        <p class="cg-help">All registered guardians are already linked to this student. <a href="/Guardians">View guardians</a>.</p>
+    }
+    else
+    {
+        <form asp-action="AssignGuardian" asp-route-id="@Model.StudentId" method="post" class="cg-flex">
+            @Html.AntiForgeryToken()
+            <select class="cg-select" name="guardianId" style="max-width:220px;" required>
+                @foreach (var g in availableGuardians)
+                {
+                    <option value="@g.GuardianId">@g.FullName (@g.Email)</option>
+                }
+            </select>
+            <input class="cg-input" name="relationship" placeholder="Relationship (e.g. Mother)" style="max-width:200px;" />
+            <label class="cg-flex" style="font-size:13px;"><input type="checkbox" name="isAuthorizedForPickup" value="true" /> Authorized for pickup</label>
+            <button class="cg-btn cg-btn--primary" type="submit">Link</button>
+        </form>
+    }
+</div>

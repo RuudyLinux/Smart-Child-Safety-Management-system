@@ -1,0 +1,31 @@
+@model LoginViewModel
+@{
+    ViewData["Title"] = "Login";
+    Layout = "_Layout";
+}
+<div class="cg-login-wrap">
+    <div class="cg-login-card">
+        <h1>ChildGuard Admin</h1>
+        <p>Sign in to manage students, RFID, guardians and operations.</p>
+
+        @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+        {
+            <div class="cg-alert cg-alert--error">@Model.ErrorMessage</div>
+        }
+
+        <form asp-action="Login" method="post">
+            @Html.AntiForgeryToken()
+            <div class="cg-form-group">
+                <label class="cg-label" asp-for="Email">Email</label>
+                <input class="cg-input" asp-for="Email" autocomplete="username" />
+                <span class="cg-error-text" asp-validation-for="Email"></span>
+            </div>
+            <div class="cg-form-group">
+                <label class="cg-label" asp-for="Password">Password</label>
+                <input class="cg-input" asp-for="Password" autocomplete="current-password" />
+                <span class="cg-error-text" asp-validation-for="Password"></span>
+            </div>
+            <button type="submit" class="cg-btn cg-btn--primary" style="width:100%;justify-content:center;">Sign In</button>
+        </form>
+    </div>
+</div>

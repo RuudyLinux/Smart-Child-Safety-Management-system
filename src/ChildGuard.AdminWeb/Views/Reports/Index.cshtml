@@ -1,0 +1,44 @@
+@{
+    ViewData["Title"] = "Reports";
+    var attendance = (List<AttendanceRecordDto>)ViewBag.Attendance;
+    var verification = (List<GuardianVerificationHistoryDto>)ViewBag.Verification;
+}
+
+<div class="cg-card">
+    <h3 class="cg-card__title">Attendance Report</h3>
+    <div class="cg-table-wrap">
+        <table class="cg-table">
+            <thead><tr><th>Student</th><th>Event</th><th>Date</th><th>Time</th></tr></thead>
+            <tbody>
+            @if (!attendance.Any()) { <tr><td colspan="4" class="cg-muted">No records.</td></tr> }
+            @foreach (var a in attendance.Take(30))
+            {
+                <tr><td>@a.StudentName</td><td>@a.EventType</td><td>@a.Date.ToString("d MMM yyyy")</td><td>@a.Time.ToString("h:mm tt")</td></tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="cg-card">
+    <h3 class="cg-card__title">Guardian Verification Report</h3>
+    <div class="cg-table-wrap">
+        <table class="cg-table">
+            <thead><tr><th>Student</th><th>Guardian</th><th>Time</th><th>Score</th><th>Result</th><th>Pickup</th></tr></thead>
+            <tbody>
+            @if (!verification.Any()) { <tr><td colspan="6" class="cg-muted">No records.</td></tr> }
+            @foreach (var v in verification.Take(30))
+            {
+                <tr>
+                    <td>@v.StudentName</td><td>@v.GuardianName</td><td>@v.AttemptedAt.ToLocalTime().ToString("g")</td>
+                    <td>@v.MatchScore.ToString("0.00")</td>
+                    <td>@(v.Result == VerificationResult.Match ? "Match" : "No Match")</td>
+                    <td>@(v.PickupApproved ? "Approved" : "—")</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<p class="cg-help">Attendance report supports <code>?from=&to=&studentId=</code> filters on the API — extend this page with the same filter controls used on the Attendance page as needed.</p>

@@ -1,0 +1,57 @@
+using ChildGuard.Application.Interfaces;
+using ChildGuard.Domain.Entities;
+using ChildGuard.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+
+namespace ChildGuard.Infrastructure.Repositories;
+
+public class StudentRepository : IStudentRepository
+{
+    private readonly ChildGuardDbContext _db;
+    public StudentRepository(ChildGuardDbContext db) => _db = db;
+
+    public async Task<List<Student>> GetAllAsync(string? search, CancellationToken ct = default)
+    {
+        var query = _db.Students
+            .Include(s => s.RfidCard)
+            .Include(s => s.StudentGuardians)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(search))
+            query = query.Where(s => s.FullName.Contains(search));
+
+        return await query.OrderBy(s => s.FullName).ToListAsync(ct);
+    }
+
+    public Task<Student?> GetByIdAsync(int id, CancellationToken ct = default) =>
+        _db.Students.Include(s => s.RfidCard).FirstOrDefaultAsync(s => s.StudentId == id, ct);
+
+    public Task<Student?> GetWithGuardiansAsync(int id, CancellationToken ct = default) =>
+        _db.Students
+            .Include(s => s.RfidCard)
+            .Include(s => s.StudentGuardians).ThenInclude(sg => sg.Guardian)
+            .FirstOrDefaultAsync(s => s.StudentId == id, ct);
+
+    public async Task AddAsync(Student student, CancellationToken ct = default) =>
+        await _db.Students.AddAsync(student, ct);
+
+    public Task<StudentGuardian?> GetStudentGuardianAsync(int studentId, int guardianId, CancellationToken ct = default) =>
+        _db.StudentGuardians.FirstOrDefaultAsync(sg => sg.StudentId == studentId && sg.GuardianId == guardianId, ct);
+
+    public async Task AddStudentGuardianAsync(StudentGuardian link, CancellationToken ct = default) =>
+        await _db.StudentGuardians.AddAsync(link, ct);
+
+    public Task<List<StudentGuardian>> GetAuthorizedGuardiansAsync(int studentId, CancellationToken ct = default) =>
+        _db.StudentGuardians
+            .Include(sg => sg.Guardian)
+            .Where(sg => sg.StudentId == studentId && sg.IsAuthorizedForPickup)
+            .ToListAsync(ct);
+
+    public Task<List<StudentGuardian>> GetLinkedGuardiansAsync(int studentId, CancellationToken ct = default) =>
+        _db.StudentGuardians
+            .Include(sg => sg.Guardian)
+            .Where(sg => sg.StudentId == studentId)
+            .ToListAsync(ct);
+
+    public Task SaveChangesAsync(CancellationToken ct = default) => _db.SaveChangesAsync(ct);
+}

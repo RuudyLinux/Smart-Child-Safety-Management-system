@@ -1,0 +1,23 @@
+@model List<JourneyEventDto>
+@{ ViewData["Title"] = "Student Journey Details"; }
+
+<div class="cg-card">
+    <h3 class="cg-card__title">Journey Timeline — @(Model.FirstOrDefault()?.StudentName ?? ("Student #" + ViewData["StudentId"]))</h3>
+    @if (!Model.Any())
+    {
+        <p class="cg-muted">No journey events recorded for this student.</p>
+    }
+    else
+    {
+        <div style="border-left:2px solid var(--cg-border);padding-left:16px;">
+        @foreach (var e in Model.OrderByDescending(x => x.Timestamp))
+        {
+            <div style="margin-bottom:16px;position:relative;">
+                <div style="position:absolute;left:-21px;top:4px;width:10px;height:10px;border-radius:50%;background:var(--cg-primary);"></div>
+                <strong>@e.EventType</strong> <span class="cg-muted">— @e.Timestamp.ToLocalTime().ToString("f")</span><br />
+                <span class="cg-badge cg-badge--neutral">@e.Source</span>
+            </div>
+        }
+        </div>
+    }
+</div>

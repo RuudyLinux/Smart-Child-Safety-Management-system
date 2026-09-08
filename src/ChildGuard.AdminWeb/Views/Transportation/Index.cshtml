@@ -1,0 +1,103 @@
+@model List<BusDto>
+@{
+    ViewData["Title"] = "Transportation";
+    var routes = (List<RouteDto>)ViewBag.Routes;
+    var drivers = (List<DriverDto>)ViewBag.Drivers;
+    var assignments = (List<StudentBusAssignmentDto>)ViewBag.Assignments;
+    var students = (List<StudentListItemDto>)ViewBag.Students;
+}
+
+@if (TempData["Success"] != null) { <div class="cg-alert cg-alert--success">@TempData["Success"]</div> }
+@if (TempData["Error"] != null) { <div class="cg-alert cg-alert--error">@TempData["Error"]</div> }
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+<div>
+    <div class="cg-card">
+        <h3 class="cg-card__title">Drivers</h3>
+        <table class="cg-table">
+            <thead><tr><th>Name</th><th>Phone</th><th>License</th></tr></thead>
+            <tbody>
+            @foreach (var d in drivers) { <tr><td>@d.FullName</td><td>@(d.Phone ?? "—")</td><td>@(d.LicenseNumber ?? "—")</td></tr> }
+            </tbody>
+        </table>
+        <form asp-action="AddDriver" method="post" class="cg-flex" style="margin-top:12px;">
+            @Html.AntiForgeryToken()
+            <input class="cg-input" name="fullName" placeholder="Full name" required />
+            <input class="cg-input" name="phone" placeholder="Phone" />
+            <button class="cg-btn cg-btn--primary" type="submit">Add</button>
+        </form>
+    </div>
+
+    <div class="cg-card">
+        <h3 class="cg-card__title">Routes</h3>
+        <table class="cg-table">
+            <thead><tr><th>Route</th><th>Description</th></tr></thead>
+            <tbody>
+            @foreach (var r in routes) { <tr><td>@r.RouteName</td><td>@(r.Description ?? "—")</td></tr> }
+            </tbody>
+        </table>
+        <form asp-action="AddRoute" method="post" class="cg-flex" style="margin-top:12px;">
+            @Html.AntiForgeryToken()
+            <input class="cg-input" name="routeName" placeholder="Route name" required />
+            <input class="cg-input" name="description" placeholder="Description" />
+            <button class="cg-btn cg-btn--primary" type="submit">Add</button>
+        </form>
+    </div>
+</div>
+
+<div>
+    <div class="cg-card">
+        <h3 class="cg-card__title">Buses</h3>
+        <table class="cg-table">
+            <thead><tr><th>Bus #</th><th>Capacity</th><th>Driver</th><th>Route</th></tr></thead>
+            <tbody>
+            @foreach (var b in Model) { <tr><td>@b.BusNumber</td><td>@b.Capacity</td><td>@(b.DriverName ?? "—")</td><td>@(b.RouteName ?? "—")</td></tr> }
+            </tbody>
+        </table>
+        <form asp-action="AddBus" method="post" class="cg-flex" style="margin-top:12px;flex-wrap:wrap;">
+            @Html.AntiForgeryToken()
+            <input class="cg-input" name="busNumber" placeholder="Bus number" style="max-width:120px;" required />
+            <input class="cg-input" name="capacity" type="number" placeholder="Capacity" style="max-width:100px;" required />
+            <select class="cg-select" name="driverId" style="max-width:150px;">
+                <option value="">No driver</option>
+                @foreach (var d in drivers) { <option value="@d.DriverId">@d.FullName</option> }
+            </select>
+            <select class="cg-select" name="routeId" style="max-width:150px;">
+                <option value="">No route</option>
+                @foreach (var r in routes) { <option value="@r.RouteId">@r.RouteName</option> }
+            </select>
+            <button class="cg-btn cg-btn--primary" type="submit">Add Bus</button>
+        </form>
+    </div>
+
+    <div class="cg-card">
+        <h3 class="cg-card__title">Student Bus Assignments</h3>
+        <table class="cg-table">
+            <thead><tr><th>Student</th><th>Bus</th><th>Route</th></tr></thead>
+            <tbody>
+            @if (!assignments.Any())
+            {
+                <tr><td colspan="3" class="cg-muted">No assignments yet.</td></tr>
+            }
+            @foreach (var a in assignments) { <tr><td>@a.StudentName</td><td>@a.BusNumber</td><td>@(a.RouteName ?? "—")</td></tr> }
+            </tbody>
+        </table>
+        <form asp-action="AddAssignment" method="post" class="cg-flex" style="margin-top:12px;">
+            @Html.AntiForgeryToken()
+            <select class="cg-select" name="studentId" style="max-width:180px;" required>
+                @foreach (var s in students)
+                {
+                    <option value="@s.StudentId">@s.FullName</option>
+                }
+            </select>
+            <select class="cg-select" name="busId" style="max-width:140px;" required>
+                @foreach (var b in Model)
+                {
+                    <option value="@b.BusId">@b.BusNumber</option>
+                }
+            </select>
+            <button class="cg-btn cg-btn--primary" type="submit">Assign</button>
+        </form>
+    </div>
+</div>
+</div>

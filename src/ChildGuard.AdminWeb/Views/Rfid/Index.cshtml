@@ -1,0 +1,68 @@
+@model List<RfidCardListItemDto>
+@{ ViewData["Title"] = "RFID Cards"; }
+
+@if (TempData["Success"] != null) { <div class="cg-alert cg-alert--success">@TempData["Success"]</div> }
+@if (TempData["Error"] != null) { <div class="cg-alert cg-alert--error">@TempData["Error"]</div> }
+
+@{ var unassignedStudents = (List<StudentListItemDto>)ViewBag.UnassignedStudents; }
+<div class="cg-card">
+    <h3 class="cg-card__title">Assign New Card</h3>
+    @if (!unassignedStudents.Any())
+    {
+        <p class="cg-help">Every active student already has an RFID card assigned. <a href="/Students">View students</a>.</p>
+    }
+    else
+    {
+        <form asp-action="Assign" method="post" class="cg-flex">
+            @Html.AntiForgeryToken()
+            <input class="cg-input" name="cardUid" placeholder="Card UID (from scanner)" style="max-width:220px;" required />
+            <select class="cg-select" name="studentId" style="max-width:200px;" required>
+                @foreach (var s in unassignedStudents)
+                {
+                    <option value="@s.StudentId">@s.FullName</option>
+                }
+            </select>
+            <button class="cg-btn cg-btn--primary" type="submit">Assign</button>
+        </form>
+    }
+</div>
+
+<div class="cg-card">
+    <h3 class="cg-card__title">All Cards</h3>
+    <div class="cg-table-wrap">
+        <table class="cg-table">
+            <thead><tr><th>Card UID</th><th>Student</th><th>Status</th><th>Assigned</th><th></th></tr></thead>
+            <tbody>
+            @if (!Model.Any())
+            {
+                <tr><td colspan="5" class="cg-muted">No RFID cards registered.</td></tr>
+            }
+            @foreach (var c in Model)
+            {
+                <tr>
+                    <td>@c.MaskedCardUid</td>
+                    <td>@(c.StudentName ?? "—")</td>
+                    <td>
+                        @{
+                            var badge = c.Status switch { RfidCardStatus.Active => "success", RfidCardStatus.Lost => "error", _ => "neutral" };
+                        }
+                        <span class="cg-badge cg-badge--@badge">@c.Status</span>
+                    </td>
+                    <td>@(c.AssignedAt?.ToLocalTime().ToString("d MMM yyyy") ?? "—")</td>
+                    <td>
+                        <form asp-action="UpdateStatus" asp-route-id="@c.RfidCardId" method="post" class="cg-flex">
+                            @Html.AntiForgeryToken()
+                            <select class="cg-select" name="status" style="max-width:130px;">
+                                <option value="Active" selected="@(c.Status == RfidCardStatus.Active)">Active</option>
+                                <option value="Inactive" selected="@(c.Status == RfidCardStatus.Inactive)">Inactive</option>
+                                <option value="Lost" selected="@(c.Status == RfidCardStatus.Lost)">Lost</option>
+                            </select>
+                            <button class="cg-btn cg-btn--secondary" type="submit">Update</button>
+                        </form>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>

@@ -1,0 +1,30 @@
+@model List<GuardianListItemDto>
+@{ ViewData["Title"] = "Guardians"; }
+
+<div class="cg-card">
+    <div class="cg-table-wrap">
+        <table class="cg-table">
+            <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Phone</th><th>Linked Students</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+            @if (!Model.Any())
+            {
+                <tr><td colspan="7" class="cg-muted">No guardians registered.</td></tr>
+            }
+            @foreach (var g in Model)
+            {
+                <tr>
+                    <td>@g.GuardianId</td>
+                    <td>@g.FullName</td>
+                    <td>@g.Email</td>
+                    <td>@(g.Phone ?? "—")</td>
+                    <td>@g.LinkedStudentCount</td>
+                    <td>
+                        @if (g.Status == RecordStatus.Active) { <span class="cg-badge cg-badge--success">Active</span> } else { <span class="cg-badge cg-badge--neutral">Inactive</span> }
+                    </td>
+                    <td><a href="/Guardians/Details/@g.GuardianId">View</a></td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>

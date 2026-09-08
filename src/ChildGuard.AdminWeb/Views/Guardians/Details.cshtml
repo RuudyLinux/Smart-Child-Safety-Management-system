@@ -1,0 +1,52 @@
+@model GuardianDetailDto
+@{ ViewData["Title"] = "Guardian Details"; }
+
+<div class="cg-card">
+    <div class="cg-flex-between">
+        <h3 class="cg-card__title cg-mt-0">@Model.FullName</h3>
+        @if (Model.Status == RecordStatus.Active)
+        {
+            <form asp-action="UpdateStatus" asp-route-id="@Model.GuardianId" method="post">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="status" value="Inactive" />
+                <button class="cg-btn cg-btn--danger" type="submit">Deactivate</button>
+            </form>
+        }
+        else
+        {
+            <form asp-action="UpdateStatus" asp-route-id="@Model.GuardianId" method="post">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="status" value="Active" />
+                <button class="cg-btn cg-btn--success" type="submit">Activate</button>
+            </form>
+        }
+    </div>
+    <p><strong>Email:</strong> @Model.Email &nbsp; <strong>Phone:</strong> @(Model.Phone ?? "—") &nbsp;
+        <strong>Face Registered:</strong>
+        @if (Model.FaceRegistered) { <span class="cg-badge cg-badge--success">Yes</span> } else { <span class="cg-badge cg-badge--neutral">No</span> }
+    </p>
+</div>
+
+<div class="cg-card">
+    <h3 class="cg-card__title">Linked Students</h3>
+    <div class="cg-table-wrap">
+        <table class="cg-table">
+            <thead><tr><th>Name</th><th>Grade</th><th>Relationship</th><th>Pickup Authorized</th></tr></thead>
+            <tbody>
+            @if (!Model.Students.Any())
+            {
+                <tr><td colspan="4" class="cg-muted">No students linked.</td></tr>
+            }
+            @foreach (var s in Model.Students)
+            {
+                <tr>
+                    <td><a href="/Students/Details/@s.StudentId">@s.FullName</a></td>
+                    <td>@(s.Grade ?? "—")</td>
+                    <td>@(s.Relationship ?? "—")</td>
+                    <td>@(s.IsAuthorizedForPickup ? "Yes" : "No")</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>

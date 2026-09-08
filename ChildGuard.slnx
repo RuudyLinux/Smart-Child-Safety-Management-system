@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ChildGuard.AdminWeb/ChildGuard.AdminWeb.csproj" />
+    <Project Path="src/ChildGuard.Api/ChildGuard.Api.csproj" />
+    <Project Path="src/ChildGuard.Application/ChildGuard.Application.csproj" />
+    <Project Path="src/ChildGuard.Domain/ChildGuard.Domain.csproj" />
+    <Project Path="src/ChildGuard.Infrastructure/ChildGuard.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ChildGuard.Application.Tests/ChildGuard.Application.Tests.csproj" />
+  </Folder>
+</Solution>
