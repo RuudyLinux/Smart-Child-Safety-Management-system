@@ -31,9 +31,9 @@ public static class DemoDataSeeder
         var hasher = scope.ServiceProvider.GetRequiredService<Application.Interfaces.IPasswordHasherService>();
 
         // --- Guardians ---
-        var priya = new Guardian { FullName = "Priya Patel", Email = "priya.patel@demo.childguard.local", Phone = "9820011111", PasswordHash = hasher.Hash("Guardian@123") };
-        var amit = new Guardian { FullName = "Amit Shah", Email = "amit.shah@demo.childguard.local", Phone = "9820022222", PasswordHash = hasher.Hash("Guardian@123") };
-        var sunita = new Guardian { FullName = "Sunita Verma", Email = "sunita.verma@demo.childguard.local", Phone = "9820033333", PasswordHash = hasher.Hash("Guardian@123") };
+        var priya = new Guardian { FullName = "Priya Patel", Email = "priya.patel@demo.childguard.local", Phone = "9820011111", PasswordHash = hasher.Hash("Guardian@123"), PasswordResetRequired = true };
+        var amit = new Guardian { FullName = "Amit Shah", Email = "amit.shah@demo.childguard.local", Phone = "9820022222", PasswordHash = hasher.Hash("Guardian@123"), PasswordResetRequired = true };
+        var sunita = new Guardian { FullName = "Sunita Verma", Email = "sunita.verma@demo.childguard.local", Phone = "9820033333", PasswordHash = hasher.Hash("Guardian@123"), PasswordResetRequired = true };
         db.Guardians.AddRange(priya, amit, sunita);
 
         // --- Drivers / Routes / Buses ---

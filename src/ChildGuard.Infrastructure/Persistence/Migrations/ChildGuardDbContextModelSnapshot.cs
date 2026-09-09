@@ -205,6 +205,9 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("longtext");
 
+                    b.Property<bool>("PasswordResetRequired")
+                        .HasColumnType("tinyint(1)");
+
                     b.Property<string>("PasswordResetToken")
                         .HasColumnType("longtext");
 
@@ -224,6 +227,9 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                     b.HasKey("GuardianId");
 
                     b.HasIndex("Email")
+                        .IsUnique();
+
+                    b.HasIndex("Phone")
                         .IsUnique();
 
                     b.ToTable("Guardians");
@@ -261,6 +267,56 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("GuardianFaceData");
+                });
+
+            modelBuilder.Entity("ChildGuard.Domain.Entities.GuardianOtpChallenge", b =>
+                {
+                    b.Property<int>("GuardianOtpChallengeId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("GuardianOtpChallengeId"));
+
+                    b.Property<Guid>("ChallengeToken")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("CodeHash")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("FailedAttempts")
+                        .HasColumnType("int");
+
+                    b.Property<int>("GuardianId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsConsumed")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<DateTime>("LastSentAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("ResendCount")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("VerifiedAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("GuardianOtpChallengeId");
+
+                    b.HasIndex("ChallengeToken")
+                        .IsUnique();
+
+                    b.HasIndex("GuardianId", "IsConsumed");
+
+                    b.ToTable("GuardianOtpChallenges");
                 });
 
             modelBuilder.Entity("ChildGuard.Domain.Entities.GuardianVerification", b =>
@@ -638,6 +694,17 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                     b.Navigation("Guardian");
                 });
 
+            modelBuilder.Entity("ChildGuard.Domain.Entities.GuardianOtpChallenge", b =>
+                {
+                    b.HasOne("ChildGuard.Domain.Entities.Guardian", "Guardian")
+                        .WithMany("OtpChallenges")
+                        .HasForeignKey("GuardianId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Guardian");
+                });
+
             modelBuilder.Entity("ChildGuard.Domain.Entities.GuardianVerification", b =>
                 {
                     b.HasOne("ChildGuard.Domain.Entities.Admin", "ApprovedByAdmin")
@@ -777,6 +844,8 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                     b.Navigation("FaceData");
 
                     b.Navigation("Notifications");
+
+                    b.Navigation("OtpChallenges");
 
                     b.Navigation("StudentGuardians");
                 });

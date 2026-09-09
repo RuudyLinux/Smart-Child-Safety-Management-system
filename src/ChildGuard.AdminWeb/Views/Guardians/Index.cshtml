@@ -1,7 +1,14 @@
 @model List<GuardianListItemDto>
 @{ ViewData["Title"] = "Guardians"; }
 
+@if (TempData["Success"] != null) { <div class="cg-alert cg-alert--success">@TempData["Success"]</div> }
+@if (TempData["Error"] != null) { <div class="cg-alert cg-alert--error">@TempData["Error"]</div> }
+
 <div class="cg-card">
+    <div class="cg-flex-between">
+        <h3 class="cg-card__title cg-mt-0">All Guardians</h3>
+        <a class="cg-btn cg-btn--primary" href="/Guardians/Create">Add Guardian</a>
+    </div>
     <div class="cg-table-wrap">
         <table class="cg-table">
             <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Phone</th><th>Linked Students</th><th>Status</th><th></th></tr></thead>
@@ -21,7 +28,7 @@
                     <td>
                         @if (g.Status == RecordStatus.Active) { <span class="cg-badge cg-badge--success">Active</span> } else { <span class="cg-badge cg-badge--neutral">Inactive</span> }
                     </td>
-                    <td><a href="/Guardians/Details/@g.GuardianId">View</a></td>
+                    <td><a href="/Guardians/Details/@g.GuardianId">View</a> &nbsp; <a href="/Guardians/Edit/@g.GuardianId">Edit</a></td>
                 </tr>
             }
             </tbody>

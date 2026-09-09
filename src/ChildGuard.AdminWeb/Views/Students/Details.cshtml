@@ -44,20 +44,35 @@
     <h3 class="cg-card__title">Guardians</h3>
     <div class="cg-table-wrap">
         <table class="cg-table">
-            <thead><tr><th>Name</th><th>Email</th><th>Relationship</th><th>Pickup Authorized</th></tr></thead>
+            <thead><tr><th>Name</th><th>Email</th><th>Relationship</th><th>Pickup Authorized</th><th></th></tr></thead>
             <tbody>
             @if (!Model.Guardians.Any())
             {
-                <tr><td colspan="4" class="cg-muted">No guardians linked.</td></tr>
+                <tr><td colspan="5" class="cg-muted">No guardians linked.</td></tr>
             }
             @foreach (var g in Model.Guardians)
             {
                 <tr>
-                    <td>@g.FullName</td>
+                    <td><a href="/Guardians/Details/@g.GuardianId">@g.FullName</a></td>
                     <td>@g.Email</td>
-                    <td>@(g.Relationship ?? "—")</td>
+                    <td colspan="2">
+                        <form asp-action="UpdateGuardianLink" asp-route-id="@Model.StudentId" method="post" class="cg-flex">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="guardianId" value="@g.GuardianId" />
+                            <input class="cg-input" name="relationship" value="@g.Relationship" placeholder="Relationship" style="max-width:180px;" maxlength="50" />
+                            <label class="cg-flex" style="font-size:13px;">
+                                <input type="checkbox" name="isAuthorizedForPickup" value="true" checked="@g.IsAuthorizedForPickup" /> Authorized for pickup
+                            </label>
+                            <button class="cg-btn cg-btn--secondary" type="submit">Save</button>
+                        </form>
+                    </td>
                     <td>
-                        @if (g.IsAuthorizedForPickup) { <span class="cg-badge cg-badge--success">Yes</span> } else { <span class="cg-badge cg-badge--neutral">No</span> }
+                        <form asp-action="RemoveGuardianLink" asp-route-id="@Model.StudentId" method="post"
+                              onsubmit="return confirm('Unlink @g.FullName from @Model.FullName? The guardian account itself is not deleted.');">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="guardianId" value="@g.GuardianId" />
+                            <button class="cg-btn cg-btn--danger" type="submit">Unlink</button>
+                        </form>
                     </td>
                 </tr>
             }

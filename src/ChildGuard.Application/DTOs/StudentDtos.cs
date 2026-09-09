@@ -19,3 +19,6 @@ public record UpdateStudentRequest(string FullName, DateTime DateOfBirth, string
 public record UpdateStudentStatusRequest(RecordStatus Status);
 
 public record AssignGuardianRequest(int GuardianId, string? Relationship, bool IsAuthorizedForPickup);
+
+/// <summary>Edit of an existing student-guardian link. The pair itself is identified by the route.</summary>
+public record UpdateStudentGuardianRequest(string? Relationship, bool IsAuthorizedForPickup);

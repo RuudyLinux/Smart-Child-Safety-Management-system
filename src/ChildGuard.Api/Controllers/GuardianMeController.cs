@@ -1,5 +1,6 @@
 using ChildGuard.Application.DTOs;
 using ChildGuard.Application.Interfaces;
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -16,19 +17,28 @@ public class GuardianMeController : ControllerBase
     private readonly IAttendanceJourneyService _attendanceJourney;
     private readonly INotificationService _notificationService;
     private readonly IVerificationService _verificationService;
+    private readonly IValidator<UpdateProfileRequest> _profileValidator;
+    private readonly IValidator<RegisterDeviceTokenRequest> _deviceTokenValidator;
+    private readonly IValidator<RegisterFaceRequest> _registerFaceValidator;
 
     public GuardianMeController(
         IGuardianService guardianService,
         IAuthService authService,
         IAttendanceJourneyService attendanceJourney,
         INotificationService notificationService,
-        IVerificationService verificationService)
+        IVerificationService verificationService,
+        IValidator<UpdateProfileRequest> profileValidator,
+        IValidator<RegisterDeviceTokenRequest> deviceTokenValidator,
+        IValidator<RegisterFaceRequest> registerFaceValidator)
     {
         _guardianService = guardianService;
         _authService = authService;
         _attendanceJourney = attendanceJourney;
         _notificationService = notificationService;
         _verificationService = verificationService;
+        _profileValidator = profileValidator;
+        _deviceTokenValidator = deviceTokenValidator;
+        _registerFaceValidator = registerFaceValidator;
     }
 
     [HttpGet("profile")]
@@ -41,6 +51,7 @@ public class GuardianMeController : ControllerBase
     [HttpPut("profile")]
     public async Task<IActionResult> UpdateProfile(UpdateProfileRequest request, CancellationToken ct)
     {
+        await _profileValidator.ValidateAndThrowAsync(request, ct);
         var result = await _guardianService.UpdateProfileAsync(this.GetUserId(), request, ct);
         return result.Succeeded ? Ok(new { message = "Profile updated." }) : BadRequest(new { message = result.Error });
     }
@@ -73,6 +84,7 @@ public class GuardianMeController : ControllerBase
     [HttpPost("device-token")]
     public async Task<IActionResult> RegisterDeviceToken([FromBody] RegisterDeviceTokenRequest request, CancellationToken ct)
     {
+        await _deviceTokenValidator.ValidateAndThrowAsync(request, ct);
         var result = await _guardianService.RegisterDeviceTokenAsync(this.GetUserId(), request.FcmToken, ct);
         return result.Succeeded ? Ok(new { message = "Device registered." }) : BadRequest(new { message = result.Error });
     }
@@ -80,6 +92,7 @@ public class GuardianMeController : ControllerBase
     [HttpPost("face-registration")]
     public async Task<IActionResult> RegisterFace(RegisterFaceRequest request, CancellationToken ct)
     {
+        await _registerFaceValidator.ValidateAndThrowAsync(request, ct);
         var result = await _verificationService.RegisterFaceAsync(this.GetUserId(), request, ct);
         return result.Succeeded ? Ok(new { message = "Face registered." }) : BadRequest(new { message = result.Error });
     }

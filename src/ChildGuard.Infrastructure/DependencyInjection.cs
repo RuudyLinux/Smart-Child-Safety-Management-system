@@ -1,3 +1,4 @@
+using ChildGuard.Application.Common;
 using ChildGuard.Application.Interfaces;
 using ChildGuard.Application.Services;
 using ChildGuard.Infrastructure.FaceService;
@@ -28,6 +29,9 @@ public static class DependencyInjection
         services.AddScoped<IPasswordHasherService, PasswordHasherService>();
         services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
         services.AddScoped<IPasswordResetNotifier, LoggingPasswordResetNotifier>();
+        RegisterEmailSender(services, config);
+        services.AddSingleton(config.GetSection("Otp").Get<OtpOptions>() ?? new OtpOptions());
+        services.AddSingleton(TimeProvider.System);
         services.AddScoped<IAuthService, AuthService>();
 
         services.AddScoped<IStudentRepository, StudentRepository>();
@@ -51,13 +55,49 @@ public static class DependencyInjection
         services.AddScoped<IDashboardService, DashboardService>();
 
         var faceServiceBaseUrl = config["FaceService:BaseUrl"] ?? "http://localhost:8001";
+        var faceServiceApiKey = config["FaceService:ApiKey"];
         services.AddHttpClient<IFaceServiceClient, FaceServiceHttpClient>(client =>
         {
             client.BaseAddress = new Uri(faceServiceBaseUrl);
             client.Timeout = TimeSpan.FromSeconds(30);
+            // Internal shared secret — face-service rejects calls without it once
+            // FACE_SERVICE_KEY is set on that side. Empty by default in dev.
+            if (!string.IsNullOrWhiteSpace(faceServiceApiKey))
+                client.DefaultRequestHeaders.Add("X-Internal-Key", faceServiceApiKey);
         });
 
         return services;
+    }
+
+    /// <summary>
+    /// Sends real email through Resend only when an API key is configured
+    /// (Email:Resend:ApiKey, via user-secrets/env — never hardcoded). Without one,
+    /// falls back to the logging sender so the app runs fully in dev.
+    /// The login OTP rides the same channel: there is no SMS gateway in the
+    /// approved stack, so it goes to the Guardian's registered email address, and
+    /// only drops to a log line when no provider is configured at all.
+    /// </summary>
+    private static void RegisterEmailSender(IServiceCollection services, IConfiguration config)
+    {
+        var emailOptions = config.GetSection("Email").Get<EmailOptions>() ?? new EmailOptions();
+        services.AddSingleton(emailOptions);
+
+        var apiKey = config["Email:Resend:ApiKey"];
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
+            services.AddScoped<IEmailSender, LoggingEmailSender>();
+            services.AddScoped<IOtpSender, LoggingOtpSender>();
+            return;
+        }
+
+        services.AddHttpClient<IEmailSender, ResendEmailSender>(client =>
+        {
+            client.BaseAddress = new Uri("https://api.resend.com");
+            client.Timeout = TimeSpan.FromSeconds(15);
+            client.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
+        });
+        services.AddScoped<IOtpSender, EmailOtpSender>();
     }
 
     /// <summary>

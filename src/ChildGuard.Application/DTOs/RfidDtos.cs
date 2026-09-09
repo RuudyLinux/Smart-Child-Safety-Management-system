@@ -6,6 +6,10 @@ public record RfidCardListItemDto(
     int RfidCardId, string MaskedCardUid, RfidCardStatus Status,
     int? StudentId, string? StudentName, DateTime? AssignedAt);
 
+public record RfidCardDetailDto(
+    int RfidCardId, string MaskedCardUid, RfidCardStatus Status,
+    int? StudentId, string? StudentName, string? StudentGrade, DateTime? AssignedAt, DateTime CreatedAt);
+
 public record AssignRfidRequest(string CardUid, int StudentId);
 
 public record UpdateRfidStatusRequest(RfidCardStatus Status);

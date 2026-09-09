@@ -1,0 +1,25 @@
+@model string
+@{
+    // Small hand-authored icon set (no external font/CDN dependency) — one line per
+    // concept used in the sidebar nav and dashboard KPI cards. Each is a 20x20
+    // stroke-based SVG that inherits `currentColor`, so it re-colors automatically
+    // wherever it's placed (nav link, active nav link, KPI card).
+    var paths = Model switch
+    {
+        "dashboard" => "M3 13h8V3H3v10Zm10 8h8V11h-8v10ZM3 21h8v-6H3v6Zm10-14h8V3h-8v4Z",
+        "students" => "M12 3 2 8l10 5 8-4.2V16h2V8L12 3ZM6 12.7V16c0 2 2.7 4 6 4s6-2 6-4v-3.3l-6 3.1-6-3.1Z",
+        "rfid" => "M3 6h18v12H3V6Zm3 3v6m4-6v6m4-6v3",
+        "guardians" => "M8 12a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm8 0a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM2 20c0-3 2.7-5 6-5s6 2 6 5H2Zm10 0c.4-2.4 2.6-4 6-4s5.6 1.6 6 4H12Z",
+        "transportation" => "M4 16V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9H4Zm0 0v2m16-2v2M7 19a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm10 0a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3ZM4 11h16",
+        "attendance" => "M5 3h14a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Zm3 8 2.5 2.5L16 8",
+        "journey" => "M4 12h4l2-6 4 12 2-6h4",
+        "verification" => "M12 2 4 5v6c0 5 3.4 8.7 8 11 4.6-2.3 8-6 8-11V5l-8-3Zm-1.5 11.5L8 11l1.4-1.4 1.1 1.1 4.1-4.1L16 8Z",
+        "reports" => "M4 20V10m6 10V4m6 16v-7",
+        "profile" => "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8c0-3.3 3.1-6 7-6s7 2.7 7 6H5Z",
+        "settings" => "M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM4 12h1.3M18.7 12H20M6.3 6.3l.9.9M16.8 16.8l.9.9M6.3 17.7l.9-.9M16.8 7.2l.9-.9M12 4v1.3M12 18.7V20",
+        "logout" => "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4m5 14 5-5-5-5m5 5H9",
+        "buses" => "M4 16V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10H4Zm0 0v2m16-2v2M4 12h16M8 19a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm8 0a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z",
+        _ => "M12 2v20m10-10H2"
+    };
+}
+<svg class="cg-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="@paths" /></svg>

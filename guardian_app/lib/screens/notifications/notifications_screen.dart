@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../providers/auth_provider.dart';
+import '../../widgets/cg_empty_state.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -44,7 +45,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           : RefreshIndicator(
               onRefresh: _load,
               child: _notifications!.isEmpty
-                  ? ListView(children: const [Padding(padding: EdgeInsets.all(24), child: Center(child: Text('No notifications yet.', style: TextStyle(color: CgColors.textMuted))))])
+                  ? ListView(children: const [CgEmptyState('No notifications yet.')])
                   : ListView.builder(
                       padding: const EdgeInsets.all(16),
                       itemCount: _notifications!.length,

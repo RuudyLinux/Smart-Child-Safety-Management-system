@@ -20,6 +20,24 @@ public class RfidController : BaseAdminController
         return View(result.Value ?? new());
     }
 
+    public async Task<IActionResult> Details(int id, CancellationToken ct)
+    {
+        var card = await Api.GetAsync<RfidCardDetailDto>($"/api/rfid/cards/{id}", ct);
+        if (!card.Succeeded) return NotFound();
+        ViewData["Title"] = "RFID Card Details";
+
+        if (card.Value!.StudentId is not null)
+        {
+            var journey = await Api.GetAsync<List<JourneyEventDto>>($"/api/journey/{card.Value.StudentId}", ct);
+            ViewBag.RecentJourney = (journey.Value ?? new()).Take(10).ToList();
+        }
+        else
+        {
+            ViewBag.RecentJourney = new List<JourneyEventDto>();
+        }
+        return View(card.Value);
+    }
+
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Assign(string cardUid, int studentId, CancellationToken ct)

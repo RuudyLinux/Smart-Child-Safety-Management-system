@@ -29,6 +29,16 @@ public class DashboardService : IDashboardService
         var todaysJourney = await _db.JourneyEvents.CountAsync(e => e.Timestamp >= todayStart && e.Timestamp < todayEnd, ct);
         var todaysVerifications = await _db.GuardianVerifications.CountAsync(v => v.AttemptedAt >= todayStart && v.AttemptedAt < todayEnd, ct);
 
+        var todaysVerificationRows = await _db.GuardianVerifications
+            .Where(v => v.AttemptedAt >= todayStart && v.AttemptedAt < todayEnd)
+            .Select(v => new { v.Result, v.PickupApproved, v.ApprovedByAdminId })
+            .ToListAsync(ct);
+        var verificationStatus = new VerificationStatusDto(
+            Matched: todaysVerificationRows.Count(v => v.Result == VerificationResult.Match),
+            NoMatch: todaysVerificationRows.Count(v => v.Result == VerificationResult.NoMatch),
+            PickupsApproved: todaysVerificationRows.Count(v => v.PickupApproved),
+            PickupsRejected: todaysVerificationRows.Count(v => !v.PickupApproved && v.ApprovedByAdminId != null));
+
         var recent = await _db.JourneyEvents
             .Include(e => e.Student)
             .OrderByDescending(e => e.Timestamp)
@@ -38,6 +48,6 @@ public class DashboardService : IDashboardService
 
         return new DashboardSummaryDto(
             totalStudents, activeRfid, totalGuardians, activeBuses,
-            todaysAttendance, todaysJourney, todaysVerifications, recent);
+            todaysAttendance, todaysJourney, todaysVerifications, verificationStatus, recent);
     }
 }

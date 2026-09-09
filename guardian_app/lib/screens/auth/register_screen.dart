@@ -52,7 +52,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             const SizedBox(height: 14),
             TextField(controller: _emailCtrl, decoration: const InputDecoration(labelText: 'Email'), keyboardType: TextInputType.emailAddress),
             const SizedBox(height: 14),
-            TextField(controller: _phoneCtrl, decoration: const InputDecoration(labelText: 'Phone'), keyboardType: TextInputType.phone),
+            TextField(controller: _phoneCtrl, decoration: const InputDecoration(labelText: 'Contact Number', helperText: 'You will sign in with this number'), keyboardType: TextInputType.phone),
             const SizedBox(height: 14),
             TextField(controller: _passwordCtrl, decoration: const InputDecoration(labelText: 'Password', helperText: 'At least 8 characters, one uppercase, one digit'), obscureText: true),
             const SizedBox(height: 20),

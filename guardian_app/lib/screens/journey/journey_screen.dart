@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../providers/auth_provider.dart';
+import '../../widgets/cg_empty_state.dart';
+import '../../widgets/cg_student_picker.dart';
 
 class JourneyScreen extends StatefulWidget {
   const JourneyScreen({super.key});
@@ -44,26 +46,22 @@ class _JourneyScreenState extends State<JourneyScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Journey')),
       body: students.isEmpty
-          ? const Center(child: Text('No students linked.', style: TextStyle(color: CgColors.textMuted)))
+          ? const CgEmptyState('No students linked.')
           : Column(
               children: [
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: DropdownButtonFormField<int>(
-                    initialValue: _selectedStudentId,
-                    decoration: const InputDecoration(labelText: 'Student'),
-                    items: students.map((s) => DropdownMenuItem(value: s.studentId, child: Text(s.fullName))).toList(),
-                    onChanged: (v) {
-                      setState(() { _selectedStudentId = v; _events = null; });
-                      if (v != null) _load(v);
-                    },
-                  ),
+                CgStudentPicker(
+                  students: students,
+                  value: _selectedStudentId,
+                  onChanged: (v) {
+                    setState(() { _selectedStudentId = v; _events = null; });
+                    if (v != null) _load(v);
+                  },
                 ),
                 Expanded(
                   child: _events == null
                       ? const Center(child: CircularProgressIndicator())
                       : _events!.isEmpty
-                          ? const Center(child: Text('No journey events yet.', style: TextStyle(color: CgColors.textMuted)))
+                          ? const CgEmptyState('No journey events yet.')
                           : ListView.separated(
                               padding: const EdgeInsets.all(16),
                               itemCount: _events!.length,

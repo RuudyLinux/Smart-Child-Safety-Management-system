@@ -9,6 +9,7 @@ public class ChildGuardDbContext : DbContext
 
     public DbSet<Admin> Admins => Set<Admin>();
     public DbSet<Guardian> Guardians => Set<Guardian>();
+    public DbSet<GuardianOtpChallenge> GuardianOtpChallenges => Set<GuardianOtpChallenge>();
     public DbSet<Student> Students => Set<Student>();
     public DbSet<StudentGuardian> StudentGuardians => Set<StudentGuardian>();
     public DbSet<RfidCard> RfidCards => Set<RfidCard>();

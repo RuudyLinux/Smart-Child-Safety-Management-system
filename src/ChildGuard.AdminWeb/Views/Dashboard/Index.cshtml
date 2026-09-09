@@ -7,14 +7,31 @@
 }
 else
 {
+    <p class="cg-muted" style="margin:0 0 18px;">@DateTime.Now.ToString("dddd, d MMMM yyyy")</p>
+
+    <h4 class="cg-section-title">Organization</h4>
     <div class="cg-summary-grid">
-        <div class="cg-summary-card"><div class="cg-summary-card__label">Total Students</div><div class="cg-summary-card__value">@Model.TotalStudents</div></div>
-        <div class="cg-summary-card"><div class="cg-summary-card__label">Active RFID Cards</div><div class="cg-summary-card__value">@Model.ActiveRfidCards</div></div>
-        <div class="cg-summary-card"><div class="cg-summary-card__label">Total Guardians</div><div class="cg-summary-card__value">@Model.TotalGuardians</div></div>
-        <div class="cg-summary-card"><div class="cg-summary-card__label">Active Buses</div><div class="cg-summary-card__value">@Model.ActiveBuses</div></div>
-        <div class="cg-summary-card"><div class="cg-summary-card__label">Today's Attendance</div><div class="cg-summary-card__value">@Model.TodaysAttendanceCount</div></div>
-        <div class="cg-summary-card"><div class="cg-summary-card__label">Today's Journey Events</div><div class="cg-summary-card__value">@Model.TodaysJourneyEventCount</div></div>
-        <div class="cg-summary-card"><div class="cg-summary-card__label">Today's Verifications</div><div class="cg-summary-card__value">@Model.TodaysVerificationCount</div></div>
+        <div class="cg-summary-card"><div class="cg-summary-card__icon">@await Html.PartialAsync("_Icon", "students")</div><div class="cg-summary-card__label">Total Students</div><div class="cg-summary-card__value">@Model.TotalStudents</div></div>
+        <div class="cg-summary-card"><div class="cg-summary-card__icon">@await Html.PartialAsync("_Icon", "rfid")</div><div class="cg-summary-card__label">Active RFID Cards</div><div class="cg-summary-card__value">@Model.ActiveRfidCards</div></div>
+        <div class="cg-summary-card"><div class="cg-summary-card__icon">@await Html.PartialAsync("_Icon", "guardians")</div><div class="cg-summary-card__label">Total Guardians</div><div class="cg-summary-card__value">@Model.TotalGuardians</div></div>
+        <div class="cg-summary-card"><div class="cg-summary-card__icon">@await Html.PartialAsync("_Icon", "buses")</div><div class="cg-summary-card__label">Active Buses</div><div class="cg-summary-card__value">@Model.ActiveBuses</div></div>
+    </div>
+
+    <h4 class="cg-section-title">Today</h4>
+    <div class="cg-summary-grid">
+        <div class="cg-summary-card"><div class="cg-summary-card__icon">@await Html.PartialAsync("_Icon", "attendance")</div><div class="cg-summary-card__label">Today's Attendance</div><div class="cg-summary-card__value">@Model.TodaysAttendanceCount</div></div>
+        <div class="cg-summary-card"><div class="cg-summary-card__icon">@await Html.PartialAsync("_Icon", "journey")</div><div class="cg-summary-card__label">Today's Journey Events</div><div class="cg-summary-card__value">@Model.TodaysJourneyEventCount</div></div>
+        <div class="cg-summary-card">
+            <div class="cg-summary-card__icon">@await Html.PartialAsync("_Icon", "verification")</div>
+            <div class="cg-summary-card__label">Verification Status</div>
+            <div class="cg-summary-card__value">@Model.TodaysVerificationCount</div>
+            <div class="cg-flex" style="gap:6px;margin-top:6px;flex-wrap:wrap;">
+                <span class="cg-badge cg-badge--success">@Model.TodaysVerificationStatus.Matched matched</span>
+                <span class="cg-badge cg-badge--error">@Model.TodaysVerificationStatus.NoMatch no match</span>
+                <span class="cg-badge cg-badge--success">@Model.TodaysVerificationStatus.PickupsApproved approved</span>
+                <span class="cg-badge cg-badge--neutral">@Model.TodaysVerificationStatus.PickupsRejected rejected</span>
+            </div>
+        </div>
     </div>
 
     <div class="cg-card">

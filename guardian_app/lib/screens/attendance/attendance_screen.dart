@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../providers/auth_provider.dart';
+import '../../widgets/cg_empty_state.dart';
+import '../../widgets/cg_student_picker.dart';
 
 class AttendanceScreen extends StatefulWidget {
   const AttendanceScreen({super.key});
@@ -34,26 +36,22 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Attendance')),
       body: students.isEmpty
-          ? const Center(child: Text('No students linked.', style: TextStyle(color: CgColors.textMuted)))
+          ? const CgEmptyState('No students linked.')
           : Column(
               children: [
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: DropdownButtonFormField<int>(
-                    initialValue: _selectedStudentId,
-                    decoration: const InputDecoration(labelText: 'Student'),
-                    items: students.map((s) => DropdownMenuItem(value: s.studentId, child: Text(s.fullName))).toList(),
-                    onChanged: (v) {
-                      setState(() { _selectedStudentId = v; _records = null; });
-                      if (v != null) _load(v);
-                    },
-                  ),
+                CgStudentPicker(
+                  students: students,
+                  value: _selectedStudentId,
+                  onChanged: (v) {
+                    setState(() { _selectedStudentId = v; _records = null; });
+                    if (v != null) _load(v);
+                  },
                 ),
                 Expanded(
                   child: _records == null
                       ? const Center(child: CircularProgressIndicator())
                       : _records!.isEmpty
-                          ? const Center(child: Text('No attendance records yet.', style: TextStyle(color: CgColors.textMuted)))
+                          ? const CgEmptyState('No attendance records yet.')
                           : ListView.builder(
                               padding: const EdgeInsets.symmetric(horizontal: 16),
                               itemCount: _records!.length,

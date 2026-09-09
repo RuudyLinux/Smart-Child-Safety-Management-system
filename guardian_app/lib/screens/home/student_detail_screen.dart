@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../providers/auth_provider.dart';
+import '../../widgets/cg_empty_state.dart';
 
 class StudentDetailScreen extends StatefulWidget {
   final StudentSummary student;
@@ -57,7 +58,7 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
                 const Text('Journey Timeline', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: CgColors.text)),
                 const SizedBox(height: 8),
                 if (_journey == null || _journey!.isEmpty)
-                  const Padding(padding: EdgeInsets.all(12), child: Text('No journey events yet.', style: TextStyle(color: CgColors.textMuted)))
+                  const CgEmptyState('No journey events yet.')
                 else
                   ..._journey!.map((e) => Card(
                         child: ListTile(

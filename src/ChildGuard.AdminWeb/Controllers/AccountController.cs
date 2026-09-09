@@ -55,5 +55,45 @@ public class AccountController : Controller
         return RedirectToAction("Login");
     }
 
+    [HttpGet]
+    public IActionResult ForgotPassword() => View(new ForgotPasswordViewModel());
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ForgotPassword(ForgotPasswordViewModel model)
+    {
+        if (!ModelState.IsValid) return View(model);
+
+        // API always returns a generic success — it never reveals whether the account exists.
+        var result = await _api.PostAsync("/api/auth/forgot-password", new ForgotPasswordRequest(model.Email, "Admin"));
+        model.InfoMessage = result.Succeeded
+            ? "If that account exists, a reset token has been sent."
+            : "Could not process the request right now. Please try again.";
+        return View(model);
+    }
+
+    [HttpGet]
+    public IActionResult ResetPassword() => View(new ResetPasswordViewModel());
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ResetPassword(ResetPasswordViewModel model)
+    {
+        if (!ModelState.IsValid) return View(model);
+
+        var result = await _api.PostAsync(
+            "/api/auth/reset-password",
+            new ResetPasswordRequest(model.Email, "Admin", model.ResetToken, model.NewPassword));
+
+        if (!result.Succeeded)
+        {
+            model.ErrorMessage = result.Error ?? "Could not reset password. Check the token and try again.";
+            return View(model);
+        }
+
+        model.SuccessMessage = "Password reset. You can sign in now.";
+        return View(model);
+    }
+
     public IActionResult Error() => View();
 }

@@ -1,20 +1,31 @@
 @{ ViewData["Title"] = "Student Drop-off & Pickup Verification"; }
 @{ var devices = (List<RfidDeviceDto>)ViewBag.Devices; var recent = (List<GuardianVerificationHistoryDto>)ViewBag.RecentVerifications; }
 
-<div id="cg-stepper" class="cg-stepper">
+@* Two independent progress trackers instead of one shared 4-step pipeline — a
+   drop-off scan (School Arrival / Bus Boarding) never needs guardian/face steps,
+   so it should never show them as "not yet done". Only the pickup checkpoints
+   (School Departure / Bus Drop-off) surface the guardian tracker. *@
+<div id="dropoffStepper" class="cg-stepper">
     <div class="cg-step" id="step-scanner">1. Scanner Connected</div>
     <span class="cg-step-arrow">→</span>
     <div class="cg-step" id="step-student">2. Student Identified</div>
     <span class="cg-step-arrow">→</span>
-    <div class="cg-step" id="step-guardian">3. Guardian Verified</div>
+    <div class="cg-step" id="step-event">3. Event Recorded</div>
+</div>
+<div id="pickupStepper" class="cg-stepper" hidden>
+    <div class="cg-step" id="step-guardian">4. Guardian Verified</div>
     <span class="cg-step-arrow">→</span>
-    <div class="cg-step" id="step-result">4. Pickup Approved</div>
+    <div class="cg-step" id="step-result">5. Pickup Approved</div>
 </div>
 
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+<div class="cg-verify-grid">
 <div>
     <div class="cg-card">
         <h3 class="cg-card__title">RFID Scanner</h3>
+        <div class="cg-flex-between" style="margin-bottom:14px;">
+            <span class="cg-muted" style="font-size:13px;">Device status</span>
+            <span id="scannerStatusBadge" class="cg-badge cg-badge--neutral">Not connected</span>
+        </div>
         <div class="cg-form-group">
             <label class="cg-label">Scanner Device</label>
             <select id="deviceSelect" class="cg-select">
@@ -27,46 +38,52 @@
         <div class="cg-form-group">
             <label class="cg-label">Logical Checkpoint</label>
             <select id="checkpointSelect" class="cg-select">
-                <option value="BusBoarding">Bus Boarding</option>
-                <option value="SchoolArrival" selected>School Arrival</option>
-                <option value="SchoolDeparture">School Departure</option>
-                <option value="BusDropoff">Bus Drop-off</option>
+                <option value="BusBoarding">Bus Boarding (drop-off)</option>
+                <option value="SchoolArrival" selected>School Arrival (drop-off)</option>
+                <option value="SchoolDeparture">School Departure (pickup)</option>
+                <option value="BusDropoff">Bus Drop-off (pickup)</option>
             </select>
+            <p id="checkpointHint" class="cg-help">Drop-off checkpoint — scanning identifies the student and records the event. No guardian verification needed.</p>
         </div>
         <div class="cg-form-group">
             <label class="cg-label">Card UID (scan card here — reader types automatically)</label>
             <input id="cardUidInput" class="cg-input" autofocus placeholder="Waiting for scan..." />
         </div>
         <button id="scanBtn" class="cg-btn cg-btn--primary">Scan RFID Card</button>
+        <button id="newScanBtn" class="cg-btn cg-btn--secondary" style="margin-left:8px;">New Scan</button>
         <p class="cg-help">Focus stays in the card field — a USB RFID reader in keyboard mode types the UID and presses Enter automatically.</p>
     </div>
 
-    <div class="cg-card" id="studentCard" style="display:none;">
+    <div class="cg-card" id="studentCard" hidden>
         <h3 class="cg-card__title">Student</h3>
         <p><strong id="studentName"></strong> &nbsp; <span id="studentRfid" class="cg-muted"></span></p>
-        <div id="studentMessage"></div>
+        <div id="studentMessage" aria-live="polite"></div>
     </div>
 </div>
 
-<div>
+<div id="pickupCard">
     <div class="cg-card">
         <h3 class="cg-card__title">Guardian Pickup Verification</h3>
         <div class="cg-form-group">
             <label class="cg-label">Authorized Guardian</label>
             <select id="guardianSelect" class="cg-select"><option value="">Scan a student first...</option></select>
         </div>
+        <div class="cg-flex-between" style="margin-bottom:10px;">
+            <span class="cg-muted" style="font-size:13px;">Authorization</span>
+            <span id="guardianAuthBadge" class="cg-badge cg-badge--neutral">Pending scan</span>
+        </div>
         <div class="cg-camera-box" id="cameraBox">Camera not started</div>
-        <canvas id="captureCanvas" style="display:none;"></canvas>
+        <canvas id="captureCanvas" hidden></canvas>
         <div class="cg-flex" style="justify-content:center;margin-bottom:12px;">
             <button id="startCameraBtn" class="cg-btn cg-btn--secondary">Start Camera</button>
             <button id="captureBtn" class="cg-btn cg-btn--primary" disabled>Capture &amp; Verify Face</button>
         </div>
-        <div id="faceResult"></div>
+        <div id="faceResult" aria-live="polite"></div>
         <div class="cg-flex" style="justify-content:center;margin-top:12px;">
             <button id="approveBtn" class="cg-btn cg-btn--success" disabled>Approve Pickup</button>
             <button id="rejectBtn" class="cg-btn cg-btn--danger" disabled>Reject</button>
         </div>
-        <div id="decisionResult" style="margin-top:12px;"></div>
+        <div id="decisionResult" aria-live="polite" style="margin-top:12px;"></div>
     </div>
 </div>
 </div>
@@ -102,166 +119,5 @@
 </div>
 
 @section Scripts {
-<script>
-let currentStudentId = null;
-let currentGuardianId = null;
-let currentVerificationId = null;
-let stream = null;
-
-function setStep(id, state) {
-    const el = document.getElementById(id);
-    el.className = 'cg-step' + (state ? ' cg-step--' + state : '');
-}
-
-document.getElementById('cardUidInput').addEventListener('keydown', function (e) {
-    if (e.key === 'Enter') { e.preventDefault(); doScan(); }
-});
-document.getElementById('scanBtn').addEventListener('click', doScan);
-document.getElementById('deviceSelect').addEventListener('change', connectScanner);
-window.addEventListener('DOMContentLoaded', connectScanner);
-
-async function connectScanner() {
-    const deviceId = parseInt(document.getElementById('deviceSelect').value);
-    if (!deviceId) return;
-    try {
-        const resp = await fetch('/Verification/Heartbeat?deviceId=' + deviceId, { method: 'POST' });
-        setStep('step-scanner', resp.ok ? 'done' : 'failed');
-    } catch {
-        setStep('step-scanner', 'failed');
-    }
-}
-
-async function doScan() {
-    const cardUid = document.getElementById('cardUidInput').value.trim();
-    if (!cardUid) return;
-    const rfidDeviceId = parseInt(document.getElementById('deviceSelect').value);
-    const checkpoint = document.getElementById('checkpointSelect').value;
-
-    setStep('step-scanner', 'active');
-    const resp = await fetch('/Verification/Scan', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cardUid, rfidDeviceId, checkpoint })
-    });
-    const data = await resp.json();
-    document.getElementById('cardUidInput').value = '';
-
-    const card = document.getElementById('studentCard');
-    card.style.display = 'block';
-    const msgDiv = document.getElementById('studentMessage');
-
-    if (data.studentIdentified) {
-        setStep('step-student', 'done');
-        document.getElementById('studentName').textContent = data.studentName;
-        document.getElementById('studentRfid').textContent = 'RFID: ' + data.maskedCardUid;
-        currentStudentId = data.studentId;
-        loadGuardians(currentStudentId);
-    } else {
-        setStep('step-student', 'failed');
-        document.getElementById('studentName').textContent = 'Not identified';
-        document.getElementById('studentRfid').textContent = data.maskedCardUid ? ('RFID: ' + data.maskedCardUid) : '';
-    }
-    const cls = data.eventRecorded ? 'cg-alert--success' : 'cg-alert--warning';
-    msgDiv.innerHTML = '<div class="cg-alert ' + cls + '">' + data.message + '</div>';
-}
-
-async function loadGuardians(studentId) {
-    const sel = document.getElementById('guardianSelect');
-    sel.innerHTML = '<option value="">Loading...</option>';
-    const resp = await fetch('/Verification/StudentGuardians?studentId=' + studentId);
-    const guardians = await resp.json();
-    if (!guardians.length) {
-        sel.innerHTML = '<option value="">No authorized guardian on file</option>';
-        return;
-    }
-    sel.innerHTML = guardians.map(g => `<option value="${g.guardianId}">${g.fullName} (${g.relationship || 'Guardian'})</option>`).join('');
-    currentGuardianId = guardians[0].guardianId;
-    sel.addEventListener('change', () => currentGuardianId = parseInt(sel.value));
-}
-
-document.getElementById('startCameraBtn').addEventListener('click', async () => {
-    try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        const box = document.getElementById('cameraBox');
-        box.innerHTML = '';
-        const video = document.createElement('video');
-        video.autoplay = true; video.style.width = '100%'; video.style.height = '100%'; video.style.objectFit = 'cover'; video.style.borderRadius = '8px';
-        video.srcObject = stream;
-        box.appendChild(video);
-        document.getElementById('captureBtn').disabled = false;
-    } catch (err) {
-        document.getElementById('cameraBox').textContent = 'Camera unavailable: ' + err.message;
-    }
-});
-
-document.getElementById('captureBtn').addEventListener('click', async () => {
-    if (!currentStudentId || !currentGuardianId) {
-        document.getElementById('faceResult').innerHTML = '<div class="cg-alert cg-alert--error">Scan a student and select an authorized guardian first.</div>';
-        return;
-    }
-    const video = document.querySelector('#cameraBox video');
-    const canvas = document.getElementById('captureCanvas');
-    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-    canvas.getContext('2d').drawImage(video, 0, 0);
-    const imageBase64 = canvas.toDataURL('image/jpeg').split(',')[1];
-
-    const resp = await fetch('/Verification/FaceVerify', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ studentId: currentStudentId, guardianId: currentGuardianId, imageBase64 })
-    });
-    const data = await resp.json();
-    const resultDiv = document.getElementById('faceResult');
-
-    if (!data.guardianAuthorized) {
-        setStep('step-guardian', 'failed');
-        resultDiv.innerHTML = '<div class="cg-alert cg-alert--error">' + data.message + '</div>';
-        return;
-    }
-    if (data.faceMatched) {
-        setStep('step-guardian', 'done');
-        resultDiv.innerHTML = '<div class="cg-alert cg-alert--success">✓ FACE VERIFIED (score ' + data.matchScore.toFixed(2) + ')</div>';
-        currentVerificationId = data.verificationId;
-        document.getElementById('approveBtn').disabled = false;
-        document.getElementById('rejectBtn').disabled = false;
-    } else {
-        setStep('step-guardian', 'failed');
-        resultDiv.innerHTML = '<div class="cg-alert cg-alert--error">✗ ' + data.message + '</div>';
-        currentVerificationId = data.verificationId || null;
-        document.getElementById('rejectBtn').disabled = !currentVerificationId;
-    }
-});
-
-document.getElementById('approveBtn').addEventListener('click', async () => {
-    const resp = await fetch('/Verification/Approve', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ verificationId: currentVerificationId })
-    });
-    const data = await resp.json();
-    const div = document.getElementById('decisionResult');
-    if (data.approved) {
-        setStep('step-result', 'done');
-        div.innerHTML = '<div class="cg-alert cg-alert--success">' + data.message + ' (' + data.recordedEventType + ')</div>';
-    } else {
-        setStep('step-result', 'failed');
-        div.innerHTML = '<div class="cg-alert cg-alert--error">' + (data.message || 'Could not approve pickup.') + '</div>';
-    }
-    resetActionButtons();
-});
-
-document.getElementById('rejectBtn').addEventListener('click', async () => {
-    const resp = await fetch('/Verification/Reject', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ verificationId: currentVerificationId, reason: 'Rejected by admin at verification desk.' })
-    });
-    const data = await resp.json();
-    setStep('step-result', 'failed');
-    document.getElementById('decisionResult').innerHTML = '<div class="cg-alert cg-alert--warning">' + data.message + '</div>';
-    resetActionButtons();
-});
-
-function resetActionButtons() {
-    document.getElementById('approveBtn').disabled = true;
-    document.getElementById('rejectBtn').disabled = true;
-    currentVerificationId = null;
-}
-</script>
+<script src="~/js/verification.js"></script>
 }

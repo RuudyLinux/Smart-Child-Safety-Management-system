@@ -1,3 +1,52 @@
+/// What the server says the app must do next in the sign-in flow.
+enum GuardianAuthStage { otpRequired, passwordResetRequired, authenticated }
+
+GuardianAuthStage _stageFromJson(String? raw) => switch (raw) {
+      'PasswordResetRequired' => GuardianAuthStage.passwordResetRequired,
+      'Authenticated' => GuardianAuthStage.authenticated,
+      _ => GuardianAuthStage.otpRequired,
+    };
+
+/// An open OTP challenge. Carries no code — only the handle and its timings.
+class OtpChallenge {
+  final String challengeToken;
+  final DateTime expiresAtUtc;
+  final int codeLength;
+  final int resendAvailableInSeconds;
+  final int resendsRemaining;
+
+  OtpChallenge({
+    required this.challengeToken,
+    required this.expiresAtUtc,
+    required this.codeLength,
+    required this.resendAvailableInSeconds,
+    required this.resendsRemaining,
+  });
+
+  factory OtpChallenge.fromJson(Map<String, dynamic> j) => OtpChallenge(
+        challengeToken: j['challengeToken'],
+        expiresAtUtc: DateTime.parse(j['expiresAtUtc']).toUtc(),
+        codeLength: j['codeLength'] ?? 6,
+        resendAvailableInSeconds: j['resendAvailableInSeconds'] ?? 0,
+        resendsRemaining: j['resendsRemaining'] ?? 0,
+      );
+}
+
+/// Result of OTP verification: a session, or a first-login password-reset ticket.
+class GuardianAuthResult {
+  final GuardianAuthStage stage;
+  final Map<String, dynamic>? session;
+  final String? resetTicket;
+
+  GuardianAuthResult({required this.stage, this.session, this.resetTicket});
+
+  factory GuardianAuthResult.fromJson(Map<String, dynamic> j) => GuardianAuthResult(
+        stage: _stageFromJson(j['stage']?.toString()),
+        session: (j['session'] as Map?)?.cast<String, dynamic>(),
+        resetTicket: j['resetTicket'],
+      );
+}
+
 class GuardianProfile {
   final int guardianId;
   final String fullName;

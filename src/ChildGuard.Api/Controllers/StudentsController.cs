@@ -15,17 +15,23 @@ public class StudentsController : ControllerBase
     private readonly IValidator<CreateStudentRequest> _createValidator;
     private readonly IValidator<UpdateStudentRequest> _updateValidator;
     private readonly IValidator<AssignGuardianRequest> _assignGuardianValidator;
+    private readonly IValidator<UpdateStudentStatusRequest> _statusValidator;
+    private readonly IValidator<UpdateStudentGuardianRequest> _guardianLinkValidator;
 
     public StudentsController(
         IStudentService studentService,
         IValidator<CreateStudentRequest> createValidator,
         IValidator<UpdateStudentRequest> updateValidator,
-        IValidator<AssignGuardianRequest> assignGuardianValidator)
+        IValidator<AssignGuardianRequest> assignGuardianValidator,
+        IValidator<UpdateStudentStatusRequest> statusValidator,
+        IValidator<UpdateStudentGuardianRequest> guardianLinkValidator)
     {
         _studentService = studentService;
         _createValidator = createValidator;
         _updateValidator = updateValidator;
         _assignGuardianValidator = assignGuardianValidator;
+        _statusValidator = statusValidator;
+        _guardianLinkValidator = guardianLinkValidator;
     }
 
     [HttpGet]
@@ -60,6 +66,7 @@ public class StudentsController : ControllerBase
     [HttpPatch("{id:int}/status")]
     public async Task<IActionResult> UpdateStatus(int id, UpdateStudentStatusRequest request, CancellationToken ct)
     {
+        await _statusValidator.ValidateAndThrowAsync(request, ct);
         var result = await _studentService.UpdateStatusAsync(id, request, ct);
         return result.Succeeded ? Ok(new { message = "Status updated." }) : NotFound(new { message = result.Error });
     }
@@ -70,5 +77,20 @@ public class StudentsController : ControllerBase
         await _assignGuardianValidator.ValidateAndThrowAsync(request, ct);
         var result = await _studentService.AssignGuardianAsync(id, request, ct);
         return result.Succeeded ? Ok(new { message = "Guardian associated." }) : BadRequest(new { message = result.Error });
+    }
+
+    [HttpPut("{id:int}/guardians/{guardianId:int}")]
+    public async Task<IActionResult> UpdateGuardianLink(int id, int guardianId, UpdateStudentGuardianRequest request, CancellationToken ct)
+    {
+        await _guardianLinkValidator.ValidateAndThrowAsync(request, ct);
+        var result = await _studentService.UpdateGuardianLinkAsync(id, guardianId, request, ct);
+        return result.Succeeded ? Ok(new { message = "Guardian link updated." }) : NotFound(new { message = result.Error });
+    }
+
+    [HttpDelete("{id:int}/guardians/{guardianId:int}")]
+    public async Task<IActionResult> RemoveGuardianLink(int id, int guardianId, CancellationToken ct)
+    {
+        var result = await _studentService.RemoveGuardianLinkAsync(id, guardianId, ct);
+        return result.Succeeded ? Ok(new { message = "Guardian unlinked." }) : NotFound(new { message = result.Error });
     }
 }

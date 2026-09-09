@@ -1,0 +1,40 @@
+@model CreateGuardianRequest
+@{ ViewData["Title"] = "Add Guardian"; }
+
+<div class="cg-card">
+    <h3 class="cg-card__title cg-mt-0">Add Guardian</h3>
+
+    @if (!ViewData.ModelState.IsValid)
+    {
+        <div class="cg-alert cg-alert--error">
+            @foreach (var error in ViewData.ModelState.Values.SelectMany(v => v.Errors))
+            {
+                <div>@error.ErrorMessage</div>
+            }
+        </div>
+    }
+
+    <form asp-action="Create" method="post" class="cg-form">
+        @Html.AntiForgeryToken()
+        <div class="cg-form-group">
+            <label for="FullName">Full Name</label>
+            <input type="text" id="FullName" name="FullName" value="@Model.FullName" required maxlength="150" class="cg-input" />
+        </div>
+        <div class="cg-form-group">
+            <label for="Email">Email</label>
+            <input type="email" id="Email" name="Email" value="@Model.Email" required maxlength="200" class="cg-input" />
+            <small class="cg-muted">Login credentials are emailed to this address.</small>
+        </div>
+        <div class="cg-form-group">
+            <label for="ContactNumber">Contact Number</label>
+            <input type="tel" id="ContactNumber" name="ContactNumber" value="@Model.ContactNumber" required maxlength="30" class="cg-input" />
+            <small class="cg-muted">The guardian signs in with this number.</small>
+        </div>
+        <p class="cg-muted">
+            The account is created with a system-issued initial password and the guardian
+            must replace it at first login before the app becomes usable.
+        </p>
+        <button class="cg-btn cg-btn--primary" type="submit">Create Guardian</button>
+        <a class="cg-btn" href="/Guardians">Cancel</a>
+    </form>
+</div>

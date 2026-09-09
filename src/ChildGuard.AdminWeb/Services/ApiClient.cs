@@ -49,6 +49,12 @@ public class ApiClient
         return await ReadResultAsync<T>(response, ct);
     }
 
+    public async Task<ApiResult<T>> DeleteAsync<T>(string url, CancellationToken ct = default)
+    {
+        var response = await _http.DeleteAsync(url, ct);
+        return await ReadResultAsync<T>(response, ct);
+    }
+
     private static async Task<ApiResult<T>> ReadResultAsync<T>(HttpResponseMessage response, CancellationToken ct)
     {
         var raw = await response.Content.ReadAsStringAsync(ct);

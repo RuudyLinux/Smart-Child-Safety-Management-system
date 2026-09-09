@@ -1,5 +1,6 @@
 using ChildGuard.Application.DTOs;
 using ChildGuard.Application.Interfaces;
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -16,11 +17,26 @@ namespace ChildGuard.Api.Controllers;
 public class VerificationController : ControllerBase
 {
     private readonly IVerificationService _service;
-    public VerificationController(IVerificationService service) => _service = service;
+    private readonly IValidator<FaceVerifyRequest> _verifyValidator;
+    private readonly IValidator<ApprovePickupRequest> _approveValidator;
+    private readonly IValidator<RejectPickupRequest> _rejectValidator;
+
+    public VerificationController(
+        IVerificationService service,
+        IValidator<FaceVerifyRequest> verifyValidator,
+        IValidator<ApprovePickupRequest> approveValidator,
+        IValidator<RejectPickupRequest> rejectValidator)
+    {
+        _service = service;
+        _verifyValidator = verifyValidator;
+        _approveValidator = approveValidator;
+        _rejectValidator = rejectValidator;
+    }
 
     [HttpPost("face-verify")]
     public async Task<IActionResult> Verify(FaceVerifyRequest request, CancellationToken ct)
     {
+        await _verifyValidator.ValidateAndThrowAsync(request, ct);
         var result = await _service.VerifyAsync(request, ct);
         return result.Succeeded ? Ok(result.Value) : BadRequest(new { message = result.Error });
     }
@@ -28,6 +44,7 @@ public class VerificationController : ControllerBase
     [HttpPost("approve")]
     public async Task<IActionResult> Approve(ApprovePickupRequest request, CancellationToken ct)
     {
+        await _approveValidator.ValidateAndThrowAsync(request, ct);
         var result = await _service.ApproveAsync(request, this.GetUserId(), ct);
         return result.Succeeded ? Ok(result.Value) : BadRequest(new { message = result.Error });
     }
@@ -35,6 +52,7 @@ public class VerificationController : ControllerBase
     [HttpPost("reject")]
     public async Task<IActionResult> Reject(RejectPickupRequest request, CancellationToken ct)
     {
+        await _rejectValidator.ValidateAndThrowAsync(request, ct);
         var result = await _service.RejectAsync(request, this.GetUserId(), ct);
         return result.Succeeded ? Ok(result.Value) : BadRequest(new { message = result.Error });
     }

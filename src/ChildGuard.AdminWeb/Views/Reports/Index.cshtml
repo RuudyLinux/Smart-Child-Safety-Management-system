@@ -1,6 +1,7 @@
 @{
     ViewData["Title"] = "Reports";
     var attendance = (List<AttendanceRecordDto>)ViewBag.Attendance;
+    var journey = (List<JourneyEventDto>)ViewBag.Journey;
     var verification = (List<GuardianVerificationHistoryDto>)ViewBag.Verification;
 }
 
@@ -14,6 +15,27 @@
             @foreach (var a in attendance.Take(30))
             {
                 <tr><td>@a.StudentName</td><td>@a.EventType</td><td>@a.Date.ToString("d MMM yyyy")</td><td>@a.Time.ToString("h:mm tt")</td></tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="cg-card">
+    <h3 class="cg-card__title">Journey Report</h3>
+    <div class="cg-table-wrap">
+        <table class="cg-table">
+            <thead><tr><th>Student</th><th>Event</th><th>Time</th><th>Source</th></tr></thead>
+            <tbody>
+            @if (!journey.Any()) { <tr><td colspan="4" class="cg-muted">No records.</td></tr> }
+            @foreach (var j in journey.Take(30))
+            {
+                <tr>
+                    <td>@j.StudentName</td>
+                    <td><span class="cg-badge cg-badge--neutral">@j.EventType</span></td>
+                    <td>@j.Timestamp.ToLocalTime().ToString("g")</td>
+                    <td>@j.Source</td>
+                </tr>
             }
             </tbody>
         </table>

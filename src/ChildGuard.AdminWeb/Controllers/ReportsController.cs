@@ -12,8 +12,10 @@ public class ReportsController : BaseAdminController
     {
         ViewData["Title"] = "Reports";
         var attendance = await Api.GetAsync<List<AttendanceRecordDto>>("/api/reports/attendance", ct);
+        var journey = await Api.GetAsync<List<JourneyEventDto>>("/api/journey/recent?take=30", ct);
         var verification = await Api.GetAsync<List<GuardianVerificationHistoryDto>>("/api/reports/verification", ct);
         ViewBag.Attendance = attendance.Value ?? new();
+        ViewBag.Journey = journey.Value ?? new();
         ViewBag.Verification = verification.Value ?? new();
         return View();
     }

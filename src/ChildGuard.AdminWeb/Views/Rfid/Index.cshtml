@@ -31,11 +31,11 @@
     <h3 class="cg-card__title">All Cards</h3>
     <div class="cg-table-wrap">
         <table class="cg-table">
-            <thead><tr><th>Card UID</th><th>Student</th><th>Status</th><th>Assigned</th><th></th></tr></thead>
+            <thead><tr><th>Card UID</th><th>Student</th><th>Status</th><th>Assigned</th><th></th><th></th></tr></thead>
             <tbody>
             @if (!Model.Any())
             {
-                <tr><td colspan="5" class="cg-muted">No RFID cards registered.</td></tr>
+                <tr><td colspan="6" class="cg-muted">No RFID cards registered.</td></tr>
             }
             @foreach (var c in Model)
             {
@@ -49,6 +49,7 @@
                         <span class="cg-badge cg-badge--@badge">@c.Status</span>
                     </td>
                     <td>@(c.AssignedAt?.ToLocalTime().ToString("d MMM yyyy") ?? "—")</td>
+                    <td><a href="/Rfid/Details/@c.RfidCardId">Details</a></td>
                     <td>
                         <form asp-action="UpdateStatus" asp-route-id="@c.RfidCardId" method="post" class="cg-flex">
                             @Html.AntiForgeryToken()

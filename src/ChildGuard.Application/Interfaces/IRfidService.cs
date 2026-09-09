@@ -6,6 +6,7 @@ namespace ChildGuard.Application.Interfaces;
 public interface IRfidService
 {
     Task<List<RfidCardListItemDto>> GetAllAsync(CancellationToken ct = default);
+    Task<Result<RfidCardDetailDto>> GetByIdAsync(int cardId, CancellationToken ct = default);
     Task<Result> AssignAsync(AssignRfidRequest request, CancellationToken ct = default);
     Task<Result> UpdateStatusAsync(int cardId, UpdateRfidStatusRequest request, CancellationToken ct = default);
     Task<List<RfidDeviceDto>> GetDevicesAsync(CancellationToken ct = default);

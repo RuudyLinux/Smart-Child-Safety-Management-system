@@ -94,4 +94,23 @@ public class StudentsController : BaseAdminController
         TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded ? "Guardian associated." : result.Error;
         return RedirectToAction(nameof(Details), new { id });
     }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> UpdateGuardianLink(int id, int guardianId, string? relationship, bool isAuthorizedForPickup, CancellationToken ct)
+    {
+        var result = await Api.PutAsync<object?>($"/api/students/{id}/guardians/{guardianId}",
+            new UpdateStudentGuardianRequest(relationship, isAuthorizedForPickup), ct);
+        TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded ? "Guardian link updated." : result.Error;
+        return RedirectToAction(nameof(Details), new { id });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RemoveGuardianLink(int id, int guardianId, CancellationToken ct)
+    {
+        var result = await Api.DeleteAsync<object?>($"/api/students/{id}/guardians/{guardianId}", ct);
+        TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded ? "Guardian unlinked." : result.Error;
+        return RedirectToAction(nameof(Details), new { id });
+    }
 }

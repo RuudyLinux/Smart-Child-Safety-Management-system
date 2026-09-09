@@ -41,6 +41,9 @@ public class StudentRepository : IStudentRepository
     public async Task AddStudentGuardianAsync(StudentGuardian link, CancellationToken ct = default) =>
         await _db.StudentGuardians.AddAsync(link, ct);
 
+    public void RemoveStudentGuardian(StudentGuardian link) =>
+        _db.StudentGuardians.Remove(link);
+
     public Task<List<StudentGuardian>> GetAuthorizedGuardiansAsync(int studentId, CancellationToken ct = default) =>
         _db.StudentGuardians
             .Include(sg => sg.Guardian)

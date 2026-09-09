@@ -92,6 +92,27 @@ public class StudentService : IStudentService
         return Result.Success();
     }
 
+    public async Task<Result> UpdateGuardianLinkAsync(int studentId, int guardianId, UpdateStudentGuardianRequest request, CancellationToken ct = default)
+    {
+        var link = await _students.GetStudentGuardianAsync(studentId, guardianId, ct);
+        if (link is null) return Result.Failure("Guardian is not linked to this student.");
+
+        link.Relationship = request.Relationship;
+        link.IsAuthorizedForPickup = request.IsAuthorizedForPickup;
+        await _students.SaveChangesAsync(ct);
+        return Result.Success();
+    }
+
+    public async Task<Result> RemoveGuardianLinkAsync(int studentId, int guardianId, CancellationToken ct = default)
+    {
+        var link = await _students.GetStudentGuardianAsync(studentId, guardianId, ct);
+        if (link is null) return Result.Failure("Guardian is not linked to this student.");
+
+        _students.RemoveStudentGuardian(link);
+        await _students.SaveChangesAsync(ct);
+        return Result.Success();
+    }
+
     private static StudentListItemDto ToListItem(Student s) => new(
         s.StudentId, s.FullName, s.Grade, s.Status,
         s.RfidCard is not null ? RfidMasking.Mask(s.RfidCard.CardUid) : null,

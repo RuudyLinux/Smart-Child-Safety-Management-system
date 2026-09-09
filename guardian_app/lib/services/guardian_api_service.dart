@@ -8,10 +8,32 @@ class GuardianApiService {
   final ApiClient _client;
   GuardianApiService(this._client);
 
-  Future<Map<String, dynamic>> login(String email, String password) async {
-    final result = await _client.post('/api/auth/guardian/login', {'email': email, 'password': password}, auth: false);
-    await _client.setToken(result['token']);
-    return result;
+  /// Step 1 of sign-in. Returns an OTP challenge; no session is issued here.
+  Future<OtpChallenge> login(String contactNumber, String password) async {
+    final result = await _client.post('/api/auth/guardian/login',
+        {'contactNumber': contactNumber, 'password': password}, auth: false);
+    return OtpChallenge.fromJson(result);
+  }
+
+  /// Step 2. Stores the token only when the server returns a session.
+  Future<GuardianAuthResult> verifyOtp(String challengeToken, String code) async {
+    final result = await _client.post('/api/auth/guardian/verify-otp',
+        {'challengeToken': challengeToken, 'code': code}, auth: false);
+    final auth = GuardianAuthResult.fromJson(result);
+    if (auth.session != null) await _client.setToken(auth.session!['token']);
+    return auth;
+  }
+
+  Future<OtpChallenge> resendOtp(String challengeToken) async {
+    final result = await _client.post('/api/auth/guardian/resend-otp',
+        {'challengeToken': challengeToken}, auth: false);
+    return OtpChallenge.fromJson(result);
+  }
+
+  /// Completes the mandatory first-login password reset using the ticket from [verifyOtp].
+  Future<void> resetFirstLoginPassword(String resetTicket, String newPassword, String confirmPassword) async {
+    await _client.post('/api/auth/guardian/reset-password',
+        {'resetTicket': resetTicket, 'newPassword': newPassword, 'confirmPassword': confirmPassword}, auth: false);
   }
 
   Future<void> register(String fullName, String email, String phone, String password) async {

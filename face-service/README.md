@@ -34,5 +34,13 @@ Or use the repo-root `start.bat` / `stop.bat`, which manage this alongside the A
 ## Configuration
 
 `ChildGuard.Api` calls this service at the URL configured in its
-`FaceService:BaseUrl` setting (default `http://localhost:8001`). No secrets
-live in this service; it holds no database connection and no credentials.
+`FaceService:BaseUrl` setting (default `http://localhost:8001`). It holds no
+database connection and no credentials.
+
+### Internal auth (optional, recommended for anything beyond localhost dev)
+
+Set the `FACE_SERVICE_KEY` environment variable to require every request to
+carry a matching `X-Internal-Key` header. Leave it unset for local dev — the
+check is skipped and the service behaves as before. When set here, also set
+the same value as `FaceService:ApiKey` in `ChildGuard.Api`'s configuration so
+its calls keep working.

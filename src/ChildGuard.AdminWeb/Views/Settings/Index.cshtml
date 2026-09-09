@@ -1,0 +1,45 @@
+@{ ViewData["Title"] = "Settings"; var devices = (List<RfidDeviceDto>)ViewBag.Devices; }
+
+<div class="cg-card">
+    <h3 class="cg-card__title">System</h3>
+    <p><strong>Environment:</strong> @ViewBag.Environment</p>
+    <p class="cg-help">
+        RFID checkpoint scanners, notification delivery, and the face-verification service
+        are configured via environment/config on the server — see the project README for
+        the settings that control them (connection strings, JWT, Firebase, face-service URL).
+        Nothing sensitive is shown here.
+    </p>
+</div>
+
+<div class="cg-card">
+    <h3 class="cg-card__title">RFID Scanner Devices</h3>
+    <div class="cg-table-wrap">
+        <table class="cg-table">
+            <thead><tr><th>Device</th><th>Status</th><th>Last Seen</th></tr></thead>
+            <tbody>
+            @if (!devices.Any())
+            {
+                <tr><td colspan="3" class="cg-muted">No scanner devices configured.</td></tr>
+            }
+            @foreach (var d in devices)
+            {
+                <tr>
+                    <td>@d.DeviceLabel</td>
+                    <td>
+                        @if (d.ConnectionStatus == RfidConnectionStatus.Connected)
+                        {
+                            <span class="cg-badge cg-badge--success">Connected</span>
+                        }
+                        else
+                        {
+                            <span class="cg-badge cg-badge--neutral">Disconnected</span>
+                        }
+                    </td>
+                    <td>@(d.LastSeenAt?.ToLocalTime().ToString("g") ?? "Never")</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+    <p class="cg-help">A device shows Connected once it has scanned a card or sent a heartbeat. Manage checkpoint scanning from the <a href="/Verification">Drop-off &amp; Pickup</a> page.</p>
+</div>

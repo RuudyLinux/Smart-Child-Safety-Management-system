@@ -1,29 +1,37 @@
 @model GuardianDetailDto
 @{ ViewData["Title"] = "Guardian Details"; }
 
+@if (TempData["Success"] != null) { <div class="cg-alert cg-alert--success">@TempData["Success"]</div> }
+@if (TempData["Error"] != null) { <div class="cg-alert cg-alert--error">@TempData["Error"]</div> }
+
 <div class="cg-card">
     <div class="cg-flex-between">
         <h3 class="cg-card__title cg-mt-0">@Model.FullName</h3>
-        @if (Model.Status == RecordStatus.Active)
-        {
-            <form asp-action="UpdateStatus" asp-route-id="@Model.GuardianId" method="post">
-                @Html.AntiForgeryToken()
-                <input type="hidden" name="status" value="Inactive" />
-                <button class="cg-btn cg-btn--danger" type="submit">Deactivate</button>
-            </form>
-        }
-        else
-        {
-            <form asp-action="UpdateStatus" asp-route-id="@Model.GuardianId" method="post">
-                @Html.AntiForgeryToken()
-                <input type="hidden" name="status" value="Active" />
-                <button class="cg-btn cg-btn--success" type="submit">Activate</button>
-            </form>
-        }
+        <div class="cg-flex">
+            <a class="cg-btn cg-btn--secondary" href="/Guardians/Edit/@Model.GuardianId">Edit</a>
+            @if (Model.Status == RecordStatus.Active)
+            {
+                <form asp-action="UpdateStatus" asp-route-id="@Model.GuardianId" method="post" style="display:inline;">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="status" value="Inactive" />
+                    <button class="cg-btn cg-btn--danger" type="submit">Deactivate</button>
+                </form>
+            }
+            else
+            {
+                <form asp-action="UpdateStatus" asp-route-id="@Model.GuardianId" method="post" style="display:inline;">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="status" value="Active" />
+                    <button class="cg-btn cg-btn--success" type="submit">Activate</button>
+                </form>
+            }
+        </div>
     </div>
-    <p><strong>Email:</strong> @Model.Email &nbsp; <strong>Phone:</strong> @(Model.Phone ?? "—") &nbsp;
+    <p><strong>Email:</strong> @Model.Email &nbsp; <strong>Contact Number:</strong> @(Model.Phone ?? "—") &nbsp;
         <strong>Face Registered:</strong>
         @if (Model.FaceRegistered) { <span class="cg-badge cg-badge--success">Yes</span> } else { <span class="cg-badge cg-badge--neutral">No</span> }
+        &nbsp; <strong>Password:</strong>
+        @if (Model.PasswordResetRequired) { <span class="cg-badge cg-badge--warning">Default — reset required at next login</span> } else { <span class="cg-badge cg-badge--success">Set by guardian</span> }
     </p>
 </div>
 
@@ -49,4 +57,18 @@
             </tbody>
         </table>
     </div>
+</div>
+
+<div class="cg-card">
+    <h3 class="cg-card__title">Issue a New Password</h3>
+    <form asp-action="UpdateCredentials" asp-route-id="@Model.GuardianId" method="post" class="cg-form">
+        @Html.AntiForgeryToken()
+        <div class="cg-form-group">
+            <label for="newPassword">New Password</label>
+            <input type="password" id="newPassword" name="newPassword" required minlength="8" class="cg-input" />
+            <small class="cg-muted">At least 8 characters, one uppercase, one digit. The password you set is a default one: the guardian must replace it at their next login before they can use the app.</small>
+        </div>
+        <button class="cg-btn cg-btn--primary" type="submit">Issue Password</button>
+    </form>
+    <p class="cg-muted">Name, email and contact number are edited from <a href="/Guardians/Edit/@Model.GuardianId">Edit</a>.</p>
 </div>

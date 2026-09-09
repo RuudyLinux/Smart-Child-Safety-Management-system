@@ -39,6 +39,16 @@ public class RfidService : IRfidService
             c.StudentId, c.Student?.FullName, c.AssignedAt)).ToList();
     }
 
+    public async Task<Result<RfidCardDetailDto>> GetByIdAsync(int cardId, CancellationToken ct = default)
+    {
+        var card = await _rfid.GetByIdAsync(cardId, ct);
+        if (card is null) return Result<RfidCardDetailDto>.Failure("RFID card not found.");
+
+        return Result<RfidCardDetailDto>.Success(new RfidCardDetailDto(
+            card.RfidCardId, RfidMasking.Mask(card.CardUid), card.Status,
+            card.StudentId, card.Student?.FullName, card.Student?.Grade, card.AssignedAt, card.CreatedAt));
+    }
+
     public async Task<Result> AssignAsync(AssignRfidRequest request, CancellationToken ct = default)
     {
         var student = await _students.GetByIdAsync(request.StudentId, ct);

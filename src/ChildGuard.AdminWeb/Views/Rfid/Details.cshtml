@@ -1,0 +1,69 @@
+@model RfidCardDetailDto
+@{ ViewData["Title"] = "RFID Card Details"; var journey = (List<JourneyEventDto>)ViewBag.RecentJourney; }
+
+<div class="cg-toolbar">
+    <a class="cg-btn cg-btn--secondary" href="/Rfid">&larr; Back to RFID Cards</a>
+</div>
+
+<div class="cg-card">
+    <h3 class="cg-card__title">Card</h3>
+    <div class="cg-summary-grid" style="margin-bottom:0;">
+        <div class="cg-summary-card">
+            <div class="cg-summary-card__label">Card UID</div>
+            <div class="cg-summary-card__value" style="font-size:18px;">@Model.MaskedCardUid</div>
+        </div>
+        <div class="cg-summary-card">
+            <div class="cg-summary-card__label">Status</div>
+            @{
+                var badge = Model.Status switch { RfidCardStatus.Active => "success", RfidCardStatus.Lost => "error", _ => "neutral" };
+            }
+            <div class="cg-summary-card__value" style="font-size:16px;"><span class="cg-badge cg-badge--@badge">@Model.Status</span></div>
+        </div>
+        <div class="cg-summary-card">
+            <div class="cg-summary-card__label">Assigned</div>
+            <div class="cg-summary-card__value" style="font-size:16px;">@(Model.AssignedAt?.ToLocalTime().ToString("d MMM yyyy") ?? "—")</div>
+        </div>
+        <div class="cg-summary-card">
+            <div class="cg-summary-card__label">Registered</div>
+            <div class="cg-summary-card__value" style="font-size:16px;">@Model.CreatedAt.ToLocalTime().ToString("d MMM yyyy")</div>
+        </div>
+    </div>
+</div>
+
+<div class="cg-card">
+    <h3 class="cg-card__title">Assigned Student</h3>
+    @if (Model.StudentId is null)
+    {
+        <p class="cg-muted">This card is not assigned to a student.</p>
+    }
+    else
+    {
+        <p>
+            <strong>@Model.StudentName</strong> &nbsp; <span class="cg-muted">@(Model.StudentGrade ?? "—")</span>
+            &nbsp;·&nbsp; <a href="/Students/Details/@Model.StudentId">View student</a>
+        </p>
+    }
+</div>
+
+<div class="cg-card">
+    <h3 class="cg-card__title">Recent Journey Activity</h3>
+    <div class="cg-table-wrap">
+        <table class="cg-table">
+            <thead><tr><th>Event</th><th>Time</th><th>Source</th></tr></thead>
+            <tbody>
+            @if (!journey.Any())
+            {
+                <tr><td colspan="3" class="cg-muted">No journey events recorded for this card's student yet.</td></tr>
+            }
+            @foreach (var j in journey)
+            {
+                <tr>
+                    <td><span class="cg-badge cg-badge--neutral">@j.EventType</span></td>
+                    <td>@j.Timestamp.ToLocalTime().ToString("g")</td>
+                    <td>@j.Source</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>

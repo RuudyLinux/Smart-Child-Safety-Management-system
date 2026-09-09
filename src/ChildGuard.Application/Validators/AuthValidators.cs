@@ -1,3 +1,4 @@
+using ChildGuard.Application.Common;
 using ChildGuard.Application.DTOs;
 using FluentValidation;
 
@@ -57,5 +58,48 @@ public class ResetPasswordRequestValidator : AbstractValidator<ResetPasswordRequ
         RuleFor(x => x.NewPassword).NotEmpty().MinimumLength(8)
             .Matches("[A-Z]").WithMessage("Password must contain an uppercase letter.")
             .Matches("[0-9]").WithMessage("Password must contain a digit.");
+    }
+}
+
+// ---- Guardian OTP login flow ----
+
+public class GuardianLoginRequestValidator : AbstractValidator<GuardianLoginRequest>
+{
+    public GuardianLoginRequestValidator()
+    {
+        RuleFor(x => x.ContactNumber).NotEmpty().MaximumLength(30)
+            .Must(c => ContactNumber.Normalize(c) is { Length: >= 8 })
+            .WithMessage("Enter a valid contact number.");
+        RuleFor(x => x.Password).NotEmpty();
+    }
+}
+
+public class VerifyGuardianOtpRequestValidator : AbstractValidator<VerifyGuardianOtpRequest>
+{
+    public VerifyGuardianOtpRequestValidator()
+    {
+        RuleFor(x => x.ChallengeToken).NotEmpty();
+        RuleFor(x => x.Code).NotEmpty().Matches("^[0-9]{4,8}$").WithMessage("Enter the code sent to your contact number.");
+    }
+}
+
+public class ResendGuardianOtpRequestValidator : AbstractValidator<ResendGuardianOtpRequest>
+{
+    public ResendGuardianOtpRequestValidator()
+    {
+        RuleFor(x => x.ChallengeToken).NotEmpty();
+    }
+}
+
+public class GuardianResetPasswordRequestValidator : AbstractValidator<GuardianResetPasswordRequest>
+{
+    public GuardianResetPasswordRequestValidator()
+    {
+        RuleFor(x => x.ResetTicket).NotEmpty();
+        RuleFor(x => x.NewPassword).NotEmpty().MinimumLength(8)
+            .Matches("[A-Z]").WithMessage("Password must contain an uppercase letter.")
+            .Matches("[0-9]").WithMessage("Password must contain a digit.");
+        RuleFor(x => x.ConfirmPassword).NotEmpty()
+            .Equal(x => x.NewPassword).WithMessage("Passwords do not match.");
     }
 }

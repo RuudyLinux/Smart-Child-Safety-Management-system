@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme.dart';
 import '../../providers/auth_provider.dart';
-import '../home/home_shell.dart';
+import 'otp_verification_screen.dart';
 import 'register_screen.dart';
 import 'forgot_password_screen.dart';
 
@@ -13,17 +13,26 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _emailCtrl = TextEditingController();
+  final _contactCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   bool _loading = false;
 
+  @override
+  void dispose() {
+    _contactCtrl.dispose();
+    _passwordCtrl.dispose();
+    super.dispose();
+  }
+
+  /// Step 1 only: a successful login raises an OTP challenge, it does not sign in.
   Future<void> _submit() async {
     setState(() => _loading = true);
     final auth = context.read<AuthProvider>();
-    final ok = await auth.login(_emailCtrl.text.trim(), _passwordCtrl.text);
+    final ok = await auth.login(_contactCtrl.text.trim(), _passwordCtrl.text);
+    if (!mounted) return;
     setState(() => _loading = false);
-    if (ok && mounted) {
-      Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const HomeShell()));
+    if (ok) {
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const OtpVerificationScreen()));
     }
   }
 
@@ -49,7 +58,12 @@ class _LoginScreenState extends State<LoginScreen> {
                   decoration: BoxDecoration(color: CgColors.errorBg, borderRadius: BorderRadius.circular(8)),
                   child: Text(auth.lastError!, style: const TextStyle(color: CgColors.error)),
                 ),
-              TextField(controller: _emailCtrl, decoration: const InputDecoration(labelText: 'Email'), keyboardType: TextInputType.emailAddress),
+              TextField(
+                controller: _contactCtrl,
+                decoration: const InputDecoration(labelText: 'Contact Number'),
+                keyboardType: TextInputType.phone,
+                autofillHints: const [AutofillHints.telephoneNumber],
+              ),
               const SizedBox(height: 14),
               TextField(controller: _passwordCtrl, decoration: const InputDecoration(labelText: 'Password'), obscureText: true),
               const SizedBox(height: 8),
