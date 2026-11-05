@@ -42,6 +42,17 @@ as an MVC client of the API (never touches MySQL directly).
 
 ## First-time setup
 
+> **Shortcut (Windows + XAMPP):** `powershell -File scripts\dev-setup-secrets.ps1` does
+> steps 1–2 for you: it creates the database and app user with a random password and
+> stores the connection string, a JWT secret and an initial admin password in
+> user-secrets (nothing is printed or committed). `start.bat` runs it automatically.
+> Read the values with `dotnet user-secrets list --project src\ChildGuard.Api`;
+> rotate the DB password with `-RotateDbPassword`.
+>
+> The school's time zone is `School:TimeZone` (default `Asia/Kolkata`) in both the API
+> and AdminWeb `appsettings.json`. For production see
+> [docs/PRODUCTION_DEPLOYMENT.md](docs/PRODUCTION_DEPLOYMENT.md).
+
 1. **MySQL**: create a database and a dedicated app user (don't use root):
    ```sql
    CREATE DATABASE childguard_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

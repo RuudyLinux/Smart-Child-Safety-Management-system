@@ -49,11 +49,11 @@ echo.
 pause
 
 :db_init
-if exist "C:\xampp\mysql\bin\mysql.exe" (
-    "C:\xampp\mysql\bin\mysql.exe" -u root -P 3306 -e "CREATE DATABASE IF NOT EXISTS childguard_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; CREATE USER IF NOT EXISTS 'childguard_app'@'localhost' IDENTIFIED BY 'ChildGuard_App_2026!'; CREATE USER IF NOT EXISTS 'childguard_app'@'127.0.0.1' IDENTIFIED BY 'ChildGuard_App_2026!'; GRANT ALL PRIVILEGES ON childguard_db.* TO 'childguard_app'@'localhost'; GRANT ALL PRIVILEGES ON childguard_db.* TO 'childguard_app'@'127.0.0.1'; FLUSH PRIVILEGES;" >nul 2>&1
-)
-
 :db_ready
+REM Database, app user, admin and JWT secrets are created on first run by the setup
+REM script and kept in .NET user-secrets only - never hardcoded here. Idempotent.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%scripts\dev-setup-secrets.ps1"
+if errorlevel 1 echo       [WARN] Credential setup failed - check MySQL is running and reachable as root.
 echo.
 
 REM ------------------------------------------------------------
@@ -112,9 +112,8 @@ echo   - API Backend:    http://localhost:5275
 echo   - Face Service:   http://127.0.0.1:8001
 echo   - Diagnostics:    http://localhost:5080/Diagnostics
 echo.
-echo   Default Admin Credentials:
-echo   Email:     admin@childguard.local
-echo   Password:  Admin@2026!
+echo   Admin sign-in: SeedAdmin:Email / SeedAdmin:Password in user-secrets
+echo     dotnet user-secrets list --project src\ChildGuard.Api
 echo ============================================================
 echo.
 
