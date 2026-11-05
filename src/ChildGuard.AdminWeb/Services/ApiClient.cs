@@ -100,9 +100,9 @@ public class ApiClient
                 var value = JsonSerializer.Deserialize<T>(raw, JsonOptions);
                 return ApiResult<T>.Ok(value!);
             }
-            catch
+            catch (JsonException)
             {
-                return ApiResult<T>.Ok(default!);
+                return ApiResult<T>.Fail("The server returned a response that could not be read.", (int)response.StatusCode);
             }
         }
 

@@ -113,8 +113,13 @@
     {
         @await Html.PartialAsync("_EmptyState", ("rfid", "No RFID cards registered",
             "Scan a card at any reader to capture its UID, then assign it to a student.",
-            unassignedStudents.Any() ? "Assign the first card" : null,
-            unassignedStudents.Any() ? "#" : null))
+            (string?)null, (string?)null))
+        @if (unassignedStudents.Any())
+        {
+            <div style="text-align:center;margin-top:-12px">
+                <button type="button" class="cg-btn cg-btn--primary" data-cg-modal-open="assignCardModal">Assign the first card</button>
+            </div>
+        }
     }
     else
     {

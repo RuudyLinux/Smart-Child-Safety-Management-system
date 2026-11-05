@@ -48,7 +48,8 @@ public class TransportationController : ControllerBase
     public async Task<IActionResult> AddRoute(CreateRouteRequest request, CancellationToken ct)
     {
         await _routeValidator.ValidateAndThrowAsync(request, ct);
-        return Ok(await _service.AddRouteAsync(request, ct));
+        var result = await _service.AddRouteAsync(request, ct);
+        return result.Succeeded ? Ok(result.Value) : BadRequest(new { message = result.Error });
     }
 
     [HttpGet("buses")]

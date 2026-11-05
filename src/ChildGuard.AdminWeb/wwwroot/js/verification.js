@@ -21,6 +21,11 @@
 
   function $(id) { return document.getElementById(id); }
 
+  function csrfToken() {
+    var meta = document.querySelector('meta[name="csrf-token"]');
+    return meta ? meta.content : '';
+  }
+
   function icon(name) {
     var paths = {
       check: '<path d="M20 6 9 17l-5-5"/>',
@@ -178,7 +183,10 @@
     var device = $('deviceSelect');
     if (!device || !device.value) return;
     try {
-      var resp = await fetch('/Verification/Heartbeat?deviceId=' + encodeURIComponent(device.value), { method: 'POST' });
+      var resp = await fetch('/Verification/Heartbeat?deviceId=' + encodeURIComponent(device.value), {
+        method: 'POST',
+        headers: { 'X-CSRF-TOKEN': csrfToken() }
+      });
       setStep('step-scanner', resp.ok ? 'done' : 'failed', resp.ok ? 'Connected' : 'Not reachable');
       setScannerBadge(resp.ok);
     } catch (e) {
@@ -213,7 +221,7 @@
     try {
       var resp = await fetch('/Verification/Scan', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken() },
         body: JSON.stringify(payload)
       });
       data = await resp.json();
@@ -407,7 +415,7 @@
     try {
       var resp = await fetch('/Verification/FaceVerify', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken() },
         body: JSON.stringify({ studentId: state.studentId, guardianId: state.guardianId, imageBase64: imageBase64 })
       });
       data = await resp.json();
@@ -471,7 +479,7 @@
     try {
       var resp = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken() },
         body: JSON.stringify(body)
       });
       data = await resp.json();

@@ -43,6 +43,7 @@ public class VerificationController : BaseAdminController
     }
 
     [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> Heartbeat(int deviceId, CancellationToken ct)
     {
         var result = await Api.PostAsync<object?>($"/api/rfid/devices/{deviceId}/heartbeat", new { }, ct);
@@ -70,6 +71,7 @@ public class VerificationController : BaseAdminController
     }
 
     [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> Scan([FromBody] RfidScanRequest request, CancellationToken ct)
     {
         var result = await Api.PostAsync<RfidScanResultDto>("/api/rfid/scan", request, ct);
@@ -77,6 +79,7 @@ public class VerificationController : BaseAdminController
     }
 
     [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> FaceVerify([FromBody] FaceVerifyRequest request, CancellationToken ct)
     {
         var result = await Api.PostAsync<FaceVerifyResultDto>("/api/verification/face-verify", request, ct);
@@ -84,6 +87,7 @@ public class VerificationController : BaseAdminController
     }
 
     [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> Approve([FromBody] ApprovePickupRequest request, CancellationToken ct)
     {
         var result = await Api.PostAsync<PickupDecisionResultDto>("/api/verification/approve", request, ct);
@@ -91,6 +95,7 @@ public class VerificationController : BaseAdminController
     }
 
     [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> Reject([FromBody] RejectPickupRequest request, CancellationToken ct)
     {
         var result = await Api.PostAsync<PickupDecisionResultDto>("/api/verification/reject", request, ct);

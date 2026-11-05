@@ -8,6 +8,11 @@ builder.Services.AddControllersWithViews()
         options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
 builder.Services.AddHttpContextAccessor();
 
+// Lets fetch()-based JSON posts (the pickup desk) carry the antiforgery token
+// as a header instead of a form field, read from the <meta name="csrf-token">
+// in _Layout.cshtml.
+builder.Services.AddAntiforgery(options => options.HeaderName = "X-CSRF-TOKEN");
+
 builder.Services.AddTransient<JwtForwardingHandler>();
 var apiBaseUrl = builder.Configuration["Api:BaseUrl"] ?? "http://localhost:5275";
 builder.Services.AddHttpClient<ApiClient>(client =>

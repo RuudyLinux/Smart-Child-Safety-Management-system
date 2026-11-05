@@ -9,7 +9,7 @@ public interface ITransportationService
     Task<DriverDto> AddDriverAsync(CreateDriverRequest request, CancellationToken ct = default);
 
     Task<List<RouteDto>> GetRoutesAsync(CancellationToken ct = default);
-    Task<RouteDto> AddRouteAsync(CreateRouteRequest request, CancellationToken ct = default);
+    Task<Result<RouteDto>> AddRouteAsync(CreateRouteRequest request, CancellationToken ct = default);
 
     Task<List<BusDto>> GetBusesAsync(CancellationToken ct = default);
     Task<Result<BusDto>> AddBusAsync(CreateBusRequest request, CancellationToken ct = default);

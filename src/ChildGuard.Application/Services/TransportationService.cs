@@ -24,12 +24,16 @@ public class TransportationService : ITransportationService
     public async Task<List<RouteDto>> GetRoutesAsync(CancellationToken ct = default) =>
         (await _repo.GetRoutesAsync(ct)).Select(r => new RouteDto(r.RouteId, r.RouteName, r.Description, r.Status)).ToList();
 
-    public async Task<RouteDto> AddRouteAsync(CreateRouteRequest request, CancellationToken ct = default)
+    public async Task<Result<RouteDto>> AddRouteAsync(CreateRouteRequest request, CancellationToken ct = default)
     {
+        var existing = await _repo.GetRoutesAsync(ct);
+        if (existing.Any(r => string.Equals(r.RouteName, request.RouteName, StringComparison.OrdinalIgnoreCase)))
+            return Result<RouteDto>.Failure("A route with this name already exists.");
+
         var route = new Route { RouteName = request.RouteName, Description = request.Description };
         await _repo.AddRouteAsync(route, ct);
         await _repo.SaveChangesAsync(ct);
-        return new RouteDto(route.RouteId, route.RouteName, route.Description, route.Status);
+        return Result<RouteDto>.Success(new RouteDto(route.RouteId, route.RouteName, route.Description, route.Status));
     }
 
     public async Task<List<BusDto>> GetBusesAsync(CancellationToken ct = default) =>
@@ -38,6 +42,10 @@ public class TransportationService : ITransportationService
 
     public async Task<Result<BusDto>> AddBusAsync(CreateBusRequest request, CancellationToken ct = default)
     {
+        var existing = await _repo.GetBusesAsync(ct);
+        if (existing.Any(b => string.Equals(b.BusNumber, request.BusNumber, StringComparison.OrdinalIgnoreCase)))
+            return Result<BusDto>.Failure("A bus with this number already exists.");
+
         var bus = new Bus
         {
             BusNumber = request.BusNumber,

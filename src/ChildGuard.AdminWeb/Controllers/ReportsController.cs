@@ -19,12 +19,19 @@ public class ReportsController : BaseAdminController
         var rangeTo = to ?? today;
         var rangeFrom = from ?? rangeTo.AddDays(-29);
 
-        var attendance = await Api.GetAsync<List<AttendanceRecordDto>>(BuildAttendanceQuery(rangeFrom, rangeTo, studentId), ct);
-        var journey = await Api.GetAsync<List<JourneyEventDto>>("/api/journey/recent?take=200", ct);
-        var verification = await Api.GetAsync<List<GuardianVerificationHistoryDto>>(
+        var attendanceTask = Api.GetAsync<List<AttendanceRecordDto>>(BuildAttendanceQuery(rangeFrom, rangeTo, studentId), ct);
+        var journeyTask = Api.GetAsync<List<JourneyEventDto>>("/api/journey/recent?take=200", ct);
+        var verificationTask = Api.GetAsync<List<GuardianVerificationHistoryDto>>(
             studentId.HasValue ? $"/api/reports/verification?studentId={studentId}" : "/api/reports/verification", ct);
-        var students = await Api.GetAsync<List<StudentListItemDto>>("/api/students", ct);
-        var summary = await Api.GetAsync<DashboardSummaryDto>("/api/dashboard/summary", ct);
+        var studentsTask = Api.GetAsync<List<StudentListItemDto>>("/api/students", ct);
+        var summaryTask = Api.GetAsync<DashboardSummaryDto>("/api/dashboard/summary", ct);
+        await Task.WhenAll(attendanceTask, journeyTask, verificationTask, studentsTask, summaryTask);
+
+        var attendance = attendanceTask.Result;
+        var journey = journeyTask.Result;
+        var verification = verificationTask.Result;
+        var students = studentsTask.Result;
+        var summary = summaryTask.Result;
 
         var attendanceRows = attendance.Value ?? new();
         // Journey events have no server-side date filter, so the page narrows the
