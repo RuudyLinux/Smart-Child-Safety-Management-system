@@ -1,6 +1,10 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using System.Text;
 using System.Threading.RateLimiting;
 using ChildGuard.Api.Security;
+using ChildGuard.Application.Interfaces;
+using ChildGuard.Domain.Enums;
 using ChildGuard.Infrastructure;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -22,7 +26,7 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
 builder.Services.AddOpenApi();
 
-builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddInfrastructure(builder.Configuration, builder.Environment.IsDevelopment());
 builder.Services.AddValidatorsFromAssembly(
     typeof(ChildGuard.Application.Validators.LoginRequestValidator).Assembly);
 
@@ -48,6 +52,36 @@ builder.Services.AddAuthentication(options =>
         ValidAudience = jwtAudience,
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
         ClockSkew = TimeSpan.FromMinutes(1)
+    };
+
+    // A valid-looking token means nothing once the account behind it is
+    // deactivated — re-check status on every request so a deactivated
+    // admin/guardian loses access immediately, not just after the token expires.
+    options.Events = new JwtBearerEvents
+    {
+        OnTokenValidated = async context =>
+        {
+            var sub = context.Principal?.FindFirstValue(JwtRegisteredClaimNames.Sub);
+            var role = context.Principal?.FindFirstValue(ClaimTypes.Role);
+            if (!int.TryParse(sub, out var userId) || role is null)
+            {
+                context.Fail("Invalid token.");
+                return;
+            }
+
+            var services = context.HttpContext.RequestServices;
+            var status = role switch
+            {
+                nameof(AppRole.Guardian) => (await services.GetRequiredService<IGuardianRepository>()
+                    .GetByIdAsync(userId, context.HttpContext.RequestAborted))?.Status,
+                nameof(AppRole.Admin) => (await services.GetRequiredService<IAdminRepository>()
+                    .GetByIdAsync(userId, context.HttpContext.RequestAborted))?.Status,
+                _ => null
+            };
+
+            if (status != RecordStatus.Active)
+                context.Fail("Account is no longer active.");
+        }
     };
 })
 // Lets a physical RFID scanner authenticate with a shared device key (X-Device-Key)

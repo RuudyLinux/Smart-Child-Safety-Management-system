@@ -14,7 +14,7 @@ namespace ChildGuard.Infrastructure;
 
 public static class DependencyInjection
 {
-    public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration config)
+    public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration config, bool isDevelopment)
     {
         var connectionString = config.GetConnectionString("ChildGuardDb")
             ?? throw new InvalidOperationException("Missing ConnectionStrings:ChildGuardDb configuration.");
@@ -29,7 +29,7 @@ public static class DependencyInjection
         services.AddScoped<IPasswordHasherService, PasswordHasherService>();
         services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
         services.AddScoped<IPasswordResetNotifier, LoggingPasswordResetNotifier>();
-        RegisterEmailSender(services, config);
+        RegisterEmailSender(services, config, isDevelopment);
         services.AddSingleton(config.GetSection("Otp").Get<OtpOptions>() ?? new OtpOptions());
         // School-day policy (late/absent cutoffs) lives in configuration so the
         // rule is stated once and no screen invents its own threshold.
@@ -79,12 +79,13 @@ public static class DependencyInjection
     /// <summary>
     /// Sends real email through Resend only when an API key is configured
     /// (Email:Resend:ApiKey, via user-secrets/env — never hardcoded). Without one,
-    /// falls back to the logging sender so the app runs fully in dev.
+    /// falls back to the logging sender so the app runs fully in dev — Development
+    /// only, since that sender writes live OTP codes and credentials to the log.
     /// The login OTP rides the same channel: there is no SMS gateway in the
     /// approved stack, so it goes to the Guardian's registered email address, and
     /// only drops to a log line when no provider is configured at all.
     /// </summary>
-    private static void RegisterEmailSender(IServiceCollection services, IConfiguration config)
+    private static void RegisterEmailSender(IServiceCollection services, IConfiguration config, bool isDevelopment)
     {
         var emailOptions = config.GetSection("Email").Get<EmailOptions>() ?? new EmailOptions();
         services.AddSingleton(emailOptions);
@@ -92,6 +93,10 @@ public static class DependencyInjection
         var apiKey = config["Email:Resend:ApiKey"];
         if (string.IsNullOrWhiteSpace(apiKey))
         {
+            if (!isDevelopment)
+                throw new InvalidOperationException(
+                    "Email:Resend:ApiKey must be configured outside Development — the fallback sender logs live OTP codes and passwords in plaintext.");
+
             services.AddScoped<IEmailSender, LoggingEmailSender>();
             services.AddScoped<IOtpSender, LoggingOtpSender>();
             return;
