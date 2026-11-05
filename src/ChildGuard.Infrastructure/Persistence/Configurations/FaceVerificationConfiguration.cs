@@ -21,6 +21,7 @@ public class GuardianVerificationConfiguration : IEntityTypeConfiguration<Guardi
     {
         b.HasKey(x => x.Id);
         b.HasIndex(x => new { x.StudentId, x.AttemptedAt });
+        b.Property(x => x.Version).IsConcurrencyToken();
 
         b.HasOne(x => x.Student)
             .WithMany(x => x.GuardianVerifications)

@@ -106,6 +106,14 @@ public class VerificationService : IVerificationService
         if (verification.PickupApproved)
             return Result<PickupDecisionResultDto>.Failure("Pickup already approved for this verification.");
 
+        // The time between face verification and an admin's approval is the
+        // whole point of the pending queue, so both parties' status could have
+        // changed since VerifyAsync ran — re-check right before acting on it.
+        if (verification.Guardian.Status != RecordStatus.Active)
+            return Result<PickupDecisionResultDto>.Failure("This guardian's account is no longer active.");
+        if (verification.Student.Status != RecordStatus.Active)
+            return Result<PickupDecisionResultDto>.Failure("This student's record is no longer active.");
+
         // A guardian pickup only makes sense while the student is currently at school —
         // it produces a School Departure event. (Bus Drop-off is the bus's own checkpoint,
         // not a face-verified personal pickup, so it is not a valid pickup target here.)
@@ -119,7 +127,15 @@ public class VerificationService : IVerificationService
 
         verification.PickupApproved = true;
         verification.ApprovedByAdminId = approvingAdminId;
-        await _verifications.SaveChangesAsync(ct);
+        verification.Version++;
+        try
+        {
+            await _verifications.SaveChangesAsync(ct);
+        }
+        catch (ConcurrencyConflictException)
+        {
+            return Result<PickupDecisionResultDto>.Failure("Pickup already approved for this verification.");
+        }
 
         var journeyEvent = new JourneyEvent
         {
@@ -154,11 +170,25 @@ public class VerificationService : IVerificationService
     {
         var verification = await _verifications.GetVerificationByIdAsync(request.VerificationId, ct);
         if (verification is null) return Result<PickupDecisionResultDto>.Failure("Verification record not found.");
+        if (verification.PickupApproved)
+            return Result<PickupDecisionResultDto>.Failure("This pickup was already approved and cannot be rejected.");
+        // Already decided (and not approved) means it was rejected before — treat
+        // a repeat call as a no-op instead of re-sending the rejection notification.
+        if (verification.ApprovedByAdminId is not null)
+            return Result<PickupDecisionResultDto>.Success(new PickupDecisionResultDto(false, "Pickup rejected.", null));
 
         verification.PickupApproved = false;
         verification.ApprovedByAdminId = actingAdminId;
         verification.Notes = request.Reason;
-        await _verifications.SaveChangesAsync(ct);
+        verification.Version++;
+        try
+        {
+            await _verifications.SaveChangesAsync(ct);
+        }
+        catch (ConcurrencyConflictException)
+        {
+            return Result<PickupDecisionResultDto>.Success(new PickupDecisionResultDto(false, "Pickup rejected.", null));
+        }
 
         var student = await _students.GetByIdAsync(verification.StudentId, ct);
         var rejectedTitle = "Pickup rejected";

@@ -385,6 +385,10 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                     b.Property<int>("StudentId")
                         .HasColumnType("int");
 
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("int unsigned");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ApprovedByAdminId");

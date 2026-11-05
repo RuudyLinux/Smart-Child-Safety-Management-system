@@ -1,3 +1,4 @@
+using ChildGuard.Application.Common;
 using ChildGuard.Application.DTOs;
 using ChildGuard.Application.Interfaces;
 using ChildGuard.Domain.Entities;
@@ -102,6 +103,9 @@ internal sealed class FakeVerificationRepository : IVerificationRepository
     public List<GuardianFaceData> FaceData { get; } = new();
     public List<GuardianVerification> Verifications { get; } = new();
 
+    /// <summary>Set to make the next SaveChangesAsync behave like a concurrent writer already won.</summary>
+    public bool SimulateConcurrencyConflictOnNextSave { get; set; }
+
     public Task<GuardianFaceData?> GetFaceDataAsync(int guardianId, CancellationToken ct = default) =>
         Task.FromResult(FaceData.FirstOrDefault(f => f.GuardianId == guardianId));
 
@@ -114,6 +118,7 @@ internal sealed class FakeVerificationRepository : IVerificationRepository
 
     public Task AddVerificationAsync(GuardianVerification verification, CancellationToken ct = default)
     {
+        verification.Id = Verifications.Count + 1;
         Verifications.Add(verification);
         return Task.CompletedTask;
     }
@@ -139,5 +144,13 @@ internal sealed class FakeVerificationRepository : IVerificationRepository
             .GroupBy(v => v.GuardianId)
             .ToDictionary(g => g.Key, g => g.Max(v => v.AttemptedAt)));
 
-    public Task SaveChangesAsync(CancellationToken ct = default) => Task.CompletedTask;
+    public Task SaveChangesAsync(CancellationToken ct = default)
+    {
+        if (SimulateConcurrencyConflictOnNextSave)
+        {
+            SimulateConcurrencyConflictOnNextSave = false;
+            throw new ConcurrencyConflictException("Simulated concurrent write.");
+        }
+        return Task.CompletedTask;
+    }
 }

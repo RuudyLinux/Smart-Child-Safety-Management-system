@@ -2,6 +2,7 @@ using ChildGuard.Application.Common;
 using ChildGuard.Application.DTOs;
 using ChildGuard.Application.Interfaces;
 using ChildGuard.Domain.Entities;
+using ChildGuard.Domain.Enums;
 
 namespace ChildGuard.Application.Services;
 
@@ -42,9 +43,23 @@ public class TransportationService : ITransportationService
 
     public async Task<Result<BusDto>> AddBusAsync(CreateBusRequest request, CancellationToken ct = default)
     {
-        var existing = await _repo.GetBusesAsync(ct);
-        if (existing.Any(b => string.Equals(b.BusNumber, request.BusNumber, StringComparison.OrdinalIgnoreCase)))
+        var existingBuses = await _repo.GetBusesAsync(ct);
+        if (existingBuses.Any(b => string.Equals(b.BusNumber, request.BusNumber, StringComparison.OrdinalIgnoreCase)))
             return Result<BusDto>.Failure("A bus with this number already exists.");
+
+        Driver? driver = null;
+        if (request.DriverId is int driverId)
+        {
+            driver = (await _repo.GetDriversAsync(ct)).FirstOrDefault(d => d.DriverId == driverId);
+            if (driver is null) return Result<BusDto>.Failure("Driver not found.");
+        }
+
+        Route? route = null;
+        if (request.RouteId is int routeId)
+        {
+            route = (await _repo.GetRoutesAsync(ct)).FirstOrDefault(r => r.RouteId == routeId);
+            if (route is null) return Result<BusDto>.Failure("Route not found.");
+        }
 
         var bus = new Bus
         {
@@ -55,7 +70,7 @@ public class TransportationService : ITransportationService
         };
         await _repo.AddBusAsync(bus, ct);
         await _repo.SaveChangesAsync(ct);
-        return Result<BusDto>.Success(new BusDto(bus.BusId, bus.BusNumber, bus.Capacity, null, null, bus.Status));
+        return Result<BusDto>.Success(new BusDto(bus.BusId, bus.BusNumber, bus.Capacity, driver?.FullName, route?.RouteName, bus.Status));
     }
 
     public async Task<List<StudentBusAssignmentDto>> GetAssignmentsAsync(CancellationToken ct = default) =>
@@ -69,6 +84,17 @@ public class TransportationService : ITransportationService
 
         var bus = await _repo.GetBusByIdAsync(request.BusId, ct);
         if (bus is null) return Result.Failure("Bus not found.");
+
+        if (request.RouteId is int routeId &&
+            (await _repo.GetRoutesAsync(ct)).All(r => r.RouteId != routeId))
+            return Result.Failure("Route not found.");
+
+        // A student should have exactly one active bus assignment — reassigning
+        // to a new bus supersedes whatever was active before, rather than piling
+        // up duplicate "current" assignments the safety board has to pick between.
+        var existingAssignments = await _repo.GetAssignmentsAsync(ct);
+        foreach (var prior in existingAssignments.Where(a => a.StudentId == request.StudentId && a.Status == RecordStatus.Active))
+            prior.Status = RecordStatus.Inactive;
 
         await _repo.AddAssignmentAsync(new StudentBusAssignment
         {

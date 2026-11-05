@@ -1,3 +1,4 @@
+using ChildGuard.Application.Common;
 using ChildGuard.Application.Interfaces;
 using ChildGuard.Domain.Entities;
 using ChildGuard.Infrastructure.Persistence;
@@ -60,5 +61,16 @@ public class VerificationRepository : IVerificationRepository
         return rows.ToDictionary(r => r.GuardianId, r => r.LastAt);
     }
 
-    public Task SaveChangesAsync(CancellationToken ct = default) => _db.SaveChangesAsync(ct);
+    public async Task SaveChangesAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new ConcurrencyConflictException(
+                "This verification was just updated by someone else. Reload and try again.");
+        }
+    }
 }
