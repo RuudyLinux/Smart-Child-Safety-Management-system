@@ -59,7 +59,7 @@ public class StudentBusAssignmentConfiguration : IEntityTypeConfiguration<Studen
         b.HasOne(x => x.Bus)
             .WithMany(x => x.StudentBusAssignments)
             .HasForeignKey(x => x.BusId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict); // historical record: never cascade-deleted (soft delete via Status)
 
         b.HasOne(x => x.Route)
             .WithMany(x => x.StudentBusAssignments)

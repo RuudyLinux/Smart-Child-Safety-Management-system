@@ -15,7 +15,7 @@ public class AttendanceConfiguration : IEntityTypeConfiguration<Attendance>
         b.HasOne(x => x.Student)
             .WithMany(x => x.AttendanceRecords)
             .HasForeignKey(x => x.StudentId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict); // historical record: never cascade-deleted (soft delete via Status)
 
         b.HasOne(x => x.RfidCard)
             .WithMany(x => x.AttendanceRecords)
@@ -41,7 +41,7 @@ public class JourneyEventConfiguration : IEntityTypeConfiguration<JourneyEvent>
         b.HasOne(x => x.Student)
             .WithMany(x => x.JourneyEvents)
             .HasForeignKey(x => x.StudentId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict); // historical record: never cascade-deleted (soft delete via Status)
 
         b.HasOne(x => x.RfidCard)
             .WithMany(x => x.JourneyEvents)

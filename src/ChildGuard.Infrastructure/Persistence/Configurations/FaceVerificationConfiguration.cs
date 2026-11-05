@@ -28,12 +28,12 @@ public class GuardianVerificationConfiguration : IEntityTypeConfiguration<Guardi
         b.HasOne(x => x.Student)
             .WithMany(x => x.GuardianVerifications)
             .HasForeignKey(x => x.StudentId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict); // historical record: never cascade-deleted (soft delete via Status)
 
         b.HasOne(x => x.Guardian)
             .WithMany()
             .HasForeignKey(x => x.GuardianId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict); // historical record: never cascade-deleted (soft delete via Status)
 
         b.HasOne(x => x.ApprovedByAdmin)
             .WithMany()
