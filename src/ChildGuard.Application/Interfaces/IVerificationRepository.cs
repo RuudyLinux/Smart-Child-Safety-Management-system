@@ -9,7 +9,7 @@ public interface IVerificationRepository
 
     Task AddVerificationAsync(GuardianVerification verification, CancellationToken ct = default);
     Task<GuardianVerification?> GetVerificationByIdAsync(int id, CancellationToken ct = default);
-    Task<List<GuardianVerification>> GetHistoryAsync(int? studentId, CancellationToken ct = default);
+    Task<List<GuardianVerification>> GetHistoryAsync(int? studentId, DateTime? fromUtc = null, DateTime? toUtcExclusive = null, CancellationToken ct = default);
 
     /// <summary>Most recent verification attempts made by one guardian, newest first.</summary>
     Task<List<GuardianVerification>> GetHistoryForGuardianAsync(int guardianId, int take, CancellationToken ct = default);

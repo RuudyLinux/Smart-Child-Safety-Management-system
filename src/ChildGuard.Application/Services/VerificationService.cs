@@ -6,8 +6,28 @@ using ChildGuard.Domain.Enums;
 
 namespace ChildGuard.Application.Services;
 
+/// <summary>
+/// Pickup decision state (derived from Result / PickupApproved / ApprovedByAdminId):
+///   Pending  = Match, not approved, no deciding admin
+///   Approved = PickupApproved (records SchoolDeparture in the same transaction)
+///   Rejected = not approved, deciding admin set
+///   NoMatch  = face did not match; can only be rejected
+/// Transitions enforced here:
+///   Pending  -> Approved  allowed (guardian + student active, student at school today)
+///   Pending  -> Rejected  allowed
+///   Approved -> Rejected  blocked
+///   Approved -> Approved  blocked ("already approved")
+///   Rejected -> Rejected  idempotent success, no second notification
+///   Rejected -> Approved  currently ALLOWED (existing behaviour, pending a business decision)
+///   Concurrent decisions on one verification: Version token, loser gets DecidedConcurrentlyMessage.
+///   Concurrent approvals of different verifications for one student: serialized by the
+///   student journey lock; only the first can record the departure.
+/// </summary>
 public class VerificationService : IVerificationService
 {
+    public const string DecidedConcurrentlyMessage =
+        "This pickup was just decided by another admin. Reload to see the outcome.";
+
     private readonly IVerificationRepository _verifications;
     private readonly IStudentRepository _students;
     private readonly IGuardianRepository _guardians;
@@ -117,35 +137,46 @@ public class VerificationService : IVerificationService
         // A guardian pickup only makes sense while the student is currently at school —
         // it produces a School Departure event. (Bus Drop-off is the bus's own checkpoint,
         // not a face-verified personal pickup, so it is not a valid pickup target here.)
-        var lastEvent = await _journey.GetLastEventAsync(verification.StudentId, ct);
         const JourneyEventType next = JourneyEventType.SchoolDeparture;
 
-        var stateCheck = _validation.ValidateNextEvent(lastEvent?.EventType, next);
-        if (!stateCheck.Succeeded)
-            return Result<PickupDecisionResultDto>.Failure(
-                $"Pickup cannot be recorded: {stateCheck.Error}");
+        // State check, approval and departure event happen under the student's
+        // journey lock in one transaction: two approvals for different verifications
+        // of the same student cannot both see "at school", and an approval can never
+        // be saved without its departure event (or vice versa).
+        var (journeyEvent, failure) = await _journey.RunSerializedForStudentAsync(verification.StudentId, async lockCt =>
+        {
+            var now = DateTime.UtcNow;
+            var lastEvent = await _journey.GetLastEventSinceAsync(verification.StudentId, SchoolDay.StartUtc(now), lockCt);
+            var stateCheck = _validation.ValidateNextEvent(lastEvent?.EventType, next);
+            if (!stateCheck.Succeeded)
+                return ((JourneyEvent?)null, $"Pickup cannot be recorded: {stateCheck.Error}");
 
-        verification.PickupApproved = true;
-        verification.ApprovedByAdminId = approvingAdminId;
-        verification.Version++;
-        try
-        {
-            await _verifications.SaveChangesAsync(ct);
-        }
-        catch (ConcurrencyConflictException)
-        {
-            return Result<PickupDecisionResultDto>.Failure("Pickup already approved for this verification.");
-        }
+            verification.PickupApproved = true;
+            verification.ApprovedByAdminId = approvingAdminId;
+            verification.Version++;
+            try
+            {
+                await _verifications.SaveChangesAsync(lockCt);
+            }
+            catch (ConcurrencyConflictException)
+            {
+                return (null, DecidedConcurrentlyMessage);
+            }
 
-        var journeyEvent = new JourneyEvent
-        {
-            StudentId = verification.StudentId,
-            EventType = next,
-            Timestamp = DateTime.UtcNow,
-            Source = EventSource.Manual
-        };
-        await _journey.AddJourneyEventAsync(journeyEvent, ct);
-        await _journey.SaveChangesAsync(ct);
+            var created = new JourneyEvent
+            {
+                StudentId = verification.StudentId,
+                EventType = next,
+                Timestamp = now,
+                Source = EventSource.Manual
+            };
+            await _journey.AddJourneyEventAsync(created, lockCt);
+            await _journey.SaveChangesAsync(lockCt);
+            return (created, (string?)null);
+        }, ct);
+
+        if (journeyEvent is null)
+            return Result<PickupDecisionResultDto>.Failure(failure!);
 
         var student = await _students.GetByIdAsync(verification.StudentId, ct);
         var approvedTitle = "Pickup approved";
@@ -187,7 +218,10 @@ public class VerificationService : IVerificationService
         }
         catch (ConcurrencyConflictException)
         {
-            return Result<PickupDecisionResultDto>.Success(new PickupDecisionResultDto(false, "Pickup rejected.", null));
+            // Another admin decided this verification between our read and write —
+            // possibly an approval. Reporting "rejected" here could tell the desk a
+            // child was not released when they were, so surface the conflict instead.
+            return Result<PickupDecisionResultDto>.Failure(DecidedConcurrentlyMessage);
         }
 
         var student = await _students.GetByIdAsync(verification.StudentId, ct);
@@ -209,8 +243,12 @@ public class VerificationService : IVerificationService
         return Result<PickupDecisionResultDto>.Success(new PickupDecisionResultDto(false, "Pickup rejected.", null));
     }
 
-    public async Task<List<GuardianVerificationHistoryDto>> GetHistoryAsync(int? studentId, CancellationToken ct = default) =>
-        (await _verifications.GetHistoryAsync(studentId, ct))
+    public async Task<List<GuardianVerificationHistoryDto>> GetHistoryAsync(int? studentId, DateOnly? from = null, DateOnly? to = null, CancellationToken ct = default) =>
+        (await _verifications.GetHistoryAsync(
+            studentId,
+            from?.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc),
+            to?.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc),
+            ct))
             .Select(v => new GuardianVerificationHistoryDto(
                 v.Id, v.StudentId, v.Student.FullName, v.GuardianId, v.Guardian.FullName,
                 v.AttemptedAt, v.MatchScore, v.Result, v.PickupApproved))

@@ -393,6 +393,8 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ApprovedByAdminId");
 
+                    b.HasIndex("AttemptedAt");
+
                     b.HasIndex("GuardianId");
 
                     b.HasIndex("StudentId", "AttemptedAt");
@@ -437,6 +439,8 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                     b.HasIndex("RfidCardId");
 
                     b.HasIndex("RfidDeviceId");
+
+                    b.HasIndex("Timestamp");
 
                     b.HasIndex("StudentId", "Timestamp");
 

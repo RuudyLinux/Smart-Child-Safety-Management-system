@@ -118,46 +118,58 @@ public class RfidService : IRfidService
             return new RfidScanResultDto(true, card.StudentId, student?.FullName, RfidMasking.Mask(card.CardUid),
                 false, null, "Student is not active.");
 
-        var lastEvent = await _journey.GetLastEventAsync(student.StudentId, ct);
-        var validation = _validation.ValidateNextEvent(lastEvent?.EventType, request.Checkpoint);
-
-        if (!validation.Succeeded)
-            return new RfidScanResultDto(true, student.StudentId, student.FullName, RfidMasking.Mask(card.CardUid),
-                false, null, validation.Error!);
-
-        var now = DateTime.UtcNow;
-        var journeyEvent = new JourneyEvent
+        // Read-validate-write under a per-student lock: two taps arriving together
+        // (double tap, scanner retry, two readers) are applied one after the other,
+        // so the second sees the first's event and is rejected as a duplicate
+        // instead of both passing validation against the same stale state.
+        var (journeyEvent, rejection) = await _journey.RunSerializedForStudentAsync(student.StudentId, async lockCt =>
         {
-            StudentId = student.StudentId,
-            RfidCardId = card.RfidCardId,
-            RfidDeviceId = device.RfidDeviceId,
-            EventType = request.Checkpoint,
-            Timestamp = now,
-            Source = EventSource.Rfid
-        };
-        await _journey.AddJourneyEventAsync(journeyEvent, ct);
+            var now = DateTime.UtcNow;
+            var lastEvent = await _journey.GetLastEventSinceAsync(student.StudentId, SchoolDay.StartUtc(now), lockCt);
+            var validation = _validation.ValidateNextEvent(lastEvent?.EventType, request.Checkpoint);
+            if (!validation.Succeeded)
+                return ((JourneyEvent?)null, validation.Error);
 
-        if (request.Checkpoint is JourneyEventType.SchoolArrival or JourneyEventType.SchoolDeparture)
-        {
-            await _journey.AddAttendanceAsync(new Attendance
+            var created = new JourneyEvent
             {
                 StudentId = student.StudentId,
                 RfidCardId = card.RfidCardId,
-                EventType = request.Checkpoint == JourneyEventType.SchoolArrival
-                    ? AttendanceEventType.SchoolArrival
-                    : AttendanceEventType.SchoolDeparture,
-                Date = DateOnly.FromDateTime(now),
-                Time = TimeOnly.FromDateTime(now)
-            }, ct);
-        }
+                RfidDeviceId = device.RfidDeviceId,
+                EventType = request.Checkpoint,
+                Timestamp = now,
+                Source = EventSource.Rfid
+            };
+            await _journey.AddJourneyEventAsync(created, lockCt);
 
-        await _journey.SaveChangesAsync(ct);
+            if (request.Checkpoint is JourneyEventType.SchoolArrival or JourneyEventType.SchoolDeparture)
+            {
+                await _journey.AddAttendanceAsync(new Attendance
+                {
+                    StudentId = student.StudentId,
+                    RfidCardId = card.RfidCardId,
+                    EventType = request.Checkpoint == JourneyEventType.SchoolArrival
+                        ? AttendanceEventType.SchoolArrival
+                        : AttendanceEventType.SchoolDeparture,
+                    Date = DateOnly.FromDateTime(now),
+                    Time = TimeOnly.FromDateTime(now)
+                }, lockCt);
+            }
+
+            await _journey.SaveChangesAsync(lockCt);
+            return (created, (string?)null);
+        }, ct);
+
+        if (journeyEvent is null)
+            return new RfidScanResultDto(true, student.StudentId, student.FullName, RfidMasking.Mask(card.CardUid),
+                false, null, rejection!);
+
+        var recordedAt = journeyEvent.Timestamp;
 
         // Notify every guardian linked to this student — in-app record now, push delivery in Notifications phase.
         var guardianLinks = await _students.GetLinkedGuardiansAsync(student.StudentId, ct);
         var allGuardianIds = guardianLinks.Select(g => g.GuardianId).Distinct().ToList();
         var title = $"{request.Checkpoint} recorded";
-        var message = $"{student.FullName}: {request.Checkpoint} recorded at {now:t}.";
+        var message = $"{student.FullName}: {request.Checkpoint} recorded at {recordedAt:t}.";
         foreach (var guardianId in allGuardianIds)
         {
             await _notifications.AddAsync(new Notification

@@ -37,10 +37,12 @@ public class VerificationRepository : IVerificationRepository
         _db.GuardianVerifications.Include(v => v.Student).Include(v => v.Guardian)
             .FirstOrDefaultAsync(v => v.Id == id, ct);
 
-    public Task<List<GuardianVerification>> GetHistoryAsync(int? studentId, CancellationToken ct = default)
+    public Task<List<GuardianVerification>> GetHistoryAsync(int? studentId, DateTime? fromUtc = null, DateTime? toUtcExclusive = null, CancellationToken ct = default)
     {
         var query = _db.GuardianVerifications.Include(v => v.Student).Include(v => v.Guardian).AsQueryable();
         if (studentId is not null) query = query.Where(v => v.StudentId == studentId);
+        if (fromUtc is not null) query = query.Where(v => v.AttemptedAt >= fromUtc);
+        if (toUtcExclusive is not null) query = query.Where(v => v.AttemptedAt < toUtcExclusive);
         return query.OrderByDescending(v => v.AttemptedAt).ToListAsync(ct);
     }
 

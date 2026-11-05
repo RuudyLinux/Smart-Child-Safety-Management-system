@@ -8,6 +8,19 @@ public record AttendanceRecordDto(
 
 public record JourneyEventDto(int JourneyEventId, int StudentId, string StudentName, JourneyEventType EventType, DateTime Timestamp, EventSource Source);
 
+/// <summary>
+/// One page of the journey report. <see cref="TotalCount"/> is the number of events
+/// in the whole [From, To] range, so a caller can always tell when <see cref="Items"/>
+/// is only part of the result. From/To are UTC calendar dates, inclusive.
+/// </summary>
+public record JourneyReportPageDto(
+    IReadOnlyList<JourneyEventDto> Items, int TotalCount, int Page, int PageSize,
+    DateOnly From, DateOnly To, int? StudentId)
+{
+    public int TotalPages => TotalCount == 0 ? 0 : (TotalCount + PageSize - 1) / PageSize;
+    public bool HasMore => Page < TotalPages;
+}
+
 public record NotificationDto(int NotificationId, string Title, string Message, NotificationType Type, bool IsRead, DateTime SentAt, int? StudentId);
 
 /// <summary>

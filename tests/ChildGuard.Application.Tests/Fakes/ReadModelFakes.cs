@@ -67,8 +67,32 @@ internal sealed class FakeJourneyRepository : IJourneyRepository
     public List<JourneyEvent> Events { get; } = new();
     public List<Attendance> AttendanceRecords { get; } = new();
 
-    public Task<JourneyEvent?> GetLastEventAsync(int studentId, CancellationToken ct = default) =>
-        Task.FromResult(Events.Where(e => e.StudentId == studentId).OrderByDescending(e => e.Timestamp).FirstOrDefault());
+    /// <summary>Number of times work ran under the per-student lock — lets tests assert the write path is serialized.</summary>
+    public int SerializedRuns { get; private set; }
+
+    public Task<JourneyEvent?> GetLastEventSinceAsync(int studentId, DateTime sinceUtc, CancellationToken ct = default) =>
+        Task.FromResult(Events
+            .Where(e => e.StudentId == studentId && e.Timestamp >= sinceUtc)
+            .OrderByDescending(e => e.Timestamp)
+            .FirstOrDefault());
+
+    public async Task<T> RunSerializedForStudentAsync<T>(int studentId, Func<CancellationToken, Task<T>> work, CancellationToken ct = default)
+    {
+        SerializedRuns++;
+        return await work(ct);
+    }
+
+    public Task<(List<JourneyEvent> Items, int TotalCount)> GetPageAsync(
+        DateTime fromUtc, DateTime toUtcExclusive, int? studentId, int skip, int take, CancellationToken ct = default)
+    {
+        var matching = Events
+            .Where(e => e.Timestamp >= fromUtc && e.Timestamp < toUtcExclusive)
+            .Where(e => studentId is null || e.StudentId == studentId)
+            .OrderByDescending(e => e.Timestamp)
+            .ThenByDescending(e => e.JourneyEventId)
+            .ToList();
+        return Task.FromResult((matching.Skip(skip).Take(take).ToList(), matching.Count));
+    }
 
     public Task AddJourneyEventAsync(JourneyEvent journeyEvent, CancellationToken ct = default)
     {
@@ -126,9 +150,11 @@ internal sealed class FakeVerificationRepository : IVerificationRepository
     public Task<GuardianVerification?> GetVerificationByIdAsync(int id, CancellationToken ct = default) =>
         Task.FromResult(Verifications.FirstOrDefault(v => v.Id == id));
 
-    public Task<List<GuardianVerification>> GetHistoryAsync(int? studentId, CancellationToken ct = default) =>
+    public Task<List<GuardianVerification>> GetHistoryAsync(int? studentId, DateTime? fromUtc = null, DateTime? toUtcExclusive = null, CancellationToken ct = default) =>
         Task.FromResult(Verifications
             .Where(v => studentId is null || v.StudentId == studentId)
+            .Where(v => fromUtc is null || v.AttemptedAt >= fromUtc)
+            .Where(v => toUtcExclusive is null || v.AttemptedAt < toUtcExclusive)
             .OrderByDescending(v => v.AttemptedAt)
             .ToList());
 

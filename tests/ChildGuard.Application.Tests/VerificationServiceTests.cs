@@ -36,7 +36,7 @@ public class VerificationServiceTests
             // A pickup only makes sense once the student is recorded as at school.
             Journey.Events.Add(new JourneyEvent
             {
-                StudentId = 1, EventType = JourneyEventType.SchoolArrival, Timestamp = DateTime.UtcNow.AddHours(-1), Source = EventSource.Rfid
+                StudentId = 1, EventType = JourneyEventType.SchoolArrival, Timestamp = DateTime.UtcNow.Date, Source = EventSource.Rfid
             });
         }
 
@@ -98,7 +98,7 @@ public class VerificationServiceTests
         var result = await h.Service.ApproveAsync(new ApprovePickupRequest(id), approvingAdminId: 7);
 
         Assert.False(result.Succeeded);
-        Assert.Equal("Pickup already approved for this verification.", result.Error);
+        Assert.Equal(VerificationService.DecidedConcurrentlyMessage, result.Error);
         Assert.DoesNotContain(h.Journey.Events, e => e.EventType == JourneyEventType.SchoolDeparture);
     }
 
@@ -168,6 +168,47 @@ public class VerificationServiceTests
         Assert.True(second.Succeeded);
         Assert.Single(h.Notifications.Notifications);
         Assert.Equal("First reason", h.Verifications.Verifications[0].Notes);
+    }
+
+    [Fact]
+    public async Task Reject_WhenAConcurrentDecisionWinsTheRace_ReportsConflictNotRejected()
+    {
+        var h = new Harness();
+        var id = await h.VerifyAsync();
+        // The winner may have been an approval — the loser must not claim "rejected".
+        h.Verifications.SimulateConcurrencyConflictOnNextSave = true;
+
+        var result = await h.Service.RejectAsync(new RejectPickupRequest(id, "No ID"), actingAdminId: 9);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(VerificationService.DecidedConcurrentlyMessage, result.Error);
+        Assert.Empty(h.Notifications.Notifications);
+    }
+
+    [Fact]
+    public async Task Approve_RunsUnderTheStudentJourneyLock()
+    {
+        var h = new Harness();
+        var id = await h.VerifyAsync();
+
+        await h.Service.ApproveAsync(new ApprovePickupRequest(id), approvingAdminId: 7);
+
+        Assert.Equal(1, h.Journey.SerializedRuns);
+    }
+
+    [Fact]
+    public async Task Approve_WhenArrivalWasYesterdayNotToday_IsRejected()
+    {
+        var h = new Harness();
+        var id = await h.VerifyAsync();
+        // Move the only arrival into yesterday: the student is not at school today.
+        h.Journey.Events[0].Timestamp = DateTime.UtcNow.Date.AddHours(-3);
+
+        var result = await h.Service.ApproveAsync(new ApprovePickupRequest(id), approvingAdminId: 7);
+
+        Assert.False(result.Succeeded);
+        Assert.False(h.Verifications.Verifications[0].PickupApproved);
+        Assert.DoesNotContain(h.Journey.Events, e => e.EventType == JourneyEventType.SchoolDeparture);
     }
 
     [Fact]

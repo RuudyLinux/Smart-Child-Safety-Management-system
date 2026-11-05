@@ -9,5 +9,6 @@ public interface IVerificationService
     Task<Result<FaceVerifyResultDto>> VerifyAsync(FaceVerifyRequest request, CancellationToken ct = default);
     Task<Result<PickupDecisionResultDto>> ApproveAsync(ApprovePickupRequest request, int approvingAdminId, CancellationToken ct = default);
     Task<Result<PickupDecisionResultDto>> RejectAsync(RejectPickupRequest request, int actingAdminId, CancellationToken ct = default);
-    Task<List<GuardianVerificationHistoryDto>> GetHistoryAsync(int? studentId, CancellationToken ct = default);
+    /// <summary>Verification attempts, newest first; optional inclusive UTC date bounds on AttemptedAt.</summary>
+    Task<List<GuardianVerificationHistoryDto>> GetHistoryAsync(int? studentId, DateOnly? from = null, DateOnly? to = null, CancellationToken ct = default);
 }

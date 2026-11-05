@@ -27,7 +27,24 @@ public class ReportsController : ControllerBase
     public async Task<IActionResult> JourneyReport([FromQuery] int studentId, CancellationToken ct) =>
         Ok(await _attendanceJourney.GetJourneyHistoryAsync(studentId, ct));
 
+    /// <summary>
+    /// Date-bounded, paged journey events (UTC dates, inclusive). Response carries
+    /// totalCount/totalPages/hasMore so a client never mistakes one page for the
+    /// whole range. Defaults: last 30 days, page 1, 50 per page (max 200).
+    /// </summary>
+    [HttpGet("journey/events")]
+    public async Task<IActionResult> JourneyEvents(
+        [FromQuery] DateOnly? from, [FromQuery] DateOnly? to, [FromQuery] int? studentId,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 50, CancellationToken ct = default)
+    {
+        var rangeTo = to ?? DateOnly.FromDateTime(DateTime.UtcNow);
+        var rangeFrom = from ?? rangeTo.AddDays(-29);
+        var result = await _attendanceJourney.GetJourneyReportAsync(rangeFrom, rangeTo, studentId, page, pageSize, ct);
+        return result.Succeeded ? Ok(result.Value) : BadRequest(new { message = result.Error });
+    }
+
     [HttpGet("verification")]
-    public async Task<IActionResult> VerificationReport([FromQuery] int? studentId, CancellationToken ct) =>
-        Ok(await _verification.GetHistoryAsync(studentId, ct));
+    public async Task<IActionResult> VerificationReport(
+        [FromQuery] int? studentId, [FromQuery] DateOnly? from, [FromQuery] DateOnly? to, CancellationToken ct) =>
+        Ok(await _verification.GetHistoryAsync(studentId, from, to, ct));
 }

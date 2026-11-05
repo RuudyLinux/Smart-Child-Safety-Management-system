@@ -2,7 +2,9 @@
 @{
     ViewData["Title"] = "Reports";
     var attendance = (List<AttendanceRecordDto>)ViewBag.Attendance;
-    var journey = (List<JourneyEventDto>)ViewBag.Journey;
+    var journeyPage = (JourneyReportPageDto)ViewBag.JourneyPage;
+    var journey = journeyPage.Items;
+    var journeyError = ViewBag.JourneyError as string;
     var verification = (List<GuardianVerificationHistoryDto>)ViewBag.Verification;
     var students = ViewBag.Students as List<StudentListItemDto> ?? new();
     var summary = ViewBag.Summary as DashboardSummaryDto;
@@ -11,6 +13,7 @@
     var to = (DateOnly)ViewData["To"]!;
     var studentId = ViewData["StudentId"] as int?;
     var exportQuery = $"from={from:yyyy-MM-dd}&to={to:yyyy-MM-dd}" + (studentId.HasValue ? $"&studentId={studentId}" : "");
+    string JourneyPageHref(int p) => $"/Reports?{exportQuery}&journeyPage={p}#journey";
 
     var arrivals = attendance.Where(a => a.EventType == AttendanceEventType.SchoolArrival).ToList();
     var lateCount = arrivals.Count(a => a.IsLate);
@@ -112,7 +115,7 @@
     </button>
     <button class="cg-tab" data-cg-tab="journey" role="tab" aria-selected="false">
         @await Html.PartialAsync("_Icon", "journey") Journey
-        <span class="cg-tab__count">@journey.Count</span>
+        <span class="cg-tab__count">@journeyPage.TotalCount</span>
     </button>
     <button class="cg-tab" data-cg-tab="verification" role="tab" aria-selected="false">
         @await Html.PartialAsync("_Icon", "verification") Verification
@@ -221,10 +224,24 @@
             <div>
                 <h2 class="cg-card__title">Journey events</h2>
                 <div class="cg-card__sub">
-                    Recent checkpoints falling inside the selected range
+                    All checkpoints in the selected range (UTC dates) · @journeyPage.TotalCount total
                 </div>
             </div>
         </div>
+
+        @if (journeyError is not null)
+        {
+            <div class="cg-alert cg-alert--danger" role="alert" style="margin:0 18px 12px">
+                Journey events could not be loaded: @journeyError
+            </div>
+        }
+        else if (journeyPage.TotalPages > 1)
+        {
+            <div class="cg-alert cg-alert--warning" role="status" style="margin:0 18px 12px">
+                Showing events @((journeyPage.Page - 1) * journeyPage.PageSize + 1)–@((journeyPage.Page - 1) * journeyPage.PageSize + journey.Count)
+                of @journeyPage.TotalCount. Use the page links below to see the rest.
+            </div>
+        }
 
         @if (!journey.Any())
         {
@@ -235,7 +252,7 @@
         else
         {
             <div class="cg-table-wrap">
-                <table class="cg-table" data-cg-table="reportJourney" data-cg-page-size="50">
+                <table class="cg-table">
                     <thead>
                         <tr><th>Student</th><th>Checkpoint</th><th>When</th><th>Source</th></tr>
                     </thead>
@@ -259,10 +276,19 @@
                     </tbody>
                 </table>
             </div>
-            <div class="cg-pagination">
-                <span class="cg-text-sm">Showing up to 50 events per page</span>
-                <div class="cg-pagination__pages" data-cg-pager data-cg-pager-scope="reportJourney"></div>
-            </div>
+            <nav class="cg-pagination" aria-label="Journey event pages">
+                <span class="cg-text-sm">Page @journeyPage.Page of @journeyPage.TotalPages · @journeyPage.PageSize per page</span>
+                <div class="cg-row" style="gap:8px">
+                    @if (journeyPage.Page > 1)
+                    {
+                        <a class="cg-btn cg-btn--sm cg-btn--secondary" href="@JourneyPageHref(journeyPage.Page - 1)" rel="prev">Previous</a>
+                    }
+                    @if (journeyPage.HasMore)
+                    {
+                        <a class="cg-btn cg-btn--sm cg-btn--secondary" href="@JourneyPageHref(journeyPage.Page + 1)" rel="next">Next</a>
+                    }
+                </div>
+            </nav>
         }
     </section>
 </div>

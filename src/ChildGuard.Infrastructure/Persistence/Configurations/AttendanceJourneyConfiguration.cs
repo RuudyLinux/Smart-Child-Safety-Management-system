@@ -29,6 +29,8 @@ public class JourneyEventConfiguration : IEntityTypeConfiguration<JourneyEvent>
     {
         b.HasKey(x => x.JourneyEventId);
         b.HasIndex(x => new { x.StudentId, x.Timestamp });
+        // All-student date-range report (paged journey report) seeks on Timestamp alone.
+        b.HasIndex(x => x.Timestamp);
 
         b.HasOne(x => x.Student)
             .WithMany(x => x.JourneyEvents)

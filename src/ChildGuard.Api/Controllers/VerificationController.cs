@@ -59,5 +59,5 @@ public class VerificationController : ControllerBase
 
     [HttpGet("history")]
     public async Task<IActionResult> GetHistory([FromQuery] int? studentId, CancellationToken ct) =>
-        Ok(await _service.GetHistoryAsync(studentId, ct));
+        Ok(await _service.GetHistoryAsync(studentId, ct: ct));
 }
