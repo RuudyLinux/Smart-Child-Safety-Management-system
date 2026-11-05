@@ -61,7 +61,10 @@ builder.Services.AddAuthentication(options =>
     {
         OnTokenValidated = async context =>
         {
-            var sub = context.Principal?.FindFirstValue(JwtRegisteredClaimNames.Sub);
+            // JwtBearer maps inbound "sub" to ClaimTypes.NameIdentifier by default,
+            // so reading only "sub" here failed every token. Same lookup as GetUserId().
+            var sub = context.Principal?.FindFirstValue(JwtRegisteredClaimNames.Sub)
+                ?? context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
             var role = context.Principal?.FindFirstValue(ClaimTypes.Role);
             if (!int.TryParse(sub, out var userId) || role is null)
             {
@@ -105,12 +108,10 @@ builder.Services.AddRateLimiter(options =>
     // every other user (a single shared window would lock legitimate users out).
     options.AddPolicy(RateLimitPolicies.Auth, PerCallerFixedWindow(permitLimit: 10, window: TimeSpan.FromMinutes(1)));
     options.AddPolicy(RateLimitPolicies.Otp, PerCallerFixedWindow(permitLimit: 20, window: TimeSpan.FromMinutes(1)));
-    options.AddFixedWindowLimiter(RateLimitPolicies.RfidScan, o =>
-    {
-        o.PermitLimit = 30;
-        o.Window = TimeSpan.FromMinutes(1);
-        o.QueueLimit = 0;
-    });
+    // Per caller (scanner), not one window shared by every scanner: a single global
+    // 30/min bucket meant two gates in the morning rush rejected real taps with 429.
+    // 60/min allows a sustained one tap per second per reader.
+    options.AddPolicy(RateLimitPolicies.RfidScan, PerCallerFixedWindow(permitLimit: 60, window: TimeSpan.FromMinutes(1)));
 });
 
 builder.Services.AddCors(options =>

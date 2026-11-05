@@ -16,11 +16,17 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration config, bool isDevelopment)
     {
-        var connectionString = config.GetConnectionString("ChildGuardDb")
-            ?? throw new InvalidOperationException("Missing ConnectionStrings:ChildGuardDb configuration.");
+        // appsettings.json ships an empty placeholder, so a null check alone would let
+        // an unconfigured deployment through to an opaque driver error.
+        var connectionString = config.GetConnectionString("ChildGuardDb");
+        if (string.IsNullOrWhiteSpace(connectionString))
+            throw new InvalidOperationException("Missing ConnectionStrings:ChildGuardDb configuration.");
 
+        // Detect once at startup. Inside the options lambda AutoDetect runs for every
+        // DbContext instance — i.e. an extra connection + SELECT VERSION() per request.
+        var serverVersion = ServerVersion.AutoDetect(connectionString);
         services.AddDbContext<ChildGuardDbContext>(options =>
-            options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
+            options.UseMySql(connectionString, serverVersion));
 
         services.Configure<JwtSettings>(config.GetSection("Jwt"));
 
