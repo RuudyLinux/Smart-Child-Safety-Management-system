@@ -23,6 +23,8 @@ public class ChildGuardDbContext : DbContext
     public DbSet<GuardianFaceData> GuardianFaceData => Set<GuardianFaceData>();
     public DbSet<GuardianVerification> GuardianVerifications => Set<GuardianVerification>();
     public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<GuardianPhoto> GuardianPhotos => Set<GuardianPhoto>();
+    public DbSet<StudentPhoto> StudentPhotos => Set<StudentPhoto>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -1,69 +1,113 @@
 @model RfidCardDetailDto
-@{ ViewData["Title"] = "RFID Card Details"; var journey = (List<JourneyEventDto>)ViewBag.RecentJourney; }
-
-<div class="cg-toolbar">
-    <a class="cg-btn cg-btn--secondary" href="/Rfid">&larr; Back to RFID Cards</a>
-</div>
-
-<div class="cg-card">
-    <h3 class="cg-card__title">Card</h3>
-    <div class="cg-summary-grid" style="margin-bottom:0;">
-        <div class="cg-summary-card">
-            <div class="cg-summary-card__label">Card UID</div>
-            <div class="cg-summary-card__value" style="font-size:18px;">@Model.MaskedCardUid</div>
-        </div>
-        <div class="cg-summary-card">
-            <div class="cg-summary-card__label">Status</div>
-            @{
-                var badge = Model.Status switch { RfidCardStatus.Active => "success", RfidCardStatus.Lost => "error", _ => "neutral" };
-            }
-            <div class="cg-summary-card__value" style="font-size:16px;"><span class="cg-badge cg-badge--@badge">@Model.Status</span></div>
-        </div>
-        <div class="cg-summary-card">
-            <div class="cg-summary-card__label">Assigned</div>
-            <div class="cg-summary-card__value" style="font-size:16px;">@(Model.AssignedAt?.ToLocalTime().ToString("d MMM yyyy") ?? "—")</div>
-        </div>
-        <div class="cg-summary-card">
-            <div class="cg-summary-card__label">Registered</div>
-            <div class="cg-summary-card__value" style="font-size:16px;">@Model.CreatedAt.ToLocalTime().ToString("d MMM yyyy")</div>
-        </div>
-    </div>
-</div>
-
-<div class="cg-card">
-    <h3 class="cg-card__title">Assigned Student</h3>
-    @if (Model.StudentId is null)
+@{
+    ViewData["Title"] = $"Card {Model.MaskedCardUid}";
+    var journey = (List<JourneyEventDto>)ViewBag.RecentJourney;
+    var badge = Model.Status switch
     {
-        <p class="cg-muted">This card is not assigned to a student.</p>
-    }
-    else
-    {
-        <p>
-            <strong>@Model.StudentName</strong> &nbsp; <span class="cg-muted">@(Model.StudentGrade ?? "—")</span>
-            &nbsp;·&nbsp; <a href="/Students/Details/@Model.StudentId">View student</a>
+        RfidCardStatus.Active => "cg-badge--success",
+        RfidCardStatus.Lost => "cg-badge--danger",
+        _ => "cg-badge--neutral"
+    };
+}
+
+<div class="cg-page-head">
+    <div class="cg-page-head__text">
+        <nav class="cg-breadcrumb" style="margin-bottom:6px">
+            <a href="/Rfid">@await Html.PartialAsync("_Icon", "arrow-left") Back to RFID cards</a>
+        </nav>
+        <h1 class="cg-page-head__title cg-mono">@Model.MaskedCardUid</h1>
+        <p class="cg-page-head__sub">
+            Only the last four characters of a card UID are shown, so a full credential
+            cannot be copied from this screen.
         </p>
-    }
-</div>
-
-<div class="cg-card">
-    <h3 class="cg-card__title">Recent Journey Activity</h3>
-    <div class="cg-table-wrap">
-        <table class="cg-table">
-            <thead><tr><th>Event</th><th>Time</th><th>Source</th></tr></thead>
-            <tbody>
-            @if (!journey.Any())
-            {
-                <tr><td colspan="3" class="cg-muted">No journey events recorded for this card's student yet.</td></tr>
-            }
-            @foreach (var j in journey)
-            {
-                <tr>
-                    <td><span class="cg-badge cg-badge--neutral">@j.EventType</span></td>
-                    <td>@j.Timestamp.ToLocalTime().ToString("g")</td>
-                    <td>@j.Source</td>
-                </tr>
-            }
-            </tbody>
-        </table>
+    </div>
+    <div class="cg-page-head__actions">
+        @if (Model.StudentId is not null)
+        {
+            <a class="cg-btn cg-btn--secondary" href="/Students/Details/@Model.StudentId">
+                @await Html.PartialAsync("_Icon", "students") Student profile
+            </a>
+        }
     </div>
 </div>
+
+<div class="cg-grid cg-grid--4">
+    <article class="cg-kpi">
+        <div class="cg-kpi__top">
+            <div class="cg-kpi__label">Status</div>
+            <span class="cg-kpi__icon @(Model.Status == RfidCardStatus.Active ? "cg-kpi__icon--success" : Model.Status == RfidCardStatus.Lost ? "cg-kpi__icon--danger" : "cg-kpi__icon--neutral")">
+                @await Html.PartialAsync("_Icon", "rfid")
+            </span>
+        </div>
+        <div><span class="cg-badge @badge cg-badge--lg"><span class="cg-badge__dot"></span>@Model.Status</span></div>
+    </article>
+    <article class="cg-kpi">
+        <div class="cg-kpi__top">
+            <div class="cg-kpi__label">Assigned student</div>
+            <span class="cg-kpi__icon">@await Html.PartialAsync("_Icon", "students")</span>
+        </div>
+        <div class="cg-kpi__value cg-kpi__value--sm" style="font-size:17px">
+            @(Model.StudentName ?? "Unassigned")
+        </div>
+        <div class="cg-kpi__note">@(Model.StudentGrade ?? "—")</div>
+    </article>
+    <article class="cg-kpi">
+        <div class="cg-kpi__top">
+            <div class="cg-kpi__label">Assigned on</div>
+            <span class="cg-kpi__icon cg-kpi__icon--neutral">@await Html.PartialAsync("_Icon", "calendar")</span>
+        </div>
+        <div class="cg-kpi__value cg-kpi__value--sm" style="font-size:17px">
+            @(Model.AssignedAt?.ToLocalTime().ToString("d MMM yyyy") ?? "—")
+        </div>
+    </article>
+    <article class="cg-kpi">
+        <div class="cg-kpi__top">
+            <div class="cg-kpi__label">Registered</div>
+            <span class="cg-kpi__icon cg-kpi__icon--neutral">@await Html.PartialAsync("_Icon", "clock")</span>
+        </div>
+        <div class="cg-kpi__value cg-kpi__value--sm" style="font-size:17px">
+            @Model.CreatedAt.ToLocalTime().ToString("d MMM yyyy")
+        </div>
+    </article>
+</div>
+
+<section class="cg-card">
+    <div class="cg-card__head">
+        <div>
+            <h2 class="cg-card__title">Recent scans from this card's student</h2>
+            <div class="cg-card__sub">The last checkpoints recorded</div>
+        </div>
+    </div>
+    <div class="cg-card__body">
+        @if (Model.StudentId is null)
+        {
+            @await Html.PartialAsync("_EmptyState", ("id-card", "Card is not assigned",
+                "Assign this card to a student and its scans will start recording checkpoints.",
+                "Assign a card", "/Rfid"))
+        }
+        else if (!journey.Any())
+        {
+            @await Html.PartialAsync("_EmptyState", ("journey", "No scans yet",
+                "Nothing has been recorded for this student. Check the reader is online.",
+                "Check scanners", "/Settings"))
+        }
+        else
+        {
+            <ol class="cg-timeline">
+                @foreach (var j in journey)
+                {
+                    <li class="cg-timeline__item">
+                        <span class="cg-timeline__marker">@await Html.PartialAsync("_Icon", SafetyUi.EventIcon(j.EventType))</span>
+                        <div class="cg-timeline__head">
+                            <span class="cg-timeline__title">@SafetyUi.EventLabel(j.EventType)</span>
+                            <span class="cg-timeline__time">@j.Timestamp.ToLocalTime().ToString("d MMM, HH:mm")</span>
+                        </div>
+                        <div class="cg-timeline__body">
+                            @(j.Source == EventSource.Rfid ? "RFID verification" : "Recorded by staff")
+                        </div>
+                    </li>
+                }
+            </ol>
+        }
+    </div>
+</section>

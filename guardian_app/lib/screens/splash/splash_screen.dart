@@ -30,25 +30,48 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: CgColors.primaryDark,
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.shield_outlined, color: Colors.white, size: 56),
-            const SizedBox(height: 12),
-            RichText(
-              text: const TextSpan(
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
-                children: [
-                  TextSpan(text: 'Child', style: TextStyle(color: Colors.white)),
-                  TextSpan(text: 'Guard', style: TextStyle(color: Color(0xFF8FB4DE))),
-                ],
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [CgColors.navy, Color(0xFF1E3A8A), CgColors.primaryDark],
+          ),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 76,
+                height: 76,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                ),
+                child: const Icon(Icons.shield_rounded, color: Colors.white, size: 38),
               ),
-            ),
-            const SizedBox(height: 24),
-            const CircularProgressIndicator(color: Colors.white),
-          ],
+              const SizedBox(height: 18),
+              RichText(
+                text: const TextSpan(
+                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: -0.5),
+                  children: [
+                    TextSpan(text: 'Child', style: TextStyle(color: Colors.white)),
+                    TextSpan(text: 'Guard', style: TextStyle(color: Color(0xFF93B4FC))),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text('Your child, always accounted for', style: TextStyle(color: Color(0xFFC7D8F7), fontSize: 13)),
+              const SizedBox(height: 32),
+              const SizedBox(
+                width: 26,
+                height: 26,
+                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.4),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -57,7 +57,7 @@ public class StudentGuardianLinkTests
 
         public Harness()
         {
-            Service = new StudentService(Students, Guardians);
+            Service = new StudentService(Students, Guardians, new FakeJourneyRepository(), new FakePhotoRepository(), new FakeSafetyReadService());
             Students.Students.Add(new Student { StudentId = 1, FullName = "Rahul Patel", DateOfBirth = new DateTime(2016, 4, 2) });
             Guardians.Guardians.Add(new Guardian
             {

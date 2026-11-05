@@ -1,3 +1,5 @@
+import '../core/theme.dart' show CgSafety, CgSafetyStatus;
+
 /// What the server says the app must do next in the sign-in flow.
 enum GuardianAuthStage { otpRequired, passwordResetRequired, authenticated }
 
@@ -53,6 +55,7 @@ class GuardianProfile {
   final String email;
   final String? phone;
   final bool faceRegistered;
+  final bool hasPhoto;
   final List<StudentSummary> students;
 
   GuardianProfile({
@@ -61,6 +64,7 @@ class GuardianProfile {
     required this.email,
     required this.phone,
     required this.faceRegistered,
+    required this.hasPhoto,
     required this.students,
   });
 
@@ -70,8 +74,16 @@ class GuardianProfile {
         email: j['email'],
         phone: j['phone'],
         faceRegistered: j['faceRegistered'] ?? false,
+        hasPhoto: j['hasPhoto'] ?? false,
         students: (j['students'] as List? ?? []).map((s) => StudentSummary.fromJson(s)).toList(),
       );
+
+  /// True while every linked child's safety status reads as fine — the
+  /// headline the Guardian app leads with. A guardian with no children yet
+  /// is not "all safe": there is nothing to report, so callers should check
+  /// students.isEmpty first.
+  bool get allChildrenSafe => students.every((s) =>
+      s.safetyStatus == CgSafetyStatus.atSchool || s.safetyStatus == CgSafetyStatus.droppedOff);
 }
 
 class StudentSummary {
@@ -80,6 +92,14 @@ class StudentSummary {
   final String? grade;
   final String? relationship;
   final bool isAuthorizedForPickup;
+  final bool hasPhoto;
+  final CgSafetyStatus safetyStatus;
+  final DateTime? lastEventAt;
+  final String? lastEventType;
+  final String? checkInTime;
+  final bool presentToday;
+  final String? busNumber;
+  final String? routeName;
 
   StudentSummary({
     required this.studentId,
@@ -87,6 +107,14 @@ class StudentSummary {
     required this.grade,
     required this.relationship,
     required this.isAuthorizedForPickup,
+    required this.hasPhoto,
+    required this.safetyStatus,
+    required this.lastEventAt,
+    required this.lastEventType,
+    required this.checkInTime,
+    required this.presentToday,
+    required this.busNumber,
+    required this.routeName,
   });
 
   factory StudentSummary.fromJson(Map<String, dynamic> j) => StudentSummary(
@@ -95,6 +123,14 @@ class StudentSummary {
         grade: j['grade'],
         relationship: j['relationship'],
         isAuthorizedForPickup: j['isAuthorizedForPickup'] ?? false,
+        hasPhoto: j['hasPhoto'] ?? false,
+        safetyStatus: CgSafety.fromApi(j['safetyStatus']?.toString()),
+        lastEventAt: j['lastEventAt'] != null ? DateTime.tryParse(j['lastEventAt']) : null,
+        lastEventType: j['lastEventType']?.toString(),
+        checkInTime: j['checkInTime']?.toString(),
+        presentToday: j['presentToday'] ?? false,
+        busNumber: j['busNumber'],
+        routeName: j['routeName'],
       );
 }
 

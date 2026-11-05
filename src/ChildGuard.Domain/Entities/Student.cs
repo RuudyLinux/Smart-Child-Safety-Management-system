@@ -13,6 +13,8 @@ public class Student
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     public RfidCard? RfidCard { get; set; }
+    /// <summary>Profile image, when one has been uploaded. Never loaded unless explicitly included.</summary>
+    public StudentPhoto? Photo { get; set; }
     public ICollection<StudentGuardian> StudentGuardians { get; set; } = new List<StudentGuardian>();
     public ICollection<StudentBusAssignment> BusAssignments { get; set; } = new List<StudentBusAssignment>();
     public ICollection<Attendance> AttendanceRecords { get; set; } = new List<Attendance>();

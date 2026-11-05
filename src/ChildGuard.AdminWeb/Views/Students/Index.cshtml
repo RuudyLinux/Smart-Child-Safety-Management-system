@@ -1,49 +1,238 @@
 @model List<StudentListItemDto>
-@{ ViewData["Title"] = "Students"; }
-
-<div class="cg-toolbar">
-    <form method="get" class="cg-flex" style="flex:1;">
-        <input class="cg-input" name="search" value="@ViewData["Search"]" placeholder="Search by name..." style="max-width:280px;" />
-        <button class="cg-btn cg-btn--secondary" type="submit">Search</button>
-    </form>
-    <a class="cg-btn cg-btn--primary" href="/Students/Create">+ Add Student</a>
-</div>
-
-@if (TempData["Success"] != null)
-{
-    <div class="cg-alert cg-alert--success">@TempData["Success"]</div>
+@{
+    ViewData["Title"] = "Students";
+    var grades = ViewBag.Grades as List<string> ?? new List<string>();
+    var search = ViewData["Search"] as string;
+    var present = Model.Count(s => s.PresentToday);
+    var withRfid = Model.Count(s => s.MaskedRfid is not null);
+    var noGuardian = Model.Count(s => s.GuardianCount == 0);
 }
 
-<div class="cg-card">
-    <div class="cg-table-wrap">
-        <table class="cg-table">
-            <thead><tr><th>Name</th><th>Grade</th><th>RFID</th><th>Guardians</th><th>Status</th><th></th></tr></thead>
-            <tbody>
-            @if (!Model.Any())
-            {
-                <tr><td colspan="6" class="cg-muted">No students found.</td></tr>
-            }
-            @foreach (var s in Model)
-            {
-                <tr>
-                    <td>@s.FullName</td>
-                    <td>@(s.Grade ?? "—")</td>
-                    <td>@(s.MaskedRfid ?? "Not assigned")</td>
-                    <td>@s.GuardianCount</td>
-                    <td>
-                        @if (s.Status == RecordStatus.Active)
-                        {
-                            <span class="cg-badge cg-badge--success">Active</span>
-                        }
-                        else
-                        {
-                            <span class="cg-badge cg-badge--neutral">Inactive</span>
-                        }
-                    </td>
-                    <td><a href="/Students/Details/@s.StudentId">View</a></td>
-                </tr>
-            }
-            </tbody>
-        </table>
+<div class="cg-page-head">
+    <div class="cg-page-head__text">
+        <h1 class="cg-page-head__title">Students</h1>
+        <p class="cg-page-head__sub">
+            @Model.Count on roll · @present checked in today · @withRfid carrying an RFID card
+        </p>
+    </div>
+    <div class="cg-page-head__actions">
+        <a class="cg-btn cg-btn--secondary" href="/Reports">@await Html.PartialAsync("_Icon", "reports") Reports</a>
+        <a class="cg-btn cg-btn--primary" href="/Students/Create">@await Html.PartialAsync("_Icon", "plus") Add student</a>
     </div>
 </div>
+
+@if (ViewBag.LoadError is string loadError)
+{
+    <div class="cg-alert cg-alert--danger" role="alert">
+        <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "alert-circle")</span>
+        <div class="cg-alert__body">@loadError</div>
+    </div>
+}
+
+@if (noGuardian > 0)
+{
+    <div class="cg-alert cg-alert--warning">
+        <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "alert-triangle")</span>
+        <div class="cg-alert__body">
+            <div class="cg-alert__title">@noGuardian student@(noGuardian == 1 ? " has" : "s have") no linked guardian</div>
+            <div>Nobody can be verified to collect them until a guardian is linked and authorised for pickup.</div>
+        </div>
+    </div>
+}
+
+<section class="cg-card">
+    <div class="cg-toolbar">
+        @* The server search re-queries the API by name; the filters below refine
+           the rows already delivered, so they respond without a round trip. *@
+        <form method="get" class="cg-row" style="flex:1;min-width:220px;max-width:340px">
+            <div class="cg-input-group" style="flex:1">
+                <span class="cg-input-group__icon">@await Html.PartialAsync("_Icon", "search")</span>
+                <input class="cg-input" name="search" value="@search" placeholder="Search all students by name" />
+            </div>
+            <button class="cg-btn cg-btn--secondary" type="submit">Search</button>
+        </form>
+
+        <select class="cg-select" style="max-width:150px" data-cg-filter="grade" data-cg-filter-scope="students"
+                aria-label="Filter by grade">
+            <option value="__all">All grades</option>
+            @foreach (var grade in grades)
+            {
+                <option value="@grade">@grade</option>
+            }
+        </select>
+
+        <select class="cg-select" style="max-width:170px" data-cg-filter="attendance" data-cg-filter-scope="students"
+                aria-label="Filter by today's attendance">
+            <option value="__all">Any attendance</option>
+            <option value="present">Present today</option>
+            <option value="absent">Not checked in</option>
+        </select>
+
+        <select class="cg-select" style="max-width:150px" data-cg-filter="rfid" data-cg-filter-scope="students"
+                aria-label="Filter by RFID card">
+            <option value="__all">Any RFID</option>
+            <option value="assigned">Card assigned</option>
+            <option value="none">No card</option>
+        </select>
+
+        <select class="cg-select" style="max-width:160px" data-cg-filter="guardian" data-cg-filter-scope="students"
+                aria-label="Filter by guardian">
+            <option value="__all">Any guardian</option>
+            <option value="linked">Has a guardian</option>
+            <option value="none">No guardian</option>
+        </select>
+
+        <select class="cg-select" style="max-width:150px" data-cg-filter="status" data-cg-filter-scope="students"
+                aria-label="Filter by record status">
+            <option value="__all">Any status</option>
+            <option value="Active">Active</option>
+            <option value="Inactive">Inactive</option>
+        </select>
+
+        <button type="button" class="cg-btn cg-btn--ghost cg-btn--sm" data-cg-reset data-cg-reset-scope="students">
+            Clear
+        </button>
+        <span class="cg-toolbar__spacer"></span>
+        <span class="cg-text-sm cg-muted" data-cg-count data-cg-count-scope="students"></span>
+    </div>
+
+    @if (!Model.Any())
+    {
+        @await Html.PartialAsync("_EmptyState", ("students",
+            string.IsNullOrWhiteSpace(search) ? "No students yet" : $"No students match “{search}”",
+            string.IsNullOrWhiteSpace(search)
+                ? "Add your first student, then assign an RFID card and link a guardian."
+                : "Try a different name, or clear the search to see everyone on roll.",
+            string.IsNullOrWhiteSpace(search) ? "Add student" : null,
+            string.IsNullOrWhiteSpace(search) ? "/Students/Create" : null))
+    }
+    else
+    {
+        <div class="cg-table-wrap">
+            <table class="cg-table" data-cg-table="students" data-cg-page-size="25">
+                <thead>
+                    <tr>
+                        <th><span class="cg-th-sort" data-cg-sort="name">Student @await Html.PartialAsync("_Icon", "arrow-down")</span></th>
+                        <th><span class="cg-th-sort" data-cg-sort="grade">Grade @await Html.PartialAsync("_Icon", "arrow-down")</span></th>
+                        <th>RFID</th>
+                        <th>Guardian</th>
+                        <th>Today</th>
+                        <th><span class="cg-th-sort" data-cg-sort="activity">Last activity @await Html.PartialAsync("_Icon", "arrow-down")</span></th>
+                        <th>Safety status</th>
+                        <th class="cg-table__actions">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var s in Model)
+                {
+                    var photoUrl = s.HasPhoto ? Url.Action("Photo", "Students", new { id = s.StudentId }) : null;
+                    <tr data-row
+                        data-search="@s.FullName @s.Grade @s.PrimaryGuardianName"
+                        data-grade="@(s.Grade ?? "")"
+                        data-attendance="@(s.PresentToday ? "present" : "absent")"
+                        data-rfid="@(s.MaskedRfid is null ? "none" : "assigned")"
+                        data-guardian="@(s.GuardianCount == 0 ? "none" : "linked")"
+                        data-status="@s.Status"
+                        data-sort-name="@s.FullName"
+                        data-sort-grade="@(s.Grade ?? "")"
+                        data-sort-activity="@(s.LastEventAt?.Ticks ?? 0)">
+                        <td>
+                            <a class="cg-identity" href="/Students/Details/@s.StudentId" style="color:inherit">
+                                @await Html.PartialAsync("_Avatar", new AvatarModel(photoUrl, s.FullName, "sm", false, false,
+                                    SafetyUi.DotColor(s.SafetyStatus), SafetyUi.Label(s.SafetyStatus)))
+                                <span class="cg-identity__body">
+                                    <span class="cg-identity__name">@s.FullName</span>
+                                    <span class="cg-identity__meta">
+                                        @if (s.Status != RecordStatus.Active)
+                                        {
+                                            <span class="cg-badge cg-badge--neutral">Inactive</span>
+                                        }
+                                        else
+                                        {
+                                            @($"Student #{s.StudentId}")
+                                        }
+                                    </span>
+                                </span>
+                            </a>
+                        </td>
+                        <td>@(s.Grade ?? "—")</td>
+                        <td>
+                            @if (s.MaskedRfid is null)
+                            {
+                                <span class="cg-badge cg-badge--warning"><span class="cg-badge__dot"></span>Not assigned</span>
+                            }
+                            else
+                            {
+                                <span class="cg-mono cg-text-sm">@s.MaskedRfid</span>
+                            }
+                        </td>
+                        <td>
+                            @if (s.GuardianCount == 0)
+                            {
+                                <span class="cg-badge cg-badge--danger"><span class="cg-badge__dot"></span>None linked</span>
+                            }
+                            else
+                            {
+                                <span>@s.PrimaryGuardianName</span>
+                                @if (s.GuardianCount > 1)
+                                {
+                                    <span class="cg-tag" style="margin-left:6px">+@(s.GuardianCount - 1)</span>
+                                }
+                            }
+                        </td>
+                        <td>
+                            @if (s.PresentToday && s.CheckInTime is { } checkIn)
+                            {
+                                <span class="cg-badge cg-badge--success"><span class="cg-badge__dot"></span>In @checkIn.ToString("HH:mm")</span>
+                            }
+                            else
+                            {
+                                <span class="cg-badge cg-badge--neutral"><span class="cg-badge__dot"></span>Not checked in</span>
+                            }
+                        </td>
+                        <td class="cg-text-sm cg-muted">
+                            @if (s.LastEventAt is { } lastAt)
+                            {
+                                <span data-cg-ago="@lastAt.ToString("O")">@lastAt.ToLocalTime().ToString("HH:mm")</span>
+                                <div>@SafetyUi.EventLabel(s.LastEventType)</div>
+                            }
+                            else
+                            {
+                                <span>No activity today</span>
+                            }
+                        </td>
+                        <td>@await Html.PartialAsync("_SafetyChip", s.SafetyStatus)</td>
+                        <td class="cg-table__actions">
+                            <span class="cg-table__row-actions">
+                                <a class="cg-btn cg-btn--sm cg-btn--ghost cg-btn--icon" href="/Students/Details/@s.StudentId"
+                                   title="View profile" aria-label="View @s.FullName">
+                                    @await Html.PartialAsync("_Icon", "eye")
+                                </a>
+                                <a class="cg-btn cg-btn--sm cg-btn--ghost cg-btn--icon" href="/Students/Edit/@s.StudentId"
+                                   title="Edit" aria-label="Edit @s.FullName">
+                                    @await Html.PartialAsync("_Icon", "edit")
+                                </a>
+                                <a class="cg-btn cg-btn--sm cg-btn--ghost cg-btn--icon" href="/Journey/Student/@s.StudentId"
+                                   title="Journey" aria-label="Journey for @s.FullName">
+                                    @await Html.PartialAsync("_Icon", "journey")
+                                </a>
+                            </span>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="cg-empty" data-cg-noresults data-cg-noresults-scope="students" hidden>
+            <div class="cg-empty__art">@await Html.PartialAsync("_Icon", "filter")</div>
+            <div class="cg-empty__title">No students match these filters</div>
+            <p class="cg-empty__text">Clear one or more filters to widen the list.</p>
+        </div>
+
+        <div class="cg-pagination">
+            <span class="cg-text-sm">Showing up to 25 students per page</span>
+            <div class="cg-pagination__pages" data-cg-pager data-cg-pager-scope="students"></div>
+        </div>
+    }
+</section>

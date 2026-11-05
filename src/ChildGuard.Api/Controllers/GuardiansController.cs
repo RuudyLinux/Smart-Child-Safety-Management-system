@@ -12,6 +12,7 @@ namespace ChildGuard.Api.Controllers;
 public class GuardiansController : ControllerBase
 {
     private readonly IGuardianService _guardianService;
+    private readonly IPhotoService _photos;
     private readonly IValidator<UpdateGuardianStatusRequest> _statusValidator;
     private readonly IValidator<AdminUpdateGuardianCredentialsRequest> _credentialsValidator;
     private readonly IValidator<CreateGuardianRequest> _createValidator;
@@ -19,12 +20,14 @@ public class GuardiansController : ControllerBase
 
     public GuardiansController(
         IGuardianService guardianService,
+        IPhotoService photos,
         IValidator<UpdateGuardianStatusRequest> statusValidator,
         IValidator<AdminUpdateGuardianCredentialsRequest> credentialsValidator,
         IValidator<CreateGuardianRequest> createValidator,
         IValidator<AdminUpdateGuardianRequest> updateValidator)
     {
         _guardianService = guardianService;
+        _photos = photos;
         _statusValidator = statusValidator;
         _credentialsValidator = credentialsValidator;
         _createValidator = createValidator;
@@ -81,5 +84,41 @@ public class GuardiansController : ControllerBase
         return result.Succeeded
             ? Ok(new { message = "Password issued. The guardian must change it at next login." })
             : BadRequest(new { message = result.Error });
+    }
+
+    // ---- Profile photo ----
+    // The image is addressed by guardian id only. No storage path is ever returned,
+    // and every read is behind the same Admin authorization as the rest of this
+    // controller, so a photo cannot be fetched by guessing a file name.
+
+    [HttpGet("{id:int}/photo")]
+    public async Task<IActionResult> GetPhoto(int id, CancellationToken ct)
+    {
+        var result = await _photos.GetGuardianPhotoAsync(id, ct);
+        if (!result.Succeeded) return NotFound(new { message = result.Error });
+
+        var photo = result.Value!;
+        // Private: a guardian's face must not be cached by a shared proxy. The short
+        // max-age still spares the admin's own browser a re-download per table row.
+        Response.Headers.CacheControl = "private, max-age=60";
+        return File(photo.Data, photo.ContentType);
+    }
+
+    [HttpPost("{id:int}/photo")]
+    [RequestSizeLimit(PhotoUploads.RequestSizeLimit)]
+    public async Task<IActionResult> UploadPhoto(int id, IFormFile? file, CancellationToken ct)
+    {
+        var read = await PhotoUploads.ReadAsync(file, ct);
+        if (!read.Succeeded) return BadRequest(new { message = read.Error });
+
+        var result = await _photos.SaveGuardianPhotoAsync(id, read.Value!, ct);
+        return result.Succeeded ? Ok(result.Value) : BadRequest(new { message = result.Error });
+    }
+
+    [HttpDelete("{id:int}/photo")]
+    public async Task<IActionResult> DeletePhoto(int id, CancellationToken ct)
+    {
+        var result = await _photos.RemoveGuardianPhotoAsync(id, ct);
+        return result.Succeeded ? Ok(new { message = "Photo removed." }) : NotFound(new { message = result.Error });
     }
 }

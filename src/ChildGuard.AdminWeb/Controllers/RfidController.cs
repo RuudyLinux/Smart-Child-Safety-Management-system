@@ -11,30 +11,30 @@ public class RfidController : BaseAdminController
 
     public async Task<IActionResult> Index(CancellationToken ct)
     {
-        ViewData["Title"] = "RFID Cards";
-        var result = await Api.GetAsync<List<RfidCardListItemDto>>("/api/rfid/cards", ct);
+        SetPage("RFID Cards", "Transport");
+
+        var cards = await Api.GetAsync<List<RfidCardListItemDto>>("/api/rfid/cards", ct);
+        if (!cards.Succeeded) ViewBag.LoadError = cards.Error;
 
         var students = await Api.GetAsync<List<StudentListItemDto>>("/api/students", ct);
-        ViewBag.UnassignedStudents = (students.Value ?? new()).Where(s => s.MaskedRfid is null).ToList();
+        var devices = await Api.GetAsync<List<RfidDeviceDto>>("/api/rfid/devices", ct);
 
-        return View(result.Value ?? new());
+        ViewBag.UnassignedStudents = (students.Value ?? new()).Where(s => s.MaskedRfid is null).ToList();
+        ViewBag.Devices = devices.Value ?? new();
+        return View(cards.Value ?? new());
     }
 
     public async Task<IActionResult> Details(int id, CancellationToken ct)
     {
         var card = await Api.GetAsync<RfidCardDetailDto>($"/api/rfid/cards/{id}", ct);
         if (!card.Succeeded) return NotFound();
-        ViewData["Title"] = "RFID Card Details";
+        SetPage($"Card {card.Value!.MaskedCardUid}", "Transport");
 
-        if (card.Value!.StudentId is not null)
-        {
-            var journey = await Api.GetAsync<List<JourneyEventDto>>($"/api/journey/{card.Value.StudentId}", ct);
-            ViewBag.RecentJourney = (journey.Value ?? new()).Take(10).ToList();
-        }
-        else
-        {
-            ViewBag.RecentJourney = new List<JourneyEventDto>();
-        }
+        ViewBag.RecentJourney = card.Value.StudentId is not null
+            ? (await Api.GetAsync<List<JourneyEventDto>>($"/api/journey/{card.Value.StudentId}", ct)).Value?.Take(10).ToList()
+              ?? new List<JourneyEventDto>()
+            : new List<JourneyEventDto>();
+
         return View(card.Value);
     }
 
@@ -51,7 +51,8 @@ public class RfidController : BaseAdminController
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> UpdateStatus(int id, RfidCardStatus status, CancellationToken ct)
     {
-        await Api.PatchAsync<object?>($"/api/rfid/cards/{id}/status", new UpdateRfidStatusRequest(status), ct);
+        var result = await Api.PatchAsync<object?>($"/api/rfid/cards/{id}/status", new UpdateRfidStatusRequest(status), ct);
+        TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded ? $"Card marked {status}." : result.Error;
         return RedirectToAction(nameof(Index));
     }
 }

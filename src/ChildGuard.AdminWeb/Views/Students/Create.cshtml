@@ -1,27 +1,101 @@
 @model CreateStudentRequest
-@{ ViewData["Title"] = "Add Student"; }
+@{
+    ViewData["Title"] = "Add student";
+}
 
-<div class="cg-card" style="max-width:480px;">
-    <h3 class="cg-card__title">Add Student</h3>
-    @if (!ViewData.ModelState.IsValid)
-    {
-        <div class="cg-alert cg-alert--error">@Html.ValidationSummary()</div>
-    }
-    <form asp-action="Create" method="post">
-        @Html.AntiForgeryToken()
-        <div class="cg-form-group">
-            <label class="cg-label">Full Name</label>
-            <input class="cg-input" name="FullName" value="@Model.FullName" required />
+<div class="cg-page-head">
+    <div class="cg-page-head__text">
+        <nav class="cg-breadcrumb" style="margin-bottom:6px">
+            <a href="/Students">@await Html.PartialAsync("_Icon", "arrow-left") Back to students</a>
+        </nav>
+        <h1 class="cg-page-head__title">Add student</h1>
+        <p class="cg-page-head__sub">
+            Create the record first. You can add a photo, an RFID card and guardians from the student's profile.
+        </p>
+    </div>
+</div>
+
+<div class="cg-grid cg-grid--sidebar">
+    <section class="cg-card">
+        <div class="cg-card__head">
+            <h2 class="cg-card__title">Student details</h2>
         </div>
-        <div class="cg-form-group">
-            <label class="cg-label">Date of Birth</label>
-            <input class="cg-input" type="date" name="DateOfBirth" value="@Model.DateOfBirth.ToString("yyyy-MM-dd")" required />
+        <div class="cg-card__body">
+            @if (!ViewData.ModelState.IsValid)
+            {
+                <div class="cg-alert cg-alert--danger" role="alert">
+                    <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "alert-circle")</span>
+                    <div class="cg-alert__body">
+                        <div class="cg-alert__title">The student could not be created</div>
+                        @foreach (var error in ViewData.ModelState.Values.SelectMany(v => v.Errors))
+                        {
+                            <div>@error.ErrorMessage</div>
+                        }
+                    </div>
+                </div>
+            }
+
+            <form asp-action="Create" method="post" class="cg-form" data-cg-busy>
+                @Html.AntiForgeryToken()
+
+                <div class="cg-field">
+                    <label class="cg-label" for="FullName">Full name <span class="cg-label__req">*</span></label>
+                    <input class="cg-input" id="FullName" name="FullName" value="@Model.FullName"
+                           maxlength="150" required autofocus placeholder="As it appears on the school roll" />
+                </div>
+
+                <div class="cg-form-row">
+                    <div class="cg-field">
+                        <label class="cg-label" for="DateOfBirth">Date of birth <span class="cg-label__req">*</span></label>
+                        <input class="cg-input" id="DateOfBirth" type="date" name="DateOfBirth"
+                               value="@Model.DateOfBirth.ToString("yyyy-MM-dd")"
+                               max="@DateTime.Today.AddDays(-1).ToString("yyyy-MM-dd")" required />
+                    </div>
+                    <div class="cg-field">
+                        <label class="cg-label" for="Grade">Grade</label>
+                        <input class="cg-input" id="Grade" name="Grade" value="@Model.Grade"
+                               maxlength="50" placeholder="e.g. 5A" />
+                        <p class="cg-hint">Used to group attendance reporting by grade.</p>
+                    </div>
+                </div>
+
+                <div class="cg-btn-group">
+                    <button class="cg-btn cg-btn--primary" type="submit">
+                        <span class="cg-btn__label">Create student</span>
+                    </button>
+                    <a class="cg-btn cg-btn--secondary" href="/Students">Cancel</a>
+                </div>
+            </form>
         </div>
-        <div class="cg-form-group">
-            <label class="cg-label">Grade</label>
-            <input class="cg-input" name="Grade" value="@Model.Grade" placeholder="e.g. 5A" />
+    </section>
+
+    <section class="cg-card">
+        <div class="cg-card__head">
+            <h2 class="cg-card__title">What happens next</h2>
         </div>
-        <button class="cg-btn cg-btn--primary" type="submit">Save Student</button>
-        <a class="cg-btn cg-btn--secondary" href="/Students">Cancel</a>
-    </form>
+        <div class="cg-card__body">
+            <ol class="cg-timeline">
+                <li class="cg-timeline__item cg-timeline__item--current">
+                    <span class="cg-timeline__marker">@await Html.PartialAsync("_Icon", "students")</span>
+                    <div class="cg-timeline__title">Create the record</div>
+                    <div class="cg-timeline__body">Name, date of birth and grade.</div>
+                </li>
+                <li class="cg-timeline__item">
+                    <span class="cg-timeline__marker cg-timeline__marker--muted">@await Html.PartialAsync("_Icon", "rfid")</span>
+                    <div class="cg-timeline__title">Assign an RFID card</div>
+                    <div class="cg-timeline__body">Without a card the student cannot be identified at a checkpoint.</div>
+                </li>
+                <li class="cg-timeline__item">
+                    <span class="cg-timeline__marker cg-timeline__marker--muted">@await Html.PartialAsync("_Icon", "guardians")</span>
+                    <div class="cg-timeline__title">Link a guardian</div>
+                    <div class="cg-timeline__body">Authorise at least one guardian for pickup.</div>
+                </li>
+                <li class="cg-timeline__item">
+                    <span class="cg-timeline__marker cg-timeline__marker--muted">@await Html.PartialAsync("_Icon", "bus")</span>
+                    <div class="cg-timeline__title">Assign transport</div>
+                    <div class="cg-timeline__body">Optional, if the student travels by school bus.</div>
+                </li>
+            </ol>
+        </div>
+    </section>
 </div>

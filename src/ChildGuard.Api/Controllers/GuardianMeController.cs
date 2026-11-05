@@ -13,6 +13,7 @@ namespace ChildGuard.Api.Controllers;
 public class GuardianMeController : ControllerBase
 {
     private readonly IGuardianService _guardianService;
+    private readonly IPhotoService _photos;
     private readonly IAuthService _authService;
     private readonly IAttendanceJourneyService _attendanceJourney;
     private readonly INotificationService _notificationService;
@@ -23,6 +24,7 @@ public class GuardianMeController : ControllerBase
 
     public GuardianMeController(
         IGuardianService guardianService,
+        IPhotoService photos,
         IAuthService authService,
         IAttendanceJourneyService attendanceJourney,
         INotificationService notificationService,
@@ -32,6 +34,7 @@ public class GuardianMeController : ControllerBase
         IValidator<RegisterFaceRequest> registerFaceValidator)
     {
         _guardianService = guardianService;
+        _photos = photos;
         _authService = authService;
         _attendanceJourney = attendanceJourney;
         _notificationService = notificationService;
@@ -95,6 +98,53 @@ public class GuardianMeController : ControllerBase
         await _registerFaceValidator.ValidateAndThrowAsync(request, ct);
         var result = await _verificationService.RegisterFaceAsync(this.GetUserId(), request, ct);
         return result.Succeeded ? Ok(new { message = "Face registered." }) : BadRequest(new { message = result.Error });
+    }
+
+    // ---- Photos ----
+    // A guardian may read and manage only their own photo, and may read only the
+    // photos of children linked to them. Every route below re-checks that, so
+    // knowing another id is never enough to see a child's face.
+
+    [HttpGet("photo")]
+    public async Task<IActionResult> GetMyPhoto(CancellationToken ct)
+    {
+        var result = await _photos.GetGuardianPhotoAsync(this.GetUserId(), ct);
+        if (!result.Succeeded) return NotFound(new { message = result.Error });
+
+        var photo = result.Value!;
+        Response.Headers.CacheControl = "private, max-age=60";
+        return File(photo.Data, photo.ContentType);
+    }
+
+    [HttpPost("photo")]
+    [RequestSizeLimit(PhotoUploads.RequestSizeLimit)]
+    public async Task<IActionResult> UploadMyPhoto(IFormFile? file, CancellationToken ct)
+    {
+        var read = await PhotoUploads.ReadAsync(file, ct);
+        if (!read.Succeeded) return BadRequest(new { message = read.Error });
+
+        var result = await _photos.SaveGuardianPhotoAsync(this.GetUserId(), read.Value!, ct);
+        return result.Succeeded ? Ok(result.Value) : BadRequest(new { message = result.Error });
+    }
+
+    [HttpDelete("photo")]
+    public async Task<IActionResult> DeleteMyPhoto(CancellationToken ct)
+    {
+        var result = await _photos.RemoveGuardianPhotoAsync(this.GetUserId(), ct);
+        return result.Succeeded ? Ok(new { message = "Photo removed." }) : NotFound(new { message = result.Error });
+    }
+
+    [HttpGet("students/{studentId:int}/photo")]
+    public async Task<IActionResult> GetStudentPhoto(int studentId, CancellationToken ct)
+    {
+        if (!await OwnsStudentAsync(studentId, ct)) return Forbid();
+
+        var result = await _photos.GetStudentPhotoAsync(studentId, ct);
+        if (!result.Succeeded) return NotFound(new { message = result.Error });
+
+        var photo = result.Value!;
+        Response.Headers.CacheControl = "private, max-age=60";
+        return File(photo.Data, photo.ContentType);
     }
 
     private async Task<bool> OwnsStudentAsync(int studentId, CancellationToken ct)

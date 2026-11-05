@@ -129,6 +129,9 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Auth header for authenticated `Image.network` photo requests.
+  Map<String, String> get photoHeaders => client.cachedAuthHeaders;
+
   Future<void> refreshProfile() async {
     profile = await api.getProfile();
     notifyListeners();

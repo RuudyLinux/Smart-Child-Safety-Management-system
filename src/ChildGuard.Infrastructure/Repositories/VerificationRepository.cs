@@ -43,5 +43,22 @@ public class VerificationRepository : IVerificationRepository
         return query.OrderByDescending(v => v.AttemptedAt).ToListAsync(ct);
     }
 
+    public Task<List<GuardianVerification>> GetHistoryForGuardianAsync(int guardianId, int take, CancellationToken ct = default) =>
+        _db.GuardianVerifications
+            .Include(v => v.Student).Include(v => v.Guardian)
+            .Where(v => v.GuardianId == guardianId)
+            .OrderByDescending(v => v.AttemptedAt)
+            .Take(take)
+            .ToListAsync(ct);
+
+    public async Task<Dictionary<int, DateTime>> GetLastActivityByGuardianAsync(CancellationToken ct = default)
+    {
+        var rows = await _db.GuardianVerifications.AsNoTracking()
+            .GroupBy(v => v.GuardianId)
+            .Select(g => new { GuardianId = g.Key, LastAt = g.Max(v => v.AttemptedAt) })
+            .ToListAsync(ct);
+        return rows.ToDictionary(r => r.GuardianId, r => r.LastAt);
+    }
+
     public Task SaveChangesAsync(CancellationToken ct = default) => _db.SaveChangesAsync(ct);
 }

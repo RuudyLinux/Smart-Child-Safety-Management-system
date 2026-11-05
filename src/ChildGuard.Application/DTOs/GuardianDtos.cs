@@ -2,13 +2,24 @@ using ChildGuard.Domain.Enums;
 
 namespace ChildGuard.Application.DTOs;
 
-public record GuardianListItemDto(int GuardianId, string FullName, string Email, string? Phone, RecordStatus Status, int LinkedStudentCount);
+public record GuardianListItemDto(
+    int GuardianId, string FullName, string Email, string? Phone, RecordStatus Status, int LinkedStudentCount,
+    bool HasPhoto, DateTime? PhotoUpdatedAt, bool FaceRegistered, bool PasswordResetRequired, DateTime? LastActivityAt);
 
 public record GuardianDetailDto(
     int GuardianId, string FullName, string Email, string? Phone, RecordStatus Status,
-    bool FaceRegistered, bool PasswordResetRequired, IReadOnlyList<StudentSummaryDto> Students, DateTime CreatedAt);
+    bool FaceRegistered, bool PasswordResetRequired, IReadOnlyList<StudentSummaryDto> Students, DateTime CreatedAt,
+    bool HasPhoto, DateTime? PhotoUpdatedAt, DateTime? LastActivityAt,
+    IReadOnlyList<GuardianVerificationHistoryDto> RecentVerifications);
 
-public record StudentSummaryDto(int StudentId, string FullName, string? Grade, string? Relationship, bool IsAuthorizedForPickup);
+/// <summary>
+/// A child as seen from their guardian — identity, relationship, and the live
+/// safety picture the Guardian app and the admin's guardian profile both show.
+/// </summary>
+public record StudentSummaryDto(
+    int StudentId, string FullName, string? Grade, string? Relationship, bool IsAuthorizedForPickup,
+    bool HasPhoto, StudentSafetyStatus SafetyStatus, DateTime? LastEventAt, JourneyEventType? LastEventType,
+    TimeOnly? CheckInTime, bool PresentToday, string? BusNumber, string? RouteName);
 
 public record UpdateGuardianStatusRequest(RecordStatus Status);
 

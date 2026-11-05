@@ -14,7 +14,9 @@ public class StudentRepository : IStudentRepository
     {
         var query = _db.Students
             .Include(s => s.RfidCard)
-            .Include(s => s.StudentGuardians)
+            // Guardian is included so the list can name the primary guardian without
+            // a second round trip per row.
+            .Include(s => s.StudentGuardians).ThenInclude(sg => sg.Guardian)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
@@ -29,7 +31,7 @@ public class StudentRepository : IStudentRepository
     public Task<Student?> GetWithGuardiansAsync(int id, CancellationToken ct = default) =>
         _db.Students
             .Include(s => s.RfidCard)
-            .Include(s => s.StudentGuardians).ThenInclude(sg => sg.Guardian)
+            .Include(s => s.StudentGuardians).ThenInclude(sg => sg.Guardian).ThenInclude(g => g.FaceData)
             .FirstOrDefaultAsync(s => s.StudentId == id, ct);
 
     public async Task AddAsync(Student student, CancellationToken ct = default) =>

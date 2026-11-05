@@ -57,7 +57,6 @@ as an MVC client of the API (never touches MySQL directly).
    dotnet user-secrets set "SeedAdmin:Email" "admin@childguard.local"
    dotnet user-secrets set "SeedAdmin:Password" "<a strong password>"
    dotnet user-secrets set "SeedAdmin:FullName" "System Administrator"
-   dotnet user-secrets set "Email:Resend:ApiKey" "<your Resend API key>"
    ```
 3. **Apply the database schema**:
    ```
@@ -81,27 +80,24 @@ as an MVC client of the API (never touches MySQL directly).
 ## Running everything
 
 From the repo root:
-```
-start.bat
-```
-Opens three windows: `ChildGuard.Api` (http://localhost:5275),
-`ChildGuard.AdminWeb` (http://localhost:5080), and the face service
-(http://localhost:8001). Stop everything with:
-```
-stop.bat
+```bat
+start.bat             # Starts MySQL, migrations, API, AdminWeb, Face Service & opens browser
+start.bat --with-app  # Also automatically launches the Guardian Flutter Web app
 ```
 
-Run the Guardian app separately (it's a mobile/web client, not a Windows service):
+What `start.bat` does automatically:
+1. **MySQL Database**: Verifies port 3306. If stopped, it starts the `MySQL80` service, or falls back to portable XAMPP MySQL on port 3306 and configures `childguard_db`.
+2. **Database Migrations**: Applies any pending EF Core database schema updates.
+3. **Face Service**: Starts FastAPI / DeepFace (ArcFace) on `http://127.0.0.1:8001`.
+4. **ChildGuard API**: Starts the ASP.NET Core Web API on `http://localhost:5275`.
+5. **Admin Web**: Starts the MVC Admin Portal on `http://localhost:5080` and opens it in your default browser.
+6. **Guardian App (Optional)**: Prompts to start the Flutter Web client on `http://localhost:5090` (or starts automatically with `--with-app`).
+
+Stop everything with a single command:
+```bat
+stop.bat
 ```
-cd guardian_app
-# Web: use run_web.bat, which pins both settings below. The port must be one of
-# Cors:AllowedOrigins (5090 is reserved for it in appsettings.Development.json)
-# and API_BASE_URL must point at the API, or the browser blocks every call and the
-# app reports "Could not reach server".
-run_web.bat
-flutter run -d chrome --web-port=5090 --dart-define=API_BASE_URL=http://localhost:5275   # same thing, by hand
-flutter run --dart-define=API_BASE_URL=http://10.0.2.2:5275              # Android emulator (default)
-```
+This terminates all ChildGuard windows, safely stops portable MySQL if running, and frees ports 5275, 5080, 8001, and 5090.
 
 ## Demo login
 
@@ -113,66 +109,6 @@ flutter run --dart-define=API_BASE_URL=http://10.0.2.2:5275              # Andro
   In development the OTP is not sent by SMS: it is written to the API log
   (`src/ChildGuard.Api/logs/childguard-api-*.log` and the console) as
   `Login OTP for ... (dev-only log)`.
-
-## API diagnostics page
-
-`http://localhost:5080/Diagnostics` — no login required, so it still answers when
-the API is down or nobody can sign in. Every check runs in the browser against the
-API, so a pass proves a browser on that origin can really reach the endpoint,
-CORS included: API reachable, database, CORS, the login/OTP/reset routes, and that
-`/api/me/profile` refuses anonymous callers. It can also run a real guardian login
-against a contact number and password you type in. It performs no privileged work
-of its own and never displays an OTP.
-
-## Guardian accounts and email
-
-An admin creates guardians in Admin Web (Guardians → **Add Guardian**: full name,
-email, contact number). The account is created server-side on a fixed initial
-password — defined once in `GuardianCredentialDefaults.InitialPassword`, never in
-frontend code — stored only as a hash, and flagged `PasswordResetRequired`. The
-credentials are then emailed to the **guardian's** registered address, and the
-admin sees "Guardian account created successfully. Login credentials have been
-sent to the Guardian's registered email address." If delivery fails the account
-still exists and the admin is shown the provider's reason instead of a success
-message; the failure is logged with the recipient and reason only, never the body.
-
-Setting a password on an existing guardian (Guardians → Details → Login
-Credentials) also flags that account for the forced reset.
-
-Email goes out through **Resend** (`IEmailSender` → `ResendEmailSender`). Config:
-
-```jsonc
-"Email": {
-  "From": "ChildGuard <onboarding@resend.dev>",
-  "Resend": { "ApiKey": "" }   // leave blank here — set it in user-secrets/env
-}
-```
-
-```bash
-# development
-dotnet user-secrets set "Email:Resend:ApiKey" "<key>"
-# production (double underscore = section separator)
-Email__Resend__ApiKey=<key>
-Email__From="ChildGuard <noreply@your-domain>"
-```
-
-Without a key the app registers `LoggingEmailSender` instead and writes the
-message to the log, so everything still runs in dev without a provider.
-
-If a login OTP cannot be delivered (most often because Resend is in test mode and
-rejects the recipient), the guardian cannot sign in — which is the correct
-behaviour, but it blocks local testing. `Otp:LogCodeOnDeliveryFailure` writes the
-code to the log in that case; it is **off by default**, enabled only in
-`appsettings.Development.json`, and must stay off in production, where a logged
-code is a usable code. The delivery failure itself is logged as an error either way.
-
-**Resend test mode:** `onboarding@resend.dev` is Resend's shared sender and needs
-no domain setup, but it only delivers to your own Resend account address — every
-other recipient is rejected with 403, which the admin sees. That is a Resend
-account limit, not an application one: sending to arbitrary guardians requires a
-domain you own, added and DNS-verified at resend.com/domains, with `Email:From`
-set to an address on it. Until then, use `Otp:LogCodeOnDeliveryFailure` (already
-on in development) to read codes from the API log.
 
 ## Guardian login flow
 
@@ -230,15 +166,34 @@ tokens, same component language, no gradients or decorative UI.
 - **Password-reset email**: no SMTP provider is in the approved stack, so the
   dev implementation logs the reset token instead of emailing it — swap
   `IPasswordResetNotifier` for a real mail sender when one is chosen.
-- **OTP delivery**: no SMS gateway is in the approved stack, so the login OTP is
-  emailed to the guardian's registered address (`EmailOtpSender`). When no email
-  provider is configured either, it falls back to `LoggingOtpSender`, which writes
-  the code to the API log. `IOtpSender.SendLoginOtpAsync` receives the whole
-  Guardian, so an SMS implementation already has the contact number — write it and
-  change the one registration in `ChildGuard.Infrastructure/DependencyInjection.cs`.
-  Read provider credentials from configuration (user-secrets in dev, environment
-  variables in production) the way `Email:Resend:ApiKey` is read, and never log the
-  code once a real sender is in place.
+- **OTP delivery (SMS)**: same situation — no SMS gateway is in the approved
+  stack, so `LoggingOtpSender` writes the login OTP to the API log instead of
+  sending it. To use a real provider, implement `IOtpSender` (one method,
+  `SendLoginOtpAsync`) against that provider's HTTP API and change the single
+  registration in `ChildGuard.Infrastructure/DependencyInjection.cs`:
+
+  ```csharp
+  services.AddScoped<IOtpSender, LoggingOtpSender>();   // replace with your sender
+  ```
+
+  Keep provider credentials out of the repository — read them from configuration
+  the same way the rest of the app does, via user-secrets in development and
+  environment variables in production, e.g.:
+
+  ```bash
+  dotnet user-secrets set "Sms:BaseUrl"   "https://api.your-provider.example"
+  dotnet user-secrets set "Sms:ApiKey"    "<provider api key>"
+  dotnet user-secrets set "Sms:SenderId"  "CHILDGUARD"
+  ```
+
+  ```bash
+  # production (environment variables — double underscore = section separator)
+  Sms__BaseUrl=https://api.your-provider.example
+  Sms__ApiKey=...
+  Sms__SenderId=CHILDGUARD
+  ```
+
+  Never log the code once a real sender is in place.
 
 ## Development rules this project follows
 

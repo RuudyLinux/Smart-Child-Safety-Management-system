@@ -319,6 +319,40 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                     b.ToTable("GuardianOtpChallenges");
                 });
 
+            modelBuilder.Entity("ChildGuard.Domain.Entities.GuardianPhoto", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ByteSize")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<byte[]>("Data")
+                        .IsRequired()
+                        .HasColumnType("LONGBLOB");
+
+                    b.Property<int>("GuardianId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GuardianId")
+                        .IsUnique();
+
+                    b.ToTable("GuardianPhotos", (string)null);
+                });
+
             modelBuilder.Entity("ChildGuard.Domain.Entities.GuardianVerification", b =>
                 {
                     b.Property<int>("Id")
@@ -648,6 +682,40 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                     b.ToTable("StudentGuardians");
                 });
 
+            modelBuilder.Entity("ChildGuard.Domain.Entities.StudentPhoto", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ByteSize")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<byte[]>("Data")
+                        .IsRequired()
+                        .HasColumnType("LONGBLOB");
+
+                    b.Property<int>("StudentId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StudentId")
+                        .IsUnique();
+
+                    b.ToTable("StudentPhotos", (string)null);
+                });
+
             modelBuilder.Entity("ChildGuard.Domain.Entities.Attendance", b =>
                 {
                     b.HasOne("ChildGuard.Domain.Entities.RfidCard", "RfidCard")
@@ -699,6 +767,17 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                     b.HasOne("ChildGuard.Domain.Entities.Guardian", "Guardian")
                         .WithMany("OtpChallenges")
                         .HasForeignKey("GuardianId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Guardian");
+                });
+
+            modelBuilder.Entity("ChildGuard.Domain.Entities.GuardianPhoto", b =>
+                {
+                    b.HasOne("ChildGuard.Domain.Entities.Guardian", "Guardian")
+                        .WithOne("Photo")
+                        .HasForeignKey("ChildGuard.Domain.Entities.GuardianPhoto", "GuardianId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -829,6 +908,17 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                     b.Navigation("Student");
                 });
 
+            modelBuilder.Entity("ChildGuard.Domain.Entities.StudentPhoto", b =>
+                {
+                    b.HasOne("ChildGuard.Domain.Entities.Student", "Student")
+                        .WithOne("Photo")
+                        .HasForeignKey("ChildGuard.Domain.Entities.StudentPhoto", "StudentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Student");
+                });
+
             modelBuilder.Entity("ChildGuard.Domain.Entities.Bus", b =>
                 {
                     b.Navigation("StudentBusAssignments");
@@ -846,6 +936,8 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                     b.Navigation("Notifications");
 
                     b.Navigation("OtpChallenges");
+
+                    b.Navigation("Photo");
 
                     b.Navigation("StudentGuardians");
                 });
@@ -878,6 +970,8 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                     b.Navigation("GuardianVerifications");
 
                     b.Navigation("JourneyEvents");
+
+                    b.Navigation("Photo");
 
                     b.Navigation("RfidCard");
 

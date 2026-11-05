@@ -7,20 +7,34 @@ namespace ChildGuard.AdminWeb.Controllers;
 
 public class StudentsController : BaseAdminController
 {
+    private const long PhotoRequestLimit = 5L * 1024 * 1024;
+
     public StudentsController(ApiClient api) : base(api) { }
 
     public async Task<IActionResult> Index(string? search, CancellationToken ct)
     {
-        ViewData["Title"] = "Students";
+        SetPage("Students", "People");
         var url = string.IsNullOrWhiteSpace(search) ? "/api/students" : $"/api/students?search={Uri.EscapeDataString(search)}";
         var result = await Api.GetAsync<List<StudentListItemDto>>(url, ct);
+        if (!result.Succeeded) ViewBag.LoadError = result.Error;
+
+        var students = result.Value ?? new();
         ViewData["Search"] = search;
-        return View(result.Value ?? new());
+        // Grade options come from the delivered rows, so the filter can never offer
+        // a grade that no student is actually in.
+        ViewBag.Grades = students
+            .Select(s => s.Grade)
+            .Where(g => !string.IsNullOrWhiteSpace(g))
+            .Select(g => g!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(g => g, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        return View(students);
     }
 
     public IActionResult Create()
     {
-        ViewData["Title"] = "Add Student";
+        SetPage("Add student", "People");
         return View(new CreateStudentRequest("", DateTime.Today.AddYears(-8), null));
     }
 
@@ -31,22 +45,23 @@ public class StudentsController : BaseAdminController
         var result = await Api.PostAsync<StudentDetailDto>("/api/students", request, ct);
         if (!result.Succeeded)
         {
-            ViewData["Title"] = "Add Student";
+            SetPage("Add student", "People");
             ModelState.AddModelError("", result.Error!);
             return View(request);
         }
-        TempData["Success"] = "Student created.";
-        return RedirectToAction(nameof(Details), new { id = result.Value!.StudentId });
+        TempData["Success"] = $"{result.Value!.FullName} added. Assign an RFID card and a guardian to complete the record.";
+        return RedirectToAction(nameof(Details), new { id = result.Value.StudentId });
     }
 
     public async Task<IActionResult> Details(int id, CancellationToken ct)
     {
-        ViewData["Title"] = "Student Details";
         var result = await Api.GetAsync<StudentDetailDto>($"/api/students/{id}", ct);
         if (!result.Succeeded) return NotFound();
 
+        SetPage(result.Value!.FullName, "People");
+
         var guardians = await Api.GetAsync<List<GuardianListItemDto>>("/api/guardians", ct);
-        var linkedIds = result.Value!.Guardians.Select(g => g.GuardianId).ToHashSet();
+        var linkedIds = result.Value.Guardians.Select(g => g.GuardianId).ToHashSet();
         ViewBag.AvailableGuardians = (guardians.Value ?? new()).Where(g => !linkedIds.Contains(g.GuardianId)).ToList();
 
         return View(result.Value);
@@ -54,11 +69,12 @@ public class StudentsController : BaseAdminController
 
     public async Task<IActionResult> Edit(int id, CancellationToken ct)
     {
-        ViewData["Title"] = "Edit Student";
         var result = await Api.GetAsync<StudentDetailDto>($"/api/students/{id}", ct);
         if (!result.Succeeded) return NotFound();
+        SetPage($"Edit {result.Value!.FullName}", "People");
         ViewData["StudentId"] = id;
-        return View(new UpdateStudentRequest(result.Value!.FullName, result.Value.DateOfBirth, result.Value.Grade));
+        ViewData["HasPhoto"] = result.Value.HasPhoto;
+        return View(new UpdateStudentRequest(result.Value.FullName, result.Value.DateOfBirth, result.Value.Grade));
     }
 
     [HttpPost]
@@ -68,12 +84,12 @@ public class StudentsController : BaseAdminController
         var result = await Api.PutAsync<StudentDetailDto>($"/api/students/{id}", request, ct);
         if (!result.Succeeded)
         {
-            ViewData["Title"] = "Edit Student";
+            SetPage("Edit student", "People");
             ViewData["StudentId"] = id;
             ModelState.AddModelError("", result.Error!);
             return View(request);
         }
-        TempData["Success"] = "Student updated.";
+        TempData["Success"] = "Student details updated.";
         return RedirectToAction(nameof(Details), new { id });
     }
 
@@ -81,7 +97,10 @@ public class StudentsController : BaseAdminController
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> UpdateStatus(int id, RecordStatus status, CancellationToken ct)
     {
-        await Api.PatchAsync<object?>($"/api/students/{id}/status", new UpdateStudentStatusRequest(status), ct);
+        var result = await Api.PatchAsync<object?>($"/api/students/{id}/status", new UpdateStudentStatusRequest(status), ct);
+        TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded
+            ? $"Student record {(status == RecordStatus.Active ? "activated" : "deactivated")}."
+            : result.Error;
         return RedirectToAction(nameof(Details), new { id });
     }
 
@@ -91,7 +110,7 @@ public class StudentsController : BaseAdminController
     {
         var result = await Api.PostAsync<object?>($"/api/students/{id}/guardians",
             new AssignGuardianRequest(guardianId, relationship, isAuthorizedForPickup), ct);
-        TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded ? "Guardian associated." : result.Error;
+        TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded ? "Guardian linked to this student." : result.Error;
         return RedirectToAction(nameof(Details), new { id });
     }
 
@@ -110,7 +129,48 @@ public class StudentsController : BaseAdminController
     public async Task<IActionResult> RemoveGuardianLink(int id, int guardianId, CancellationToken ct)
     {
         var result = await Api.DeleteAsync<object?>($"/api/students/{id}/guardians/{guardianId}", ct);
-        TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded ? "Guardian unlinked." : result.Error;
+        TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded
+            ? "Guardian unlinked. The guardian account itself was not deleted."
+            : result.Error;
+        return RedirectToAction(nameof(Details), new { id });
+    }
+
+    // ---- Profile photo ----
+
+    [HttpGet]
+    [ResponseCache(Duration = 30, Location = ResponseCacheLocation.Client, NoStore = false)]
+    public async Task<IActionResult> Photo(int id, CancellationToken ct)
+    {
+        var result = await Api.GetBinaryAsync($"/api/students/{id}/photo", ct);
+        if (!result.Succeeded) return NotFound();
+        return File(result.Value.Data, result.Value.ContentType);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [RequestSizeLimit(PhotoRequestLimit)]
+    public async Task<IActionResult> UploadPhoto(int id, IFormFile? file, CancellationToken ct)
+    {
+        if (file is null || file.Length == 0)
+        {
+            TempData["Error"] = "Select an image to upload.";
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
+        await using var stream = file.OpenReadStream();
+        var result = await Api.PostFileAsync<PhotoStateDto>(
+            $"/api/students/{id}/photo", stream, file.FileName, file.ContentType, ct);
+
+        TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded ? "Student photo saved." : result.Error;
+        return RedirectToAction(nameof(Details), new { id });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeletePhoto(int id, CancellationToken ct)
+    {
+        var result = await Api.DeleteAsync<object?>($"/api/students/{id}/photo", ct);
+        TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded ? "Student photo removed." : result.Error;
         return RedirectToAction(nameof(Details), new { id });
     }
 }

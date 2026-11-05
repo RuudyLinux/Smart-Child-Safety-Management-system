@@ -1,45 +1,149 @@
-@{ ViewData["Title"] = "Settings"; var devices = (List<RfidDeviceDto>)ViewBag.Devices; }
+@{
+    ViewData["Title"] = "Settings";
+    var devices = (List<RfidDeviceDto>)ViewBag.Devices;
+    var connected = devices.Count(d => d.ConnectionStatus == RfidConnectionStatus.Connected);
+}
 
-<div class="cg-card">
-    <h3 class="cg-card__title">System</h3>
-    <p><strong>Environment:</strong> @ViewBag.Environment</p>
-    <p class="cg-help">
-        RFID checkpoint scanners, notification delivery, and the face-verification service
-        are configured via environment/config on the server — see the project README for
-        the settings that control them (connection strings, JWT, Firebase, face-service URL).
-        Nothing sensitive is shown here.
-    </p>
+<div class="cg-page-head">
+    <div class="cg-page-head__text">
+        <h1 class="cg-page-head__title">System settings</h1>
+        <p class="cg-page-head__sub">
+            Operational state of the equipment and services ChildGuard depends on.
+        </p>
+    </div>
+    <div class="cg-page-head__actions">
+        <a class="cg-btn cg-btn--secondary" href="/Diagnostics">
+            @await Html.PartialAsync("_Icon", "activity") Run diagnostics
+        </a>
+        <a class="cg-btn cg-btn--secondary" href="/Settings">
+            @await Html.PartialAsync("_Icon", "refresh") Refresh
+        </a>
+    </div>
 </div>
 
-<div class="cg-card">
-    <h3 class="cg-card__title">RFID Scanner Devices</h3>
-    <div class="cg-table-wrap">
-        <table class="cg-table">
-            <thead><tr><th>Device</th><th>Status</th><th>Last Seen</th></tr></thead>
-            <tbody>
-            @if (!devices.Any())
-            {
-                <tr><td colspan="3" class="cg-muted">No scanner devices configured.</td></tr>
-            }
-            @foreach (var d in devices)
-            {
-                <tr>
-                    <td>@d.DeviceLabel</td>
-                    <td>
-                        @if (d.ConnectionStatus == RfidConnectionStatus.Connected)
-                        {
-                            <span class="cg-badge cg-badge--success">Connected</span>
-                        }
-                        else
-                        {
-                            <span class="cg-badge cg-badge--neutral">Disconnected</span>
-                        }
-                    </td>
-                    <td>@(d.LastSeenAt?.ToLocalTime().ToString("g") ?? "Never")</td>
-                </tr>
-            }
-            </tbody>
-        </table>
+<div class="cg-grid cg-grid--sidebar">
+    <section class="cg-card">
+        <div class="cg-card__head">
+            <div>
+                <h2 class="cg-card__title">Checkpoint scanners</h2>
+                <div class="cg-card__sub">A reader reports online once it sends a heartbeat or reads a card</div>
+            </div>
+            <span class="cg-badge @(devices.Any() && connected == devices.Count ? "cg-badge--success" : "cg-badge--warning")">
+                <span class="cg-badge__dot"></span>@connected of @devices.Count online
+            </span>
+        </div>
+
+        @if (!devices.Any())
+        {
+            @await Html.PartialAsync("_EmptyState", ("scan", "No scanner devices configured",
+                "Register a checkpoint reader on the server so scans can be attributed to a device.",
+                (string?)null, (string?)null))
+        }
+        else
+        {
+            <div class="cg-table-wrap">
+                <table class="cg-table">
+                    <thead><tr><th>Device</th><th>Status</th><th>Last seen</th><th class="cg-table__actions">Use</th></tr></thead>
+                    <tbody>
+                    @foreach (var d in devices)
+                    {
+                        var online = d.ConnectionStatus == RfidConnectionStatus.Connected;
+                        <tr>
+                            <td>
+                                <span class="cg-identity">
+                                    <span class="cg-kpi__icon @(online ? "cg-kpi__icon--success" : "cg-kpi__icon--neutral")"
+                                          style="width:30px;height:30px">
+                                        @await Html.PartialAsync("_Icon", "scan")
+                                    </span>
+                                    <span class="cg-identity__body">
+                                        <span class="cg-identity__name">@d.DeviceLabel</span>
+                                        <span class="cg-identity__meta">Reader #@d.RfidDeviceId</span>
+                                    </span>
+                                </span>
+                            </td>
+                            <td>
+                                @if (online)
+                                {
+                                    <span class="cg-badge cg-badge--success"><span class="cg-badge__dot"></span>Connected</span>
+                                }
+                                else
+                                {
+                                    <span class="cg-badge cg-badge--warning"><span class="cg-badge__dot"></span>Disconnected</span>
+                                }
+                            </td>
+                            <td class="cg-text-sm cg-muted">
+                                @if (d.LastSeenAt is { } seen)
+                                {
+                                    <span data-cg-ago="@seen.ToString("O")">@seen.ToLocalTime().ToString("g")</span>
+                                }
+                                else
+                                {
+                                    <span>Never</span>
+                                }
+                            </td>
+                            <td class="cg-table__actions">
+                                <a class="cg-btn cg-btn--sm cg-btn--ghost" href="/Verification">Open desk</a>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+
+    <div>
+        <section class="cg-card">
+            <div class="cg-card__head">
+                <h2 class="cg-card__title">Environment</h2>
+            </div>
+            <div class="cg-card__body">
+                <dl class="cg-deflist">
+                    <dt>Runtime</dt>
+                    <dd>@ViewBag.Environment</dd>
+                    <dt>Console</dt>
+                    <dd>ChildGuard Admin Web</dd>
+                </dl>
+                <p class="cg-hint">
+                    Connection strings, JWT signing keys, the face-service URL and notification
+                    credentials are read from server configuration. Nothing sensitive is shown
+                    here, and none of it can be changed from the browser.
+                </p>
+            </div>
+        </section>
+
+        <section class="cg-card">
+            <div class="cg-card__head">
+                <h2 class="cg-card__title">Where things are configured</h2>
+            </div>
+            <div class="cg-card__body">
+                <ul class="cg-timeline" style="list-style:none">
+                    <li class="cg-timeline__item">
+                        <span class="cg-timeline__marker">@await Html.PartialAsync("_Icon", "clock")</span>
+                        <div class="cg-timeline__title">School day policy</div>
+                        <div class="cg-timeline__body">
+                            Late and missing check-in cutoffs come from the <code>School</code> configuration
+                            section, so every screen reports against one stated rule.
+                        </div>
+                    </li>
+                    <li class="cg-timeline__item">
+                        <span class="cg-timeline__marker">@await Html.PartialAsync("_Icon", "camera")</span>
+                        <div class="cg-timeline__title">Face verification</div>
+                        <div class="cg-timeline__body">
+                            Runs in a separate service. ChildGuard stores a numeric representation,
+                            never a guardian's photograph, for matching.
+                        </div>
+                    </li>
+                    <li class="cg-timeline__item">
+                        <span class="cg-timeline__marker">@await Html.PartialAsync("_Icon", "bell")</span>
+                        <div class="cg-timeline__title">Guardian notifications</div>
+                        <div class="cg-timeline__body">
+                            In-app notifications always record. Push delivery activates once a
+                            Firebase credential is configured on the server.
+                        </div>
+                    </li>
+                </ul>
+            </div>
+        </section>
     </div>
-    <p class="cg-help">A device shows Connected once it has scanned a card or sent a heartbeat. Manage checkpoint scanning from the <a href="/Verification">Drop-off &amp; Pickup</a> page.</p>
 </div>

@@ -12,6 +12,7 @@ namespace ChildGuard.Api.Controllers;
 public class StudentsController : ControllerBase
 {
     private readonly IStudentService _studentService;
+    private readonly IPhotoService _photos;
     private readonly IValidator<CreateStudentRequest> _createValidator;
     private readonly IValidator<UpdateStudentRequest> _updateValidator;
     private readonly IValidator<AssignGuardianRequest> _assignGuardianValidator;
@@ -20,6 +21,7 @@ public class StudentsController : ControllerBase
 
     public StudentsController(
         IStudentService studentService,
+        IPhotoService photos,
         IValidator<CreateStudentRequest> createValidator,
         IValidator<UpdateStudentRequest> updateValidator,
         IValidator<AssignGuardianRequest> assignGuardianValidator,
@@ -27,6 +29,7 @@ public class StudentsController : ControllerBase
         IValidator<UpdateStudentGuardianRequest> guardianLinkValidator)
     {
         _studentService = studentService;
+        _photos = photos;
         _createValidator = createValidator;
         _updateValidator = updateValidator;
         _assignGuardianValidator = assignGuardianValidator;
@@ -92,5 +95,37 @@ public class StudentsController : ControllerBase
     {
         var result = await _studentService.RemoveGuardianLinkAsync(id, guardianId, ct);
         return result.Succeeded ? Ok(new { message = "Guardian unlinked." }) : NotFound(new { message = result.Error });
+    }
+
+    // ---- Profile photo ----
+
+    [HttpGet("{id:int}/photo")]
+    public async Task<IActionResult> GetPhoto(int id, CancellationToken ct)
+    {
+        var result = await _photos.GetStudentPhotoAsync(id, ct);
+        if (!result.Succeeded) return NotFound(new { message = result.Error });
+
+        var photo = result.Value!;
+        // Private: a child's photo must never be cached by a shared proxy.
+        Response.Headers.CacheControl = "private, max-age=60";
+        return File(photo.Data, photo.ContentType);
+    }
+
+    [HttpPost("{id:int}/photo")]
+    [RequestSizeLimit(PhotoUploads.RequestSizeLimit)]
+    public async Task<IActionResult> UploadPhoto(int id, IFormFile? file, CancellationToken ct)
+    {
+        var read = await PhotoUploads.ReadAsync(file, ct);
+        if (!read.Succeeded) return BadRequest(new { message = read.Error });
+
+        var result = await _photos.SaveStudentPhotoAsync(id, read.Value!, ct);
+        return result.Succeeded ? Ok(result.Value) : BadRequest(new { message = result.Error });
+    }
+
+    [HttpDelete("{id:int}/photo")]
+    public async Task<IActionResult> DeletePhoto(int id, CancellationToken ct)
+    {
+        var result = await _photos.RemoveStudentPhotoAsync(id, ct);
+        return result.Succeeded ? Ok(new { message = "Photo removed." }) : NotFound(new { message = result.Error });
     }
 }

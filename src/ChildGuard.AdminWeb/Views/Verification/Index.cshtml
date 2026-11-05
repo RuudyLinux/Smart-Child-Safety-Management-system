@@ -1,123 +1,297 @@
-@{ ViewData["Title"] = "Student Drop-off & Pickup Verification"; }
-@{ var devices = (List<RfidDeviceDto>)ViewBag.Devices; var recent = (List<GuardianVerificationHistoryDto>)ViewBag.RecentVerifications; }
+@{
+    ViewData["Title"] = "Pickup & Drop-off";
+    var devices = (List<RfidDeviceDto>)ViewBag.Devices;
+    var recent = (List<GuardianVerificationHistoryDto>)ViewBag.RecentVerifications;
+}
 
-@* Two independent progress trackers instead of one shared 4-step pipeline — a
-   drop-off scan (School Arrival / Bus Boarding) never needs guardian/face steps,
-   so it should never show them as "not yet done". Only the pickup checkpoints
-   (School Departure / Bus Drop-off) surface the guardian tracker. *@
-<div id="dropoffStepper" class="cg-stepper">
-    <div class="cg-step" id="step-scanner">1. Scanner Connected</div>
-    <span class="cg-step-arrow">→</span>
-    <div class="cg-step" id="step-student">2. Student Identified</div>
-    <span class="cg-step-arrow">→</span>
-    <div class="cg-step" id="step-event">3. Event Recorded</div>
-</div>
-<div id="pickupStepper" class="cg-stepper" hidden>
-    <div class="cg-step" id="step-guardian">4. Guardian Verified</div>
-    <span class="cg-step-arrow">→</span>
-    <div class="cg-step" id="step-result">5. Pickup Approved</div>
+<div class="cg-page-head">
+    <div class="cg-page-head__text">
+        <h1 class="cg-page-head__title">Pickup &amp; Drop-off desk</h1>
+        <p class="cg-page-head__sub">
+            Scan the student's card, then verify the collecting guardian before confirming the handover.
+        </p>
+    </div>
+    <div class="cg-page-head__actions">
+        <a class="cg-btn cg-btn--secondary" href="/Verification/History">
+            @await Html.PartialAsync("_Icon", "verification") Verification log
+        </a>
+        <button type="button" class="cg-btn cg-btn--secondary" id="newScanBtn">
+            @await Html.PartialAsync("_Icon", "refresh") New scan
+        </button>
+    </div>
 </div>
 
-<div class="cg-verify-grid">
-<div>
-    <div class="cg-card">
-        <h3 class="cg-card__title">RFID Scanner</h3>
-        <div class="cg-flex-between" style="margin-bottom:14px;">
-            <span class="cg-muted" style="font-size:13px;">Device status</span>
-            <span id="scannerStatusBadge" class="cg-badge cg-badge--neutral">Not connected</span>
-        </div>
-        <div class="cg-form-group">
-            <label class="cg-label">Scanner Device</label>
-            <select id="deviceSelect" class="cg-select">
-                @foreach (var d in devices)
+@* The six steps of a handover. Drop-off checkpoints mark the guardian steps
+   "not required" rather than leaving them looking unfinished. *@
+<div class="cg-stepper" id="verifySteps" role="list">
+    <div class="cg-step" id="step-scanner" role="listitem">
+        <span class="cg-step__num">1</span>
+        <span class="cg-step__text">
+            <span class="cg-step__label">Scanner ready</span>
+            <span class="cg-step__state" data-state>Connecting…</span>
+        </span>
+    </div>
+    <div class="cg-step" id="step-student" role="listitem">
+        <span class="cg-step__num">2</span>
+        <span class="cg-step__text">
+            <span class="cg-step__label">Student identified</span>
+            <span class="cg-step__state" data-state>Waiting for a card</span>
+        </span>
+    </div>
+    <div class="cg-step" id="step-guardian" role="listitem">
+        <span class="cg-step__num">3</span>
+        <span class="cg-step__text">
+            <span class="cg-step__label">Guardian selected</span>
+            <span class="cg-step__state" data-state>Not started</span>
+        </span>
+    </div>
+    <div class="cg-step" id="step-face" role="listitem">
+        <span class="cg-step__num">4</span>
+        <span class="cg-step__text">
+            <span class="cg-step__label">Face verified</span>
+            <span class="cg-step__state" data-state>Not started</span>
+        </span>
+    </div>
+    <div class="cg-step" id="step-decision" role="listitem">
+        <span class="cg-step__num">5</span>
+        <span class="cg-step__text">
+            <span class="cg-step__label">Handover confirmed</span>
+            <span class="cg-step__state" data-state>Not started</span>
+        </span>
+    </div>
+    <div class="cg-step" id="step-done" role="listitem">
+        <span class="cg-step__num">6</span>
+        <span class="cg-step__text">
+            <span class="cg-step__label">Completed</span>
+            <span class="cg-step__state" data-state>Not started</span>
+        </span>
+    </div>
+</div>
+
+<div class="cg-grid cg-grid--split">
+    @* ------------------------------------------------------------- Scanner *@
+    <div>
+        <section class="cg-card">
+            <div class="cg-card__head">
+                <div>
+                    <h2 class="cg-card__title">RFID checkpoint</h2>
+                    <div class="cg-card__sub">The reader types the card UID straight into the field</div>
+                </div>
+                <span id="scannerStatusBadge" class="cg-badge cg-badge--neutral">
+                    <span class="cg-badge__dot"></span>Not connected
+                </span>
+            </div>
+            <div class="cg-card__body">
+                @if (!devices.Any())
                 {
-                    <option value="@d.RfidDeviceId">@d.DeviceLabel (@d.ConnectionStatus)</option>
+                    <div class="cg-alert cg-alert--warning">
+                        <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "alert-triangle")</span>
+                        <div class="cg-alert__body">
+                            <div class="cg-alert__title">No scanner devices configured</div>
+                            <div>A checkpoint reader must be registered before scans can be recorded.</div>
+                        </div>
+                    </div>
                 }
-            </select>
-        </div>
-        <div class="cg-form-group">
-            <label class="cg-label">Logical Checkpoint</label>
-            <select id="checkpointSelect" class="cg-select">
-                <option value="BusBoarding">Bus Boarding (drop-off)</option>
-                <option value="SchoolArrival" selected>School Arrival (drop-off)</option>
-                <option value="SchoolDeparture">School Departure (pickup)</option>
-                <option value="BusDropoff">Bus Drop-off (pickup)</option>
-            </select>
-            <p id="checkpointHint" class="cg-help">Drop-off checkpoint — scanning identifies the student and records the event. No guardian verification needed.</p>
-        </div>
-        <div class="cg-form-group">
-            <label class="cg-label">Card UID (scan card here — reader types automatically)</label>
-            <input id="cardUidInput" class="cg-input" autofocus placeholder="Waiting for scan..." />
-        </div>
-        <button id="scanBtn" class="cg-btn cg-btn--primary">Scan RFID Card</button>
-        <button id="newScanBtn" class="cg-btn cg-btn--secondary" style="margin-left:8px;">New Scan</button>
-        <p class="cg-help">Focus stays in the card field — a USB RFID reader in keyboard mode types the UID and presses Enter automatically.</p>
+                else
+                {
+                    <div class="cg-form">
+                        <div class="cg-form-row">
+                            <div class="cg-field">
+                                <label class="cg-label" for="deviceSelect">Scanner device</label>
+                                <select id="deviceSelect" class="cg-select">
+                                    @foreach (var d in devices)
+                                    {
+                                        <option value="@d.RfidDeviceId">@d.DeviceLabel</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="cg-field">
+                                <label class="cg-label" for="checkpointSelect">Checkpoint</label>
+                                <select id="checkpointSelect" class="cg-select">
+                                    <option value="BusBoarding">Bus boarding — drop-off</option>
+                                    <option value="SchoolArrival" selected>School arrival — drop-off</option>
+                                    <option value="SchoolDeparture">School departure — pickup</option>
+                                    <option value="BusDropoff">Bus drop-off — pickup</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <p id="checkpointHint" class="cg-hint"></p>
+
+                        <div class="cg-field">
+                            <label class="cg-label" for="cardUidInput">Card UID</label>
+                            <div class="cg-input-group">
+                                <span class="cg-input-group__icon">@await Html.PartialAsync("_Icon", "scan")</span>
+                                <input id="cardUidInput" class="cg-input cg-mono" autofocus autocomplete="off"
+                                       placeholder="Waiting for a scan…" />
+                            </div>
+                            <p class="cg-hint">
+                                Keep the cursor here — a USB reader in keyboard mode types the UID and presses Enter.
+                            </p>
+                        </div>
+
+                        <div class="cg-btn-group">
+                            <button id="scanBtn" class="cg-btn cg-btn--primary">
+                                @await Html.PartialAsync("_Icon", "scan")
+                                <span class="cg-btn__label">Read card</span>
+                            </button>
+                        </div>
+                    </div>
+                }
+            </div>
+        </section>
+
+        <section class="cg-card" id="studentCard" hidden>
+            <div class="cg-card__head">
+                <h2 class="cg-card__title">Student</h2>
+                <span id="studentStatusBadge" class="cg-badge cg-badge--neutral"></span>
+            </div>
+            <div class="cg-card__body">
+                <div class="cg-row" style="gap:14px;align-items:flex-start">
+                    <span class="cg-avatar cg-avatar--lg cg-avatar--square" id="studentAvatar">?</span>
+                    <div style="min-width:0">
+                        <div style="font-size:18px;font-weight:700" id="studentName"></div>
+                        <div class="cg-text-sm cg-muted cg-mono" id="studentRfid"></div>
+                    </div>
+                </div>
+                <div id="studentMessage" aria-live="polite" style="margin-top:14px"></div>
+            </div>
+        </section>
     </div>
 
-    <div class="cg-card" id="studentCard" hidden>
-        <h3 class="cg-card__title">Student</h3>
-        <p><strong id="studentName"></strong> &nbsp; <span id="studentRfid" class="cg-muted"></span></p>
-        <div id="studentMessage" aria-live="polite"></div>
+    @* ----------------------------------------------------- Guardian & face *@
+    <div id="pickupCard">
+        <section class="cg-card">
+            <div class="cg-card__head">
+                <div>
+                    <h2 class="cg-card__title">Guardian verification</h2>
+                    <div class="cg-card__sub">Only guardians authorised for this student are listed</div>
+                </div>
+                <span id="guardianAuthBadge" class="cg-badge cg-badge--neutral">
+                    <span class="cg-badge__dot"></span>Pending scan
+                </span>
+            </div>
+            <div class="cg-card__body">
+                <div class="cg-field" style="margin-bottom:14px">
+                    <label class="cg-label" for="guardianSelect">Collecting guardian</label>
+                    <select id="guardianSelect" class="cg-select" disabled>
+                        <option value="">Read a student's card first…</option>
+                    </select>
+                </div>
+
+                <div id="guardianPreview" hidden style="margin-bottom:16px">
+                    <div class="cg-row" style="gap:12px;align-items:flex-start">
+                        <span class="cg-avatar cg-avatar--lg cg-avatar--guardian cg-avatar--square" id="guardianAvatar">?</span>
+                        <div style="min-width:0">
+                            <div class="cg-strong" id="guardianName"></div>
+                            <div class="cg-text-sm cg-muted" id="guardianRelationship"></div>
+                            <div style="margin-top:6px" id="guardianFaceBadge"></div>
+                        </div>
+                    </div>
+                    <p class="cg-hint" style="margin-top:8px">
+                        This is the photo on file, for staff reference. Verification compares the live
+                        capture against the guardian's registered face representation.
+                    </p>
+                </div>
+
+                <div class="cg-camera" id="cameraBox">
+                    <div class="cg-camera__hint">
+                        @await Html.PartialAsync("_Icon", "camera")
+                        <div style="margin-top:8px">Camera not started</div>
+                    </div>
+                </div>
+                <canvas id="captureCanvas" hidden></canvas>
+
+                <div class="cg-btn-group" style="justify-content:center;margin-top:14px">
+                    <button id="startCameraBtn" class="cg-btn cg-btn--secondary">
+                        @await Html.PartialAsync("_Icon", "camera") Start camera
+                    </button>
+                    <button id="captureBtn" class="cg-btn cg-btn--primary" disabled>
+                        @await Html.PartialAsync("_Icon", "scan")
+                        <span class="cg-btn__label">Capture &amp; verify</span>
+                    </button>
+                </div>
+
+                <div id="faceResult" aria-live="polite" style="margin-top:16px"></div>
+
+                <div class="cg-btn-group" style="justify-content:center;margin-top:8px">
+                    <button id="approveBtn" class="cg-btn cg-btn--success" disabled>
+                        @await Html.PartialAsync("_Icon", "check")
+                        <span class="cg-btn__label">Approve handover</span>
+                    </button>
+                    <button id="rejectBtn" class="cg-btn cg-btn--danger" disabled>
+                        @await Html.PartialAsync("_Icon", "x") Reject
+                    </button>
+                </div>
+
+                <div id="decisionResult" aria-live="polite" style="margin-top:14px"></div>
+            </div>
+        </section>
     </div>
 </div>
 
-<div id="pickupCard">
-    <div class="cg-card">
-        <h3 class="cg-card__title">Guardian Pickup Verification</h3>
-        <div class="cg-form-group">
-            <label class="cg-label">Authorized Guardian</label>
-            <select id="guardianSelect" class="cg-select"><option value="">Scan a student first...</option></select>
+<section class="cg-card">
+    <div class="cg-card__head">
+        <div>
+            <h2 class="cg-card__title">Recent verifications</h2>
+            <div class="cg-card__sub">The last attempts at this desk</div>
         </div>
-        <div class="cg-flex-between" style="margin-bottom:10px;">
-            <span class="cg-muted" style="font-size:13px;">Authorization</span>
-            <span id="guardianAuthBadge" class="cg-badge cg-badge--neutral">Pending scan</span>
-        </div>
-        <div class="cg-camera-box" id="cameraBox">Camera not started</div>
-        <canvas id="captureCanvas" hidden></canvas>
-        <div class="cg-flex" style="justify-content:center;margin-bottom:12px;">
-            <button id="startCameraBtn" class="cg-btn cg-btn--secondary">Start Camera</button>
-            <button id="captureBtn" class="cg-btn cg-btn--primary" disabled>Capture &amp; Verify Face</button>
-        </div>
-        <div id="faceResult" aria-live="polite"></div>
-        <div class="cg-flex" style="justify-content:center;margin-top:12px;">
-            <button id="approveBtn" class="cg-btn cg-btn--success" disabled>Approve Pickup</button>
-            <button id="rejectBtn" class="cg-btn cg-btn--danger" disabled>Reject</button>
-        </div>
-        <div id="decisionResult" aria-live="polite" style="margin-top:12px;"></div>
+        <a class="cg-btn cg-btn--sm cg-btn--ghost" href="/Verification/History">
+            Full log @await Html.PartialAsync("_Icon", "chevron-right")
+        </a>
     </div>
-</div>
-</div>
 
-<div class="cg-card">
-    <h3 class="cg-card__title">Recent Verification History</h3>
-    <div class="cg-table-wrap">
-        <table class="cg-table">
-            <thead><tr><th>Student</th><th>Guardian</th><th>Time</th><th>Score</th><th>Result</th><th>Pickup</th></tr></thead>
-            <tbody>
-            @if (!recent.Any())
-            {
-                <tr><td colspan="6" class="cg-muted">No verification attempts yet.</td></tr>
-            }
-            @foreach (var v in recent)
-            {
-                <tr>
-                    <td>@v.StudentName</td>
-                    <td>@v.GuardianName</td>
-                    <td>@v.AttemptedAt.ToLocalTime().ToString("g")</td>
-                    <td>@v.MatchScore.ToString("0.00")</td>
-                    <td>
-                        @if (v.Result == VerificationResult.Match) { <span class="cg-badge cg-badge--success">Match</span> } else { <span class="cg-badge cg-badge--error">No Match</span> }
-                    </td>
-                    <td>
-                        @if (v.PickupApproved) { <span class="cg-badge cg-badge--success">Approved</span> } else { <span class="cg-badge cg-badge--neutral">—</span> }
-                    </td>
-                </tr>
-            }
-            </tbody>
-        </table>
-    </div>
-</div>
+    @if (!recent.Any())
+    {
+        @await Html.PartialAsync("_EmptyState", ("verification", "No verification attempts yet",
+            "Attempts appear here as guardians are verified at this desk.",
+            (string?)null, (string?)null))
+    }
+    else
+    {
+        <div class="cg-table-wrap">
+            <table class="cg-table">
+                <thead>
+                    <tr><th>Student</th><th>Guardian</th><th>When</th><th>Score</th><th>Result</th><th>Handover</th></tr>
+                </thead>
+                <tbody>
+                @foreach (var v in recent)
+                {
+                    <tr>
+                        <td><a href="/Students/Details/@v.StudentId">@v.StudentName</a></td>
+                        <td><a href="/Guardians/Details/@v.GuardianId">@v.GuardianName</a></td>
+                        <td class="cg-text-sm cg-muted">
+                            <span data-cg-ago="@v.AttemptedAt.ToString("O")">@v.AttemptedAt.ToLocalTime().ToString("HH:mm")</span>
+                        </td>
+                        <td class="cg-num">@v.MatchScore.ToString("0.00")</td>
+                        <td>
+                            @if (v.Result == VerificationResult.Match)
+                            {
+                                <span class="cg-badge cg-badge--success"><span class="cg-badge__dot"></span>Match</span>
+                            }
+                            else
+                            {
+                                <span class="cg-badge cg-badge--danger"><span class="cg-badge__dot"></span>No match</span>
+                            }
+                        </td>
+                        <td>
+                            @if (v.PickupApproved)
+                            {
+                                <span class="cg-badge cg-badge--success"><span class="cg-badge__dot"></span>Approved</span>
+                            }
+                            else
+                            {
+                                <span class="cg-badge cg-badge--neutral">Not approved</span>
+                            }
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
 
 @section Scripts {
-<script src="~/js/verification.js"></script>
+    <script src="~/js/verification.js" asp-append-version="true"></script>
 }

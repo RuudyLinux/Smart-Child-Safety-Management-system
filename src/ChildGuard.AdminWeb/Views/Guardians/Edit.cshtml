@@ -1,45 +1,86 @@
 @model AdminUpdateGuardianRequest
 @{
-    ViewData["Title"] = "Edit Guardian";
+    ViewData["Title"] = "Edit guardian";
     var guardianId = (int)ViewData["GuardianId"]!;
+    var hasPhoto = ViewData["HasPhoto"] as bool? ?? false;
 }
 
-<div class="cg-card">
-    <h3 class="cg-card__title cg-mt-0">Edit Guardian</h3>
+<div class="cg-page-head">
+    <div class="cg-page-head__text">
+        <nav class="cg-breadcrumb" style="margin-bottom:6px">
+            <a href="/Guardians/Details/@guardianId">@await Html.PartialAsync("_Icon", "arrow-left") Back to @Model.FullName</a>
+        </nav>
+        <h1 class="cg-page-head__title">Edit guardian</h1>
+        <p class="cg-page-head__sub">Passwords are issued from the guardian's Account tab, not here.</p>
+    </div>
+</div>
 
-    @if (!ViewData.ModelState.IsValid)
-    {
-        <div class="cg-alert cg-alert--error">
-            @foreach (var error in ViewData.ModelState.Values.SelectMany(v => v.Errors))
+<div class="cg-grid cg-grid--sidebar">
+    <section class="cg-card">
+        <div class="cg-card__head">
+            <h2 class="cg-card__title">Guardian details</h2>
+        </div>
+        <div class="cg-card__body">
+            @if (!ViewData.ModelState.IsValid)
             {
-                <div>@error.ErrorMessage</div>
+                <div class="cg-alert cg-alert--danger" role="alert">
+                    <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "alert-circle")</span>
+                    <div class="cg-alert__body">
+                        @foreach (var error in ViewData.ModelState.Values.SelectMany(v => v.Errors))
+                        {
+                            <div>@error.ErrorMessage</div>
+                        }
+                    </div>
+                </div>
             }
-        </div>
-    }
 
-    <form asp-action="Edit" asp-route-id="@guardianId" method="post" class="cg-form">
-        @Html.AntiForgeryToken()
-        <div class="cg-form-group">
-            <label for="FullName">Full Name</label>
-            <input type="text" id="FullName" name="FullName" value="@Model.FullName" required maxlength="150" class="cg-input" />
+            <form asp-action="Edit" asp-route-id="@guardianId" method="post" class="cg-form" data-cg-busy>
+                @Html.AntiForgeryToken()
+
+                <div class="cg-field">
+                    <label class="cg-label" for="FullName">Full name <span class="cg-label__req">*</span></label>
+                    <input class="cg-input" id="FullName" name="FullName" value="@Model.FullName" maxlength="150" required />
+                </div>
+
+                <div class="cg-field">
+                    <label class="cg-label" for="Email">Email address <span class="cg-label__req">*</span></label>
+                    <div class="cg-input-group">
+                        <span class="cg-input-group__icon">@await Html.PartialAsync("_Icon", "mail")</span>
+                        <input class="cg-input" id="Email" type="email" name="Email" value="@Model.Email" maxlength="200" required />
+                    </div>
+                </div>
+
+                <div class="cg-field">
+                    <label class="cg-label" for="ContactNumber">Contact number <span class="cg-label__req">*</span></label>
+                    <div class="cg-input-group">
+                        <span class="cg-input-group__icon">@await Html.PartialAsync("_Icon", "phone")</span>
+                        <input class="cg-input" id="ContactNumber" type="tel" name="ContactNumber"
+                               value="@Model.ContactNumber" maxlength="30" required />
+                    </div>
+                    <p class="cg-hint">The guardian signs in with this number, so it must stay unique.</p>
+                </div>
+
+                <div class="cg-field">
+                    <label class="cg-label" for="Status">Account status</label>
+                    <select class="cg-select" id="Status" name="Status">
+                        <option value="@RecordStatus.Active" selected="@(Model.Status == RecordStatus.Active)">Active</option>
+                        <option value="@RecordStatus.Inactive" selected="@(Model.Status == RecordStatus.Inactive)">Inactive</option>
+                    </select>
+                    <p class="cg-hint">An inactive guardian cannot sign in or be verified for pickup.</p>
+                </div>
+
+                <div class="cg-btn-group">
+                    <button class="cg-btn cg-btn--primary" type="submit">
+                        <span class="cg-btn__label">Save changes</span>
+                    </button>
+                    <a class="cg-btn cg-btn--secondary" href="/Guardians/Details/@guardianId">Cancel</a>
+                </div>
+            </form>
         </div>
-        <div class="cg-form-group">
-            <label for="Email">Email</label>
-            <input type="email" id="Email" name="Email" value="@Model.Email" required maxlength="200" class="cg-input" />
-        </div>
-        <div class="cg-form-group">
-            <label for="ContactNumber">Contact Number</label>
-            <input type="tel" id="ContactNumber" name="ContactNumber" value="@Model.ContactNumber" required maxlength="30" class="cg-input" />
-            <small class="cg-muted">The guardian signs in with this number, so it must be unique.</small>
-        </div>
-        <div class="cg-form-group">
-            <label for="Status">Status</label>
-            <select id="Status" name="Status" class="cg-select">
-                <option value="@RecordStatus.Active" selected="@(Model.Status == RecordStatus.Active)">Active</option>
-                <option value="@RecordStatus.Inactive" selected="@(Model.Status == RecordStatus.Inactive)">Inactive</option>
-            </select>
-        </div>
-        <button class="cg-btn cg-btn--primary" type="submit">Save Changes</button>
-        <a class="cg-btn" href="/Guardians/Details/@guardianId">Cancel</a>
-    </form>
+    </section>
+
+    @await Html.PartialAsync("_PhotoManager", new PhotoManagerModel(
+        "Guardians", guardianId, Model.FullName, hasPhoto, null, true,
+        "Guardian photo",
+        "Shown to staff at the pickup desk beside the live face-verification result."))
 </div>

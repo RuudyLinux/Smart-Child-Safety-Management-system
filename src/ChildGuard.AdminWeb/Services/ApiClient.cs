@@ -55,6 +55,40 @@ public class ApiClient
         return await ReadResultAsync<T>(response, ct);
     }
 
+    /// <summary>
+    /// Forwards a browser file upload to the API as multipart, unchanged. AdminWeb
+    /// deliberately does not inspect or re-encode the bytes: the API is the trust
+    /// boundary that decides whether they are an acceptable image.
+    /// </summary>
+    public async Task<ApiResult<T>> PostFileAsync<T>(
+        string url, Stream content, string fileName, string contentType, CancellationToken ct = default)
+    {
+        using var form = new MultipartFormDataContent();
+        var filePart = new StreamContent(content);
+        filePart.Headers.ContentType = MediaTypeHeaderValue.Parse(
+            string.IsNullOrWhiteSpace(contentType) ? "application/octet-stream" : contentType);
+        form.Add(filePart, "file", fileName);
+
+        var response = await _http.PostAsync(url, form, ct);
+        return await ReadResultAsync<T>(response, ct);
+    }
+
+    /// <summary>
+    /// Fetches a binary resource (a profile photo) so AdminWeb can re-serve it to
+    /// the signed-in admin's browser. The browser never talks to the API directly,
+    /// so the API's bearer token stays server-side.
+    /// </summary>
+    public async Task<ApiResult<(byte[] Data, string ContentType)>> GetBinaryAsync(string url, CancellationToken ct = default)
+    {
+        var response = await _http.GetAsync(url, ct);
+        if (!response.IsSuccessStatusCode)
+            return ApiResult<(byte[], string)>.Fail($"Request failed ({(int)response.StatusCode}).", (int)response.StatusCode);
+
+        var bytes = await response.Content.ReadAsByteArrayAsync(ct);
+        var contentType = response.Content.Headers.ContentType?.MediaType ?? "application/octet-stream";
+        return ApiResult<(byte[], string)>.Ok((bytes, contentType));
+    }
+
     private static async Task<ApiResult<T>> ReadResultAsync<T>(HttpResponseMessage response, CancellationToken ct)
     {
         var raw = await response.Content.ReadAsStringAsync(ct);

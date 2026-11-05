@@ -1,32 +1,118 @@
 @model LoginViewModel
 @{
-    ViewData["Title"] = "Login";
+    ViewData["Title"] = "Sign in";
     Layout = "_Layout";
 }
-<div class="cg-login-wrap">
-    <div class="cg-login-card">
-        <h1>ChildGuard Admin</h1>
-        <p>Sign in to manage students, RFID, guardians and operations.</p>
 
-        @if (!string.IsNullOrEmpty(Model.ErrorMessage))
-        {
-            <div class="cg-alert cg-alert--error">@Model.ErrorMessage</div>
-        }
+<div class="cg-auth">
+    <section class="cg-auth__brandside">
+        <div class="cg-auth__logo">
+            <span class="cg-brand__mark">@await Html.PartialAsync("_Icon", "shield-check")</span>
+            <span class="cg-auth__logo-name">Child<span>Guard</span></span>
+        </div>
 
-        <form asp-action="Login" method="post">
-            @Html.AntiForgeryToken()
-            <div class="cg-form-group">
-                <label class="cg-label" asp-for="Email">Email</label>
-                <input class="cg-input" asp-for="Email" autocomplete="username" />
-                <span class="cg-error-text" asp-validation-for="Email"></span>
+        <div class="cg-auth__pitch">
+            <h1 class="cg-auth__headline">Every child accounted for, every step of the day.</h1>
+            <p class="cg-auth__lede">
+                ChildGuard records each verified checkpoint — bus boarding, school arrival,
+                departure and drop-off — so staff and guardians share one trustworthy account
+                of where a child is.
+            </p>
+
+            <ul class="cg-auth__points">
+                <li class="cg-auth__point">
+                    <span class="cg-auth__point-mark">@await Html.PartialAsync("_Icon", "rfid")</span>
+                    <span>
+                        <span class="cg-auth__point-title">RFID identification</span>
+                        <span class="cg-auth__point-text">Each scan is checked against the student's current state, so repeats never double-count.</span>
+                    </span>
+                </li>
+                <li class="cg-auth__point">
+                    <span class="cg-auth__point-mark">@await Html.PartialAsync("_Icon", "camera")</span>
+                    <span>
+                        <span class="cg-auth__point-title">Face-verified handover</span>
+                        <span class="cg-auth__point-text">No child leaves with an unverified guardian, and every attempt is recorded.</span>
+                    </span>
+                </li>
+                <li class="cg-auth__point">
+                    <span class="cg-auth__point-mark">@await Html.PartialAsync("_Icon", "bell")</span>
+                    <span>
+                        <span class="cg-auth__point-title">Guardians kept informed</span>
+                        <span class="cg-auth__point-text">Parents see the same checkpoints in the ChildGuard app the moment they happen.</span>
+                    </span>
+                </li>
+            </ul>
+        </div>
+
+        <p class="cg-auth__foot">Administrator console · Authorised school staff only</p>
+    </section>
+
+    <section class="cg-auth__formside">
+        <div class="cg-auth__card">
+            <div class="cg-auth__mobilelogo">
+                <span class="cg-brand__mark">@await Html.PartialAsync("_Icon", "shield-check")</span>
+                <span class="cg-auth__logo-name" style="color:var(--cg-text)">Child<span style="color:var(--cg-primary)">Guard</span></span>
             </div>
-            <div class="cg-form-group">
-                <label class="cg-label" asp-for="Password">Password</label>
-                <input class="cg-input" asp-for="Password" autocomplete="current-password" />
-                <span class="cg-error-text" asp-validation-for="Password"></span>
-            </div>
-            <button type="submit" class="cg-btn cg-btn--primary" style="width:100%;justify-content:center;">Sign In</button>
-        </form>
-        <p style="text-align:center;margin:16px 0 0;"><a asp-action="ForgotPassword">Forgot password?</a></p>
-    </div>
+
+            <h1 class="cg-auth__title">Sign in</h1>
+            <p class="cg-auth__subtitle">Use your school administrator account.</p>
+
+            @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+            {
+                <div class="cg-alert cg-alert--danger" role="alert">
+                    <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "alert-circle")</span>
+                    <div class="cg-alert__body">
+                        <div class="cg-alert__title">Sign-in failed</div>
+                        <div>@Model.ErrorMessage</div>
+                    </div>
+                </div>
+            }
+
+            <form asp-action="Login" method="post" class="cg-form" data-cg-busy>
+                @Html.AntiForgeryToken()
+
+                <div class="cg-field">
+                    <label class="cg-label" asp-for="Email">Email address</label>
+                    <div class="cg-input-group">
+                        <span class="cg-input-group__icon">@await Html.PartialAsync("_Icon", "mail")</span>
+                        <input class="cg-input" asp-for="Email" type="email" autocomplete="username"
+                               placeholder="admin@school.edu" required autofocus />
+                    </div>
+                    <span class="cg-error-text" asp-validation-for="Email"></span>
+                </div>
+
+                <div class="cg-field">
+                    <label class="cg-label" asp-for="Password">Password</label>
+                    <div class="cg-input-group cg-input-group--action">
+                        <span class="cg-input-group__icon">@await Html.PartialAsync("_Icon", "lock")</span>
+                        <input class="cg-input" asp-for="Password" type="password" id="Password"
+                               autocomplete="current-password" placeholder="Your password" required />
+                        <button type="button" class="cg-input-group__action" data-cg-reveal="Password"
+                                aria-label="Show password" aria-pressed="false">
+                            @await Html.PartialAsync("_Icon", "eye")
+                        </button>
+                    </div>
+                    <span class="cg-error-text" asp-validation-for="Password"></span>
+                </div>
+
+                <div class="cg-row--between">
+                    <label class="cg-check">
+                        <input type="checkbox" asp-for="RememberMe" />
+                        <span class="cg-check__text">Keep me signed in</span>
+                    </label>
+                    <a asp-action="ForgotPassword" class="cg-text-sm">Forgot password?</a>
+                </div>
+
+                <button type="submit" class="cg-btn cg-btn--primary cg-btn--lg cg-btn--block">
+                    <span class="cg-btn__label">Sign in</span>
+                    @await Html.PartialAsync("_Icon", "arrow-right")
+                </button>
+            </form>
+
+            <p class="cg-auth__legal">
+                Guardians sign in through the ChildGuard mobile app, not here.
+                <br />Trouble reaching the service? <a href="/Diagnostics">Run connection diagnostics</a>.
+            </p>
+        </div>
+    </section>
 </div>

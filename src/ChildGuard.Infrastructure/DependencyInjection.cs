@@ -31,6 +31,9 @@ public static class DependencyInjection
         services.AddScoped<IPasswordResetNotifier, LoggingPasswordResetNotifier>();
         RegisterEmailSender(services, config);
         services.AddSingleton(config.GetSection("Otp").Get<OtpOptions>() ?? new OtpOptions());
+        // School-day policy (late/absent cutoffs) lives in configuration so the
+        // rule is stated once and no screen invents its own threshold.
+        services.AddSingleton(config.GetSection("School").Get<SchoolOptions>() ?? new SchoolOptions());
         services.AddSingleton(TimeProvider.System);
         services.AddScoped<IAuthService, AuthService>();
 
@@ -52,7 +55,11 @@ public static class DependencyInjection
 
         services.AddScoped<IVerificationRepository, VerificationRepository>();
         services.AddScoped<IVerificationService, VerificationService>();
+        services.AddScoped<ISafetyReadService, SafetyReadService>();
         services.AddScoped<IDashboardService, DashboardService>();
+
+        services.AddScoped<IPhotoRepository, PhotoRepository>();
+        services.AddScoped<IPhotoService, PhotoService>();
 
         var faceServiceBaseUrl = config["FaceService:BaseUrl"] ?? "http://localhost:8001";
         var faceServiceApiKey = config["FaceService:ApiKey"];

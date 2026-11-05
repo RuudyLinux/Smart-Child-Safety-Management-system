@@ -58,3 +58,30 @@ public enum AppRole
     Admin = 1,
     Guardian = 2
 }
+
+/// <summary>
+/// Where a student currently is, derived from their most recent journey event.
+/// Presentation-independent: both the Admin Web and the Guardian app map these to
+/// their own wording and colour, and every surface pairs the colour with the label.
+/// </summary>
+public enum StudentSafetyStatus
+{
+    /// <summary>No journey event recorded today — nothing is known about the student's whereabouts.</summary>
+    NoActivityToday = 0,
+    /// <summary>Boarded the bus; school arrival not yet recorded.</summary>
+    OnBusToSchool = 1,
+    /// <summary>Checked in at school and not yet departed.</summary>
+    AtSchool = 2,
+    /// <summary>Departed school; bus drop-off not yet recorded.</summary>
+    LeftSchool = 3,
+    /// <summary>Bus drop-off recorded — the day's journey is complete.</summary>
+    DroppedOffHome = 4
+}
+
+/// <summary>How urgently an operational alert needs an admin's attention.</summary>
+public enum AlertSeverity
+{
+    Info = 1,
+    Warning = 2,
+    Critical = 3
+}

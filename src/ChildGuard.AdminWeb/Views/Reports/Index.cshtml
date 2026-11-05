@@ -1,66 +1,333 @@
+@using System.Globalization
 @{
     ViewData["Title"] = "Reports";
     var attendance = (List<AttendanceRecordDto>)ViewBag.Attendance;
     var journey = (List<JourneyEventDto>)ViewBag.Journey;
     var verification = (List<GuardianVerificationHistoryDto>)ViewBag.Verification;
+    var students = ViewBag.Students as List<StudentListItemDto> ?? new();
+    var summary = ViewBag.Summary as DashboardSummaryDto;
+
+    var from = (DateOnly)ViewData["From"]!;
+    var to = (DateOnly)ViewData["To"]!;
+    var studentId = ViewData["StudentId"] as int?;
+    var exportQuery = $"from={from:yyyy-MM-dd}&to={to:yyyy-MM-dd}" + (studentId.HasValue ? $"&studentId={studentId}" : "");
+
+    var arrivals = attendance.Where(a => a.EventType == AttendanceEventType.SchoolArrival).ToList();
+    var lateCount = arrivals.Count(a => a.IsLate);
+    var distinctStudents = attendance.Select(a => a.StudentId).Distinct().Count();
+    var observedDays = arrivals.Select(a => a.Date).Distinct().Count();
 }
 
-<div class="cg-card">
-    <h3 class="cg-card__title">Attendance Report</h3>
-    <div class="cg-table-wrap">
-        <table class="cg-table">
-            <thead><tr><th>Student</th><th>Event</th><th>Date</th><th>Time</th></tr></thead>
-            <tbody>
-            @if (!attendance.Any()) { <tr><td colspan="4" class="cg-muted">No records.</td></tr> }
-            @foreach (var a in attendance.Take(30))
-            {
-                <tr><td>@a.StudentName</td><td>@a.EventType</td><td>@a.Date.ToString("d MMM yyyy")</td><td>@a.Time.ToString("h:mm tt")</td></tr>
-            }
-            </tbody>
-        </table>
+<div class="cg-page-head">
+    <div class="cg-page-head__text">
+        <h1 class="cg-page-head__title">Reports</h1>
+        <p class="cg-page-head__sub">
+            @from.ToString("d MMM yyyy") – @to.ToString("d MMM yyyy")@(studentId.HasValue ? " · filtered to one student" : "")
+        </p>
+    </div>
+    <div class="cg-page-head__actions">
+        <a class="cg-btn cg-btn--secondary" href="/Reports/ExportAttendance?@exportQuery">
+            @await Html.PartialAsync("_Icon", "download") Export attendance CSV
+        </a>
+        <button type="button" class="cg-btn cg-btn--secondary" onclick="window.print()">
+            @await Html.PartialAsync("_Icon", "printer") Print
+        </button>
     </div>
 </div>
 
-<div class="cg-card">
-    <h3 class="cg-card__title">Journey Report</h3>
-    <div class="cg-table-wrap">
-        <table class="cg-table">
-            <thead><tr><th>Student</th><th>Event</th><th>Time</th><th>Source</th></tr></thead>
-            <tbody>
-            @if (!journey.Any()) { <tr><td colspan="4" class="cg-muted">No records.</td></tr> }
-            @foreach (var j in journey.Take(30))
-            {
-                <tr>
-                    <td>@j.StudentName</td>
-                    <td><span class="cg-badge cg-badge--neutral">@j.EventType</span></td>
-                    <td>@j.Timestamp.ToLocalTime().ToString("g")</td>
-                    <td>@j.Source</td>
-                </tr>
-            }
-            </tbody>
-        </table>
+<section class="cg-card">
+    <div class="cg-toolbar">
+        <form method="get" class="cg-row cg-row--wrap" style="gap:10px;flex:1">
+            <div class="cg-field" style="gap:4px">
+                <label class="cg-label cg-text-sm" for="from">From</label>
+                <input class="cg-input" id="from" type="date" name="from" value="@from.ToString("yyyy-MM-dd")" />
+            </div>
+            <div class="cg-field" style="gap:4px">
+                <label class="cg-label cg-text-sm" for="to">To</label>
+                <input class="cg-input" id="to" type="date" name="to" value="@to.ToString("yyyy-MM-dd")" />
+            </div>
+            <div class="cg-field" style="gap:4px">
+                <label class="cg-label cg-text-sm" for="reportStudent">Student</label>
+                <select class="cg-select" id="reportStudent" name="studentId" style="max-width:220px">
+                    <option value="">All students</option>
+                    @foreach (var s in students)
+                    {
+                        <option value="@s.StudentId" selected="@(studentId == s.StudentId)">@s.FullName</option>
+                    }
+                </select>
+            </div>
+            <div class="cg-field" style="gap:4px;justify-content:flex-end">
+                <span class="cg-label cg-text-sm" aria-hidden="true">&nbsp;</span>
+                <button class="cg-btn cg-btn--primary" type="submit">
+                    @await Html.PartialAsync("_Icon", "filter") Run report
+                </button>
+            </div>
+        </form>
     </div>
+</section>
+
+<div class="cg-grid cg-grid--4">
+    <article class="cg-kpi">
+        <div class="cg-kpi__top">
+            <div class="cg-kpi__label">Arrivals recorded</div>
+            <span class="cg-kpi__icon cg-kpi__icon--success">@await Html.PartialAsync("_Icon", "log-in")</span>
+        </div>
+        <div class="cg-kpi__value cg-kpi__value--sm">@arrivals.Count</div>
+        <div class="cg-kpi__note">Across @observedDays school day@(observedDays == 1 ? "" : "s")</div>
+    </article>
+    <article class="cg-kpi">
+        <div class="cg-kpi__top">
+            <div class="cg-kpi__label">Students seen</div>
+            <span class="cg-kpi__icon">@await Html.PartialAsync("_Icon", "students")</span>
+        </div>
+        <div class="cg-kpi__value cg-kpi__value--sm">@distinctStudents</div>
+    </article>
+    <article class="cg-kpi">
+        <div class="cg-kpi__top">
+            <div class="cg-kpi__label">Late arrivals</div>
+            <span class="cg-kpi__icon @(lateCount > 0 ? "cg-kpi__icon--warning" : "cg-kpi__icon--neutral")">
+                @await Html.PartialAsync("_Icon", "clock")
+            </span>
+        </div>
+        <div class="cg-kpi__value cg-kpi__value--sm">@lateCount</div>
+        @if (summary is not null)
+        {
+            <div class="cg-kpi__note">After @summary.Attendance.LateAfter</div>
+        }
+    </article>
+    <article class="cg-kpi">
+        <div class="cg-kpi__top">
+            <div class="cg-kpi__label">Verification attempts</div>
+            <span class="cg-kpi__icon cg-kpi__icon--info">@await Html.PartialAsync("_Icon", "verification")</span>
+        </div>
+        <div class="cg-kpi__value cg-kpi__value--sm">@verification.Count</div>
+        <div class="cg-kpi__note">@verification.Count(v => v.Result == VerificationResult.NoMatch) failed</div>
+    </article>
 </div>
 
-<div class="cg-card">
-    <h3 class="cg-card__title">Guardian Verification Report</h3>
-    <div class="cg-table-wrap">
-        <table class="cg-table">
-            <thead><tr><th>Student</th><th>Guardian</th><th>Time</th><th>Score</th><th>Result</th><th>Pickup</th></tr></thead>
-            <tbody>
-            @if (!verification.Any()) { <tr><td colspan="6" class="cg-muted">No records.</td></tr> }
-            @foreach (var v in verification.Take(30))
-            {
-                <tr>
-                    <td>@v.StudentName</td><td>@v.GuardianName</td><td>@v.AttemptedAt.ToLocalTime().ToString("g")</td>
-                    <td>@v.MatchScore.ToString("0.00")</td>
-                    <td>@(v.Result == VerificationResult.Match ? "Match" : "No Match")</td>
-                    <td>@(v.PickupApproved ? "Approved" : "—")</td>
-                </tr>
-            }
-            </tbody>
-        </table>
-    </div>
+<div class="cg-tabs" data-cg-tabs="reports" role="tablist">
+    <button class="cg-tab is-active" data-cg-tab="attendance" role="tab" aria-selected="true">
+        @await Html.PartialAsync("_Icon", "attendance") Attendance
+        <span class="cg-tab__count">@attendance.Count</span>
+    </button>
+    <button class="cg-tab" data-cg-tab="journey" role="tab" aria-selected="false">
+        @await Html.PartialAsync("_Icon", "journey") Journey
+        <span class="cg-tab__count">@journey.Count</span>
+    </button>
+    <button class="cg-tab" data-cg-tab="verification" role="tab" aria-selected="false">
+        @await Html.PartialAsync("_Icon", "verification") Verification
+        <span class="cg-tab__count">@verification.Count</span>
+    </button>
 </div>
 
-<p class="cg-help">Attendance report supports <code>?from=&to=&studentId=</code> filters on the API — extend this page with the same filter controls used on the Attendance page as needed.</p>
+@* ------------------------------------------------------------- Attendance *@
+<div class="cg-tabpanel is-active" data-cg-tabpanel="attendance" data-cg-tabs-scope="reports" style="padding-top:18px">
+    @if (summary is not null && summary.AttendanceByGrade.Any() && !studentId.HasValue)
+    {
+        <section class="cg-card">
+            <div class="cg-card__head">
+                <div>
+                    <h2 class="cg-card__title">Attendance by grade</h2>
+                    <div class="cg-card__sub">Checked in today</div>
+                </div>
+            </div>
+            <div class="cg-card__body">
+                <div class="cg-bars">
+                    @foreach (var grade in summary.AttendanceByGrade)
+                    {
+                        <div>
+                            <div class="cg-bar__head">
+                                <span class="cg-bar__name">@grade.Grade</span>
+                                <span class="cg-bar__value">
+                                    @grade.Present / @grade.RosterSize ·
+                                    @grade.PresentRate.ToString("0.#", CultureInfo.InvariantCulture)%
+                                </span>
+                            </div>
+                            <div class="cg-bar__track">
+                                <div class="cg-bar__fill @(grade.PresentRate >= 90 ? "cg-bar__fill--success" : grade.PresentRate >= 70 ? "" : "cg-bar__fill--warning")"
+                                     style="width:@grade.PresentRate.ToString("0.##", CultureInfo.InvariantCulture)%"></div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </section>
+    }
+
+    <section class="cg-card">
+        <div class="cg-card__head">
+            <div>
+                <h2 class="cg-card__title">Attendance records</h2>
+                <div class="cg-card__sub">Arrivals and departures in the selected range</div>
+            </div>
+            <a class="cg-btn cg-btn--sm cg-btn--secondary" href="/Reports/ExportAttendance?@exportQuery">
+                @await Html.PartialAsync("_Icon", "download") CSV
+            </a>
+        </div>
+
+        @if (!attendance.Any())
+        {
+            @await Html.PartialAsync("_EmptyState", ("attendance", "No attendance in this range",
+                "Nothing was recorded between these dates. Widen the range and run the report again.",
+                (string?)null, (string?)null))
+        }
+        else
+        {
+            <div class="cg-table-wrap">
+                <table class="cg-table" data-cg-table="reportAttendance" data-cg-page-size="50">
+                    <thead>
+                        <tr><th>Student</th><th>Grade</th><th>Event</th><th>Date</th><th>Time</th><th>Punctuality</th></tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var a in attendance)
+                    {
+                        <tr data-row data-search="@a.StudentName @a.Grade">
+                            <td><a href="/Students/Details/@a.StudentId">@a.StudentName</a></td>
+                            <td>@(a.Grade ?? "—")</td>
+                            <td>@(a.EventType == AttendanceEventType.SchoolArrival ? "Arrival" : "Departure")</td>
+                            <td>@a.Date.ToString("d MMM yyyy")</td>
+                            <td class="cg-num">@a.Time.ToString("HH:mm")</td>
+                            <td>
+                                @if (a.EventType != AttendanceEventType.SchoolArrival)
+                                {
+                                    <span class="cg-muted">—</span>
+                                }
+                                else if (a.IsLate)
+                                {
+                                    <span class="cg-badge cg-badge--warning"><span class="cg-badge__dot"></span>Late</span>
+                                }
+                                else
+                                {
+                                    <span class="cg-badge cg-badge--success"><span class="cg-badge__dot"></span>On time</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+            <div class="cg-pagination">
+                <span class="cg-text-sm">Showing up to 50 records per page</span>
+                <div class="cg-pagination__pages" data-cg-pager data-cg-pager-scope="reportAttendance"></div>
+            </div>
+        }
+    </section>
+</div>
+
+@* ---------------------------------------------------------------- Journey *@
+<div class="cg-tabpanel" data-cg-tabpanel="journey" data-cg-tabs-scope="reports" style="padding-top:18px">
+    <section class="cg-card">
+        <div class="cg-card__head">
+            <div>
+                <h2 class="cg-card__title">Journey events</h2>
+                <div class="cg-card__sub">
+                    Recent checkpoints falling inside the selected range
+                </div>
+            </div>
+        </div>
+
+        @if (!journey.Any())
+        {
+            @await Html.PartialAsync("_EmptyState", ("journey", "No journey events in this range",
+                "Checkpoint scans within these dates will be listed here.",
+                (string?)null, (string?)null))
+        }
+        else
+        {
+            <div class="cg-table-wrap">
+                <table class="cg-table" data-cg-table="reportJourney" data-cg-page-size="50">
+                    <thead>
+                        <tr><th>Student</th><th>Checkpoint</th><th>When</th><th>Source</th></tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var j in journey)
+                    {
+                        <tr data-row data-search="@j.StudentName">
+                            <td><a href="/Students/Details/@j.StudentId">@j.StudentName</a></td>
+                            <td>
+                                <span class="cg-badge cg-badge--neutral">
+                                    @await Html.PartialAsync("_Icon", SafetyUi.EventIcon(j.EventType))
+                                    @SafetyUi.EventLabel(j.EventType)
+                                </span>
+                            </td>
+                            <td class="cg-text-sm">@j.Timestamp.ToLocalTime().ToString("d MMM yyyy, HH:mm")</td>
+                            <td class="cg-text-sm cg-muted">
+                                @(j.Source == EventSource.Rfid ? "RFID" : "Staff")
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+            <div class="cg-pagination">
+                <span class="cg-text-sm">Showing up to 50 events per page</span>
+                <div class="cg-pagination__pages" data-cg-pager data-cg-pager-scope="reportJourney"></div>
+            </div>
+        }
+    </section>
+</div>
+
+@* ----------------------------------------------------------- Verification *@
+<div class="cg-tabpanel" data-cg-tabpanel="verification" data-cg-tabs-scope="reports" style="padding-top:18px">
+    <section class="cg-card">
+        <div class="cg-card__head">
+            <div>
+                <h2 class="cg-card__title">Guardian verification</h2>
+                <div class="cg-card__sub">Face verification attempts and handover decisions</div>
+            </div>
+            <a class="cg-btn cg-btn--sm cg-btn--secondary" href="/Verification/History">Full log</a>
+        </div>
+
+        @if (!verification.Any())
+        {
+            @await Html.PartialAsync("_EmptyState", ("verification", "No verification attempts in this range",
+                "Attempts made at the pickup desk within these dates will be listed here.",
+                (string?)null, (string?)null))
+        }
+        else
+        {
+            <div class="cg-table-wrap">
+                <table class="cg-table" data-cg-table="reportVerification" data-cg-page-size="50">
+                    <thead>
+                        <tr><th>Student</th><th>Guardian</th><th>When</th><th>Score</th><th>Result</th><th>Handover</th></tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var v in verification)
+                    {
+                        <tr data-row data-search="@v.StudentName @v.GuardianName">
+                            <td><a href="/Students/Details/@v.StudentId">@v.StudentName</a></td>
+                            <td><a href="/Guardians/Details/@v.GuardianId">@v.GuardianName</a></td>
+                            <td class="cg-text-sm">@v.AttemptedAt.ToLocalTime().ToString("d MMM yyyy, HH:mm")</td>
+                            <td class="cg-num">@v.MatchScore.ToString("0.00")</td>
+                            <td>
+                                @if (v.Result == VerificationResult.Match)
+                                {
+                                    <span class="cg-badge cg-badge--success"><span class="cg-badge__dot"></span>Match</span>
+                                }
+                                else
+                                {
+                                    <span class="cg-badge cg-badge--danger"><span class="cg-badge__dot"></span>No match</span>
+                                }
+                            </td>
+                            <td>
+                                @if (v.PickupApproved)
+                                {
+                                    <span class="cg-badge cg-badge--success"><span class="cg-badge__dot"></span>Approved</span>
+                                }
+                                else
+                                {
+                                    <span class="cg-badge cg-badge--neutral">Not approved</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+            <div class="cg-pagination">
+                <span class="cg-text-sm">Showing up to 50 attempts per page</span>
+                <div class="cg-pagination__pages" data-cg-pager data-cg-pager-scope="reportVerification"></div>
+            </div>
+        }
+    </section>
+</div>

@@ -16,7 +16,7 @@ public class SettingsController : BaseAdminController
 
     public async Task<IActionResult> Index(CancellationToken ct)
     {
-        ViewData["Title"] = "Settings";
+        SetPage("Settings", "System");
         var devices = await Api.GetAsync<List<RfidDeviceDto>>("/api/rfid/devices", ct);
         ViewBag.Devices = devices.Value ?? new();
         ViewBag.Environment = _env.EnvironmentName;

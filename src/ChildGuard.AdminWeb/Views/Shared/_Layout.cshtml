@@ -1,66 +1,272 @@
+@using System.Security.Claims
 @{
-    var currentController = ViewContext.RouteData.Values["controller"]?.ToString() ?? "";
-    bool IsActive(string c) => string.Equals(currentController, c, StringComparison.OrdinalIgnoreCase);
-    string NavClass(string c) => IsActive(c) ? "active" : "";
+    var controller = ViewContext.RouteData.Values["controller"]?.ToString() ?? "";
+    var action = ViewContext.RouteData.Values["action"]?.ToString() ?? "";
+    bool Is(string c) => string.Equals(controller, c, StringComparison.OrdinalIgnoreCase);
+    string NavClass(string c) => Is(c) ? "cg-nav__link is-active" : "cg-nav__link";
+
+    var pageTitle = ViewData["Title"] as string ?? "ChildGuard";
+    var navSection = ViewData["Section"] as string;
+    var adminName = User.Identity?.Name ?? "Administrator";
+    var adminEmail = User.FindFirst(ClaimTypes.Email)?.Value ?? "";
+    var adminRole = User.FindFirst(ClaimTypes.Role)?.Value ?? "Admin";
+    var authenticated = User.Identity?.IsAuthenticated == true;
 }
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>@ViewData["Title"] — ChildGuard Admin</title>
-    <link rel="stylesheet" href="~/css/site.css" />
+    <meta name="color-scheme" content="light" />
+    <meta name="theme-color" content="#0F172A" />
+    <title>@pageTitle — ChildGuard</title>
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="icon" href="~/favicon.svg" type="image/svg+xml" />
 </head>
 <body>
-@if (User.Identity?.IsAuthenticated == true)
+@if (authenticated)
 {
     <div class="cg-app">
-        <aside class="cg-sidebar">
-            <div class="cg-sidebar__brand">Child<span>Guard</span></div>
-            <ul class="cg-nav">
-                <li><a class="@NavClass("Dashboard")" href="/Dashboard">@await Html.PartialAsync("_Icon", "dashboard") Dashboard</a></li>
-                <li class="cg-nav__section">Records</li>
-                <li><a class="@NavClass("Students")" href="/Students">@await Html.PartialAsync("_Icon", "students") Students</a></li>
-                <li><a class="@NavClass("Rfid")" href="/Rfid">@await Html.PartialAsync("_Icon", "rfid") RFID</a></li>
-                <li><a class="@NavClass("Guardians")" href="/Guardians">@await Html.PartialAsync("_Icon", "guardians") Guardians</a></li>
-                <li><a class="@NavClass("Transportation")" href="/Transportation">@await Html.PartialAsync("_Icon", "transportation") Transportation</a></li>
-                <li class="cg-nav__section">Operations</li>
-                <li><a class="@NavClass("Attendance")" href="/Attendance">@await Html.PartialAsync("_Icon", "attendance") Attendance</a></li>
-                <li><a class="@NavClass("Journey")" href="/Journey">@await Html.PartialAsync("_Icon", "journey") Journey</a></li>
-                <li><a class="@NavClass("Verification")" href="/Verification">@await Html.PartialAsync("_Icon", "verification") Drop-off &amp; Pickup</a></li>
-                <li class="cg-nav__section">Insights</li>
-                <li><a class="@NavClass("Reports")" href="/Reports">@await Html.PartialAsync("_Icon", "reports") Reports</a></li>
-                <li class="cg-nav__section">Account</li>
-                <li><a class="@NavClass("Profile")" href="/Profile">@await Html.PartialAsync("_Icon", "profile") Profile</a></li>
-                <li><a class="@NavClass("Settings")" href="/Settings">@await Html.PartialAsync("_Icon", "settings") Settings</a></li>
-                <li><a href="/Account/Logout">@await Html.PartialAsync("_Icon", "logout") Logout</a></li>
-            </ul>
+        <div class="cg-scrim" aria-hidden="true"></div>
+
+        <aside class="cg-sidebar" aria-label="Primary">
+            <a class="cg-brand" href="/Dashboard">
+                <span class="cg-brand__mark">@await Html.PartialAsync("_Icon", "shield-check")</span>
+                <span class="cg-brand__text">
+                    <span class="cg-brand__name">Child<span>Guard</span></span>
+                    <span class="cg-brand__tag">Safety Platform</span>
+                </span>
+            </a>
+
+            <nav>
+                <ul class="cg-nav">
+                    <li class="cg-nav__section">Overview</li>
+                    <li class="cg-nav__item">
+                        <a class="@NavClass("Dashboard")" href="/Dashboard">
+                            @await Html.PartialAsync("_Icon", "dashboard")<span class="cg-nav__label">Dashboard</span>
+                        </a>
+                        <span class="cg-nav__tip">Dashboard</span>
+                    </li>
+
+                    <li class="cg-nav__section">People</li>
+                    <li class="cg-nav__item">
+                        <a class="@NavClass("Students")" href="/Students">
+                            @await Html.PartialAsync("_Icon", "students")<span class="cg-nav__label">Students</span>
+                        </a>
+                        <span class="cg-nav__tip">Students</span>
+                    </li>
+                    <li class="cg-nav__item">
+                        <a class="@NavClass("Guardians")" href="/Guardians">
+                            @await Html.PartialAsync("_Icon", "guardians")<span class="cg-nav__label">Guardians</span>
+                        </a>
+                        <span class="cg-nav__tip">Guardians</span>
+                    </li>
+
+                    <li class="cg-nav__section">Safety Operations</li>
+                    <li class="cg-nav__item">
+                        <a class="@NavClass("Attendance")" href="/Attendance">
+                            @await Html.PartialAsync("_Icon", "attendance")<span class="cg-nav__label">Attendance</span>
+                        </a>
+                        <span class="cg-nav__tip">Attendance</span>
+                    </li>
+                    <li class="cg-nav__item">
+                        <a class="@NavClass("Journey")" href="/Journey">
+                            @await Html.PartialAsync("_Icon", "journey")<span class="cg-nav__label">Journey Tracking</span>
+                        </a>
+                        <span class="cg-nav__tip">Journey Tracking</span>
+                    </li>
+                    <li class="cg-nav__item">
+                        <a class="@(Is("Verification") && action != "History" ? "cg-nav__link is-active" : "cg-nav__link")" href="/Verification">
+                            @await Html.PartialAsync("_Icon", "pickup")<span class="cg-nav__label">Pickup &amp; Drop-off</span>
+                        </a>
+                        <span class="cg-nav__tip">Pickup &amp; Drop-off</span>
+                    </li>
+                    <li class="cg-nav__item">
+                        <a class="@(Is("Verification") && action == "History" ? "cg-nav__link is-active" : "cg-nav__link")" href="/Verification/History">
+                            @await Html.PartialAsync("_Icon", "verification")<span class="cg-nav__label">Verification Log</span>
+                        </a>
+                        <span class="cg-nav__tip">Verification Log</span>
+                    </li>
+
+                    <li class="cg-nav__section">Transport</li>
+                    <li class="cg-nav__item">
+                        <a class="@NavClass("Transportation")" href="/Transportation">
+                            @await Html.PartialAsync("_Icon", "bus")<span class="cg-nav__label">Transportation</span>
+                        </a>
+                        <span class="cg-nav__tip">Transportation</span>
+                    </li>
+                    <li class="cg-nav__item">
+                        <a class="@NavClass("Rfid")" href="/Rfid">
+                            @await Html.PartialAsync("_Icon", "rfid")<span class="cg-nav__label">RFID</span>
+                        </a>
+                        <span class="cg-nav__tip">RFID</span>
+                    </li>
+
+                    <li class="cg-nav__section">Insights</li>
+                    <li class="cg-nav__item">
+                        <a class="@NavClass("Reports")" href="/Reports">
+                            @await Html.PartialAsync("_Icon", "reports")<span class="cg-nav__label">Reports</span>
+                        </a>
+                        <span class="cg-nav__tip">Reports</span>
+                    </li>
+
+                    <li class="cg-nav__section">System</li>
+                    <li class="cg-nav__item">
+                        <a class="@NavClass("Profile")" href="/Profile">
+                            @await Html.PartialAsync("_Icon", "profile")<span class="cg-nav__label">Profile</span>
+                        </a>
+                        <span class="cg-nav__tip">Profile</span>
+                    </li>
+                    <li class="cg-nav__item">
+                        <a class="@NavClass("Settings")" href="/Settings">
+                            @await Html.PartialAsync("_Icon", "settings")<span class="cg-nav__label">Settings</span>
+                        </a>
+                        <span class="cg-nav__tip">Settings</span>
+                    </li>
+                </ul>
+            </nav>
+
+            <div class="cg-sidebar__foot">
+                <a class="cg-sidebar__user" href="/Profile">
+                    @await Html.PartialAsync("_Avatar", new AvatarModel(null, adminName, "sm"))
+                    <span class="cg-sidebar__user-meta">
+                        <span class="cg-sidebar__user-name">@adminName</span>
+                        <span class="cg-sidebar__user-role">@adminRole</span>
+                    </span>
+                </a>
+            </div>
         </aside>
+
         <div class="cg-main">
-            <header class="cg-header">
-                <div class="cg-flex">
-                    <button type="button" class="cg-menu-btn" id="cgMenuBtn" aria-label="Toggle navigation">☰</button>
-                    <div class="cg-header__title">@ViewData["Title"]</div>
+            <header class="cg-topbar">
+                <div class="cg-topbar__lead">
+                    <button type="button" class="cg-iconbtn" data-cg-sidebar-toggle aria-label="Toggle navigation">
+                        @await Html.PartialAsync("_Icon", "menu")
+                    </button>
+                    <div class="cg-topbar__titles">
+                        <nav class="cg-breadcrumb" aria-label="Breadcrumb">
+                            <a href="/Dashboard">Home</a>
+                            @if (!string.IsNullOrEmpty(navSection))
+                            {
+                                <span class="cg-breadcrumb__sep">/</span>
+                                <span>@navSection</span>
+                            }
+                            <span class="cg-breadcrumb__sep">/</span>
+                            <span>@pageTitle</span>
+                        </nav>
+                        <div class="cg-topbar__title">@pageTitle</div>
+                    </div>
                 </div>
-                <div class="cg-header__user">
-                    <span>@User.Identity!.Name</span>
-                    <span class="cg-badge cg-badge--neutral">Admin</span>
+
+                <div class="cg-topbar__tail">
+                    <div class="cg-search">
+                        <span class="cg-search__icon">@await Html.PartialAsync("_Icon", "search")</span>
+                        <input class="cg-search__input" type="search" placeholder="Search pages and students"
+                               aria-label="Search" data-cg-global-search autocomplete="off" />
+                        <span class="cg-search__kbd">/</span>
+                        <div class="cg-search__results" data-cg-global-results hidden></div>
+                    </div>
+
+                    <div class="cg-dropdown">
+                        <button type="button" class="cg-iconbtn" data-cg-dropdown aria-haspopup="true"
+                                aria-expanded="false" aria-label="Safety alerts">
+                            @await Html.PartialAsync("_Icon", "bell")
+                            <span class="cg-iconbtn__dot cg-iconbtn__dot--count" data-cg-alert-count hidden></span>
+                        </button>
+                        <div class="cg-dropdown__menu" style="width:320px" role="menu">
+                            <div class="cg-dropdown__head">
+                                <strong>Safety alerts</strong>
+                                <div class="cg-text-sm cg-muted" data-cg-alert-summary>Checking current conditions…</div>
+                            </div>
+                            <div data-cg-alert-list></div>
+                            <div class="cg-dropdown__sep"></div>
+                            <a class="cg-dropdown__item" href="/Dashboard#alerts">
+                                @await Html.PartialAsync("_Icon", "activity") Open alert centre
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="cg-dropdown">
+                        <button type="button" class="cg-btn cg-btn--primary cg-btn--sm" data-cg-dropdown
+                                aria-haspopup="true" aria-expanded="false">
+                            @await Html.PartialAsync("_Icon", "plus")<span>Quick action</span>
+                        </button>
+                        <div class="cg-dropdown__menu" role="menu">
+                            <a class="cg-dropdown__item" href="/Students/Create">@await Html.PartialAsync("_Icon", "students") Add student</a>
+                            <a class="cg-dropdown__item" href="/Guardians/Create">@await Html.PartialAsync("_Icon", "guardians") Add guardian</a>
+                            <a class="cg-dropdown__item" href="/Rfid">@await Html.PartialAsync("_Icon", "rfid") Assign RFID card</a>
+                            <div class="cg-dropdown__sep"></div>
+                            <a class="cg-dropdown__item" href="/Verification">@await Html.PartialAsync("_Icon", "pickup") Open pickup desk</a>
+                        </div>
+                    </div>
+
+                    <div class="cg-dropdown">
+                        <button type="button" class="cg-iconbtn" data-cg-dropdown aria-haspopup="true"
+                                aria-expanded="false" aria-label="Account menu" style="width:auto;padding:0 6px;gap:8px">
+                            @await Html.PartialAsync("_Avatar", new AvatarModel(null, adminName, "sm"))
+                            @await Html.PartialAsync("_Icon", "chevron-down")
+                        </button>
+                        <div class="cg-dropdown__menu" role="menu">
+                            <div class="cg-dropdown__head">
+                                <div class="cg-strong">@adminName</div>
+                                <div class="cg-text-sm cg-muted">@adminEmail</div>
+                                <span class="cg-badge cg-badge--primary" style="margin-top:6px">@adminRole</span>
+                            </div>
+                            <a class="cg-dropdown__item" href="/Profile">@await Html.PartialAsync("_Icon", "profile") My profile</a>
+                            <a class="cg-dropdown__item" href="/Settings">@await Html.PartialAsync("_Icon", "settings") System settings</a>
+                            <a class="cg-dropdown__item" href="/Diagnostics">@await Html.PartialAsync("_Icon", "activity") API diagnostics</a>
+                            <div class="cg-dropdown__sep"></div>
+                            <a class="cg-dropdown__item cg-dropdown__item--danger" href="/Account/Logout">
+                                @await Html.PartialAsync("_Icon", "logout") Sign out
+                            </a>
+                        </div>
+                    </div>
                 </div>
             </header>
+
             <main class="cg-content">
                 @RenderBody()
             </main>
         </div>
     </div>
-    <script>
-        document.getElementById('cgMenuBtn')?.addEventListener('click', function () {
-            document.querySelector('.cg-sidebar').classList.toggle('cg-sidebar--open');
-        });
+
+    <script type="application/json" id="cgSearchIndex">
+        [
+          {"title":"Dashboard","url":"/Dashboard","section":"Overview","keywords":"home overview safety status kpi"},
+          {"title":"Students","url":"/Students","section":"People","keywords":"children pupils roster"},
+          {"title":"Guardians","url":"/Guardians","section":"People","keywords":"parents carers photo"},
+          {"title":"Attendance","url":"/Attendance","section":"Safety Operations","keywords":"present absent late register"},
+          {"title":"Journey Tracking","url":"/Journey","section":"Safety Operations","keywords":"bus boarding arrival departure checkpoint"},
+          {"title":"Pickup and Drop-off","url":"/Verification","section":"Safety Operations","keywords":"handover face rfid desk"},
+          {"title":"Verification Log","url":"/Verification/History","section":"Safety Operations","keywords":"history audit match"},
+          {"title":"Transportation","url":"/Transportation","section":"Transport","keywords":"bus driver route assignment"},
+          {"title":"RFID","url":"/Rfid","section":"Transport","keywords":"cards scanner uid"},
+          {"title":"Reports","url":"/Reports","section":"Insights","keywords":"export analytics summary"},
+          {"title":"Profile","url":"/Profile","section":"System","keywords":"account password"},
+          {"title":"Settings","url":"/Settings","section":"System","keywords":"scanners devices environment"}
+        ]
     </script>
+    <script src="~/js/app.js" asp-append-version="true"></script>
+    <script src="~/js/alerts-badge.js" asp-append-version="true"></script>
 }
 else
 {
     @RenderBody()
+    <script src="~/js/app.js" asp-append-version="true"></script>
+}
+@* TempData messages surface as toasts on first paint and are announced politely.
+   Kept outside the authenticated branch so the sign-in page can confirm a sign-out. *@
+@if (TempData["Success"] != null)
+{
+    <span data-cg-toast="success" data-cg-toast-title="Done" data-cg-toast-message="@TempData["Success"]" hidden></span>
+}
+@if (TempData["Error"] != null)
+{
+    <span data-cg-toast="danger" data-cg-toast-title="Could not complete" data-cg-toast-message="@TempData["Error"]" hidden></span>
+}
+@if (TempData["Info"] != null)
+{
+    <span data-cg-toast="info" data-cg-toast-message="@TempData["Info"]" hidden></span>
 }
 @await RenderSectionAsync("Scripts", required: false)
 </body>

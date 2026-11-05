@@ -10,5 +10,8 @@ public class LoginViewModel
     [Required, DataType(DataType.Password)]
     public string Password { get; set; } = string.Empty;
 
+    /// <summary>Issues a persistent auth cookie instead of a session one, so the admin stays signed in across browser restarts.</summary>
+    public bool RememberMe { get; set; }
+
     public string? ErrorMessage { get; set; }
 }

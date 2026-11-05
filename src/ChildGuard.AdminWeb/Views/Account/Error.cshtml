@@ -1,7 +1,21 @@
 @{
-    ViewData["Title"] = "Error";
+    ViewData["Title"] = "Something went wrong";
+    Layout = "_Layout";
 }
-<div class="cg-card">
-    <h2>Something went wrong</h2>
-    <p class="cg-muted">An unexpected error occurred. Please try again.</p>
+
+<div class="cg-auth__formside" style="min-height:100vh">
+    <div class="cg-auth__card" style="text-align:center">
+        <div class="cg-empty__art" style="width:72px;height:72px;background:var(--cg-danger-soft);color:var(--cg-danger)">
+            @await Html.PartialAsync("_Icon", "alert-triangle")
+        </div>
+        <h1 class="cg-auth__title">Something went wrong</h1>
+        <p class="cg-auth__subtitle">
+            The request could not be completed. Nothing was changed. Try again, and if it
+            keeps happening, check that the ChildGuard API is running.
+        </p>
+        <div class="cg-btn-group" style="justify-content:center">
+            <a class="cg-btn cg-btn--primary" href="/Dashboard">Back to dashboard</a>
+            <a class="cg-btn cg-btn--secondary" href="/Diagnostics">Run diagnostics</a>
+        </div>
+    </div>
 </div>

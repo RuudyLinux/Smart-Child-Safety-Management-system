@@ -1,40 +1,120 @@
 @model CreateGuardianRequest
-@{ ViewData["Title"] = "Add Guardian"; }
+@{
+    ViewData["Title"] = "Add guardian";
+}
 
-<div class="cg-card">
-    <h3 class="cg-card__title cg-mt-0">Add Guardian</h3>
-
-    @if (!ViewData.ModelState.IsValid)
-    {
-        <div class="cg-alert cg-alert--error">
-            @foreach (var error in ViewData.ModelState.Values.SelectMany(v => v.Errors))
-            {
-                <div>@error.ErrorMessage</div>
-            }
-        </div>
-    }
-
-    <form asp-action="Create" method="post" class="cg-form">
-        @Html.AntiForgeryToken()
-        <div class="cg-form-group">
-            <label for="FullName">Full Name</label>
-            <input type="text" id="FullName" name="FullName" value="@Model.FullName" required maxlength="150" class="cg-input" />
-        </div>
-        <div class="cg-form-group">
-            <label for="Email">Email</label>
-            <input type="email" id="Email" name="Email" value="@Model.Email" required maxlength="200" class="cg-input" />
-            <small class="cg-muted">Login credentials are emailed to this address.</small>
-        </div>
-        <div class="cg-form-group">
-            <label for="ContactNumber">Contact Number</label>
-            <input type="tel" id="ContactNumber" name="ContactNumber" value="@Model.ContactNumber" required maxlength="30" class="cg-input" />
-            <small class="cg-muted">The guardian signs in with this number.</small>
-        </div>
-        <p class="cg-muted">
-            The account is created with a system-issued initial password and the guardian
-            must replace it at first login before the app becomes usable.
+<div class="cg-page-head">
+    <div class="cg-page-head__text">
+        <nav class="cg-breadcrumb" style="margin-bottom:6px">
+            <a href="/Guardians">@await Html.PartialAsync("_Icon", "arrow-left") Back to guardians</a>
+        </nav>
+        <h1 class="cg-page-head__title">Add guardian</h1>
+        <p class="cg-page-head__sub">
+            ChildGuard creates the account, emails the guardian their sign-in details, and requires
+            them to choose their own password before the app will let them in.
         </p>
-        <button class="cg-btn cg-btn--primary" type="submit">Create Guardian</button>
-        <a class="cg-btn" href="/Guardians">Cancel</a>
-    </form>
+    </div>
+</div>
+
+<div class="cg-grid cg-grid--sidebar">
+    <section class="cg-card">
+        <div class="cg-card__head">
+            <h2 class="cg-card__title">Guardian details</h2>
+        </div>
+        <div class="cg-card__body">
+            @if (!ViewData.ModelState.IsValid)
+            {
+                <div class="cg-alert cg-alert--danger" role="alert">
+                    <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "alert-circle")</span>
+                    <div class="cg-alert__body">
+                        <div class="cg-alert__title">The guardian could not be created</div>
+                        @foreach (var error in ViewData.ModelState.Values.SelectMany(v => v.Errors))
+                        {
+                            <div>@error.ErrorMessage</div>
+                        }
+                    </div>
+                </div>
+            }
+
+            <form asp-action="Create" method="post" class="cg-form" data-cg-busy>
+                @Html.AntiForgeryToken()
+
+                <div class="cg-field">
+                    <label class="cg-label" for="FullName">Full name <span class="cg-label__req">*</span></label>
+                    <input class="cg-input" id="FullName" name="FullName" value="@Model.FullName"
+                           maxlength="150" required autofocus />
+                </div>
+
+                <div class="cg-field">
+                    <label class="cg-label" for="Email">Email address <span class="cg-label__req">*</span></label>
+                    <div class="cg-input-group">
+                        <span class="cg-input-group__icon">@await Html.PartialAsync("_Icon", "mail")</span>
+                        <input class="cg-input" id="Email" type="email" name="Email" value="@Model.Email"
+                               maxlength="200" required />
+                    </div>
+                    <p class="cg-hint">Sign-in details and one-time codes are sent here. It must be unique.</p>
+                </div>
+
+                <div class="cg-field">
+                    <label class="cg-label" for="ContactNumber">Contact number <span class="cg-label__req">*</span></label>
+                    <div class="cg-input-group">
+                        <span class="cg-input-group__icon">@await Html.PartialAsync("_Icon", "phone")</span>
+                        <input class="cg-input" id="ContactNumber" type="tel" name="ContactNumber"
+                               value="@Model.ContactNumber" maxlength="30" required />
+                    </div>
+                    <p class="cg-hint">This is the guardian's sign-in ID in the mobile app, so it must be unique.</p>
+                </div>
+
+                <div class="cg-btn-group">
+                    <button class="cg-btn cg-btn--primary" type="submit">
+                        <span class="cg-btn__label">Create guardian</span>
+                    </button>
+                    <a class="cg-btn cg-btn--secondary" href="/Guardians">Cancel</a>
+                </div>
+            </form>
+        </div>
+    </section>
+
+    <div>
+        <section class="cg-card">
+            <div class="cg-card__head">
+                <h2 class="cg-card__title">How their first sign-in works</h2>
+            </div>
+            <div class="cg-card__body">
+                <ol class="cg-timeline">
+                    <li class="cg-timeline__item">
+                        <span class="cg-timeline__marker">@await Html.PartialAsync("_Icon", "mail")</span>
+                        <div class="cg-timeline__title">Credentials are emailed</div>
+                        <div class="cg-timeline__body">Sent to the guardian's own address — never shown here.</div>
+                    </li>
+                    <li class="cg-timeline__item">
+                        <span class="cg-timeline__marker">@await Html.PartialAsync("_Icon", "key")</span>
+                        <div class="cg-timeline__title">One-time code</div>
+                        <div class="cg-timeline__body">A code is sent on every sign-in attempt.</div>
+                    </li>
+                    <li class="cg-timeline__item">
+                        <span class="cg-timeline__marker">@await Html.PartialAsync("_Icon", "lock")</span>
+                        <div class="cg-timeline__title">They choose a password</div>
+                        <div class="cg-timeline__body">The issued password stops working at that point.</div>
+                    </li>
+                    <li class="cg-timeline__item">
+                        <span class="cg-timeline__marker">@await Html.PartialAsync("_Icon", "camera")</span>
+                        <div class="cg-timeline__title">They register their face</div>
+                        <div class="cg-timeline__body">Required before they can collect a child.</div>
+                    </li>
+                </ol>
+            </div>
+        </section>
+
+        <div class="cg-alert cg-alert--info">
+            <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "shield")</span>
+            <div class="cg-alert__body">
+                <div class="cg-alert__title">You never see their password</div>
+                <div>
+                    The initial password is generated on the server and sent only to the guardian.
+                    If it does not arrive, you can issue a replacement from their profile.
+                </div>
+            </div>
+        </div>
+    </div>
 </div>

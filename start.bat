@@ -1,49 +1,146 @@
 @echo off
 setlocal
+title ChildGuard - System Starter
 set ROOT=%~dp0
 
-echo ============================================
-echo  ChildGuard - Starting all services
-echo ============================================
+echo ============================================================
+echo   ChildGuard - Smart Child Safety Management System
+echo ============================================================
 echo.
 
-REM --- Check MySQL is reachable on 3306 (informational only; assumes the
-REM     MySQL service itself is already running as a Windows service) ---
+REM ------------------------------------------------------------
+REM  1. Check and Start MySQL (port 3306)
+REM ------------------------------------------------------------
+echo [1/5] Checking Database on port 3306...
 powershell -NoProfile -Command "if (Test-NetConnection -ComputerName localhost -Port 3306 -InformationLevel Quiet -WarningAction SilentlyContinue) { exit 0 } else { exit 1 }" >nul 2>&1
-if errorlevel 1 (
-    echo [WARNING] MySQL does not appear to be listening on port 3306.
-    echo           Start the MySQL service before using the app.
-    echo.
+if not errorlevel 1 (
+    echo       [OK] MySQL is already listening on port 3306.
+    goto :db_ready
 )
 
-echo Starting ChildGuard.Api  (http://localhost:5275) ...
-start "ChildGuard-API" cmd /k "cd /d "%ROOT%src\ChildGuard.Api" && dotnet run"
+echo       Port 3306 not responding. Attempting to start MySQL service...
+net start MySQL80 >nul 2>&1
+powershell -NoProfile -Command "if (Test-NetConnection -ComputerName localhost -Port 3306 -InformationLevel Quiet -WarningAction SilentlyContinue) { exit 0 } else { exit 1 }" >nul 2>&1
+if not errorlevel 1 (
+    echo       [OK] Windows MySQL80 service started successfully.
+    goto :db_ready
+)
 
-timeout /t 4 /nobreak >nul
-
-echo Starting ChildGuard.AdminWeb  (http://localhost:5080) ...
-start "ChildGuard-AdminWeb" cmd /k "cd /d "%ROOT%src\ChildGuard.AdminWeb" && dotnet run --urls http://localhost:5080"
-
-set "FACE_PY=%ROOT%face-service\.venv\Scripts\python.exe"
-if not exist "%FACE_PY%" goto :skipface
-
-echo Starting Face Service  (http://localhost:8001) ...
-start "ChildGuard-FaceService" cmd /k "cd /d "%ROOT%face-service" && .venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8001"
-goto :afterface
-
-:skipface
-echo [INFO] face-service\.venv not found - skipping Face Service.
-echo        Run: cd face-service ^&^& python -m venv .venv ^&^& .venv\Scripts\pip install -r requirements.txt
-
-:afterface
+REM Fallback to XAMPP MySQL if installed
+if exist "C:\xampp\mysql\bin\mysqld.exe" (
+    echo       Starting portable MySQL via XAMPP on port 3306...
+    start "ChildGuard-MySQL" /min "C:\xampp\mysql\bin\mysqld.exe" --defaults-file="C:\xampp\mysql\bin\my.ini" --port=3306 --console
+    
+    REM Wait up to 10 seconds for MySQL to be ready
+    for /L %%i in (1,1,10) do (
+        ping -n 2 127.0.0.1 >nul
+        powershell -NoProfile -Command "if (Test-NetConnection -ComputerName localhost -Port 3306 -InformationLevel Quiet -WarningAction SilentlyContinue) { exit 0 } else { exit 1 }" >nul 2>&1
+        if not errorlevel 1 (
+            echo       [OK] MySQL ready on port 3306.
+            goto :db_init
+        )
+    )
+)
 
 echo.
-echo ============================================
-echo  All services are starting in separate windows:
-echo    API         - http://localhost:5275
-echo    Admin Web   - http://localhost:5080
-echo    Face Service- http://localhost:8001
-echo ============================================
+echo [WARNING] Could not start MySQL automatically on port 3306.
+echo           Please ensure MySQL is running before continuing.
 echo.
-echo Run stop.bat to stop everything, or close the windows manually.
 pause
+
+:db_init
+if exist "C:\xampp\mysql\bin\mysql.exe" (
+    "C:\xampp\mysql\bin\mysql.exe" -u root -P 3306 -e "CREATE DATABASE IF NOT EXISTS childguard_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; CREATE USER IF NOT EXISTS 'childguard_app'@'localhost' IDENTIFIED BY 'ChildGuard_App_2026!'; CREATE USER IF NOT EXISTS 'childguard_app'@'127.0.0.1' IDENTIFIED BY 'ChildGuard_App_2026!'; GRANT ALL PRIVILEGES ON childguard_db.* TO 'childguard_app'@'localhost'; GRANT ALL PRIVILEGES ON childguard_db.* TO 'childguard_app'@'127.0.0.1'; FLUSH PRIVILEGES;" >nul 2>&1
+)
+
+:db_ready
+echo.
+
+REM ------------------------------------------------------------
+REM  2. Apply Pending Database Migrations
+REM ------------------------------------------------------------
+echo [2/5] Applying database migrations...
+where dotnet-ef >nul 2>&1
+if errorlevel 1 (
+    dotnet tool run dotnet-ef database update --project "%ROOT%src\ChildGuard.Infrastructure" --startup-project "%ROOT%src\ChildGuard.Api" >nul 2>&1
+) else (
+    dotnet ef database update --project "%ROOT%src\ChildGuard.Infrastructure" --startup-project "%ROOT%src\ChildGuard.Api" >nul 2>&1
+)
+if errorlevel 1 (
+    echo       [WARN] Migrations could not be applied automatically. The API will attempt self-seeding.
+) else (
+    echo       [OK] Database schema up to date.
+)
+echo.
+
+REM ------------------------------------------------------------
+REM  3. Start Face Service (Python FastAPI, port 8001)
+REM ------------------------------------------------------------
+echo [3/5] Starting Face Recognition Service (Port 8001)...
+set "FACE_PY=%ROOT%face-service\.venv\Scripts\python.exe"
+if exist "%FACE_PY%" (
+    start "ChildGuard-FaceService" cmd /k "title ChildGuard - Face Service [Port 8001] && cd /d "%ROOT%face-service" && .venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8001"
+    echo       [OK] Face service started at http://127.0.0.1:8001
+) else (
+    echo       [SKIP] face-service\.venv not found. Run: cd face-service ^&^& python -m venv .venv ^&^& .venv\Scripts\pip install -r requirements.txt
+)
+echo.
+
+REM ------------------------------------------------------------
+REM  4. Start ChildGuard.Api (ASP.NET Core Web API, port 5275)
+REM ------------------------------------------------------------
+echo [4/5] Starting ChildGuard API (Port 5275)...
+start "ChildGuard-API" cmd /k "title ChildGuard - Web API [Port 5275] && cd /d "%ROOT%src\ChildGuard.Api" && dotnet run"
+echo       [OK] API started at http://localhost:5275
+echo.
+
+REM Brief pause to let API begin listening before launching Admin Web
+ping -n 4 127.0.0.1 >nul
+
+REM ------------------------------------------------------------
+REM  5. Start ChildGuard.AdminWeb (ASP.NET Core MVC, port 5080)
+REM ------------------------------------------------------------
+echo [5/5] Starting ChildGuard Admin Web Portal (Port 5080)...
+start "ChildGuard-AdminWeb" cmd /k "title ChildGuard - Admin Web [Port 5080] && cd /d "%ROOT%src\ChildGuard.AdminWeb" && dotnet run --urls http://localhost:5080"
+echo       [OK] Admin Web started at http://localhost:5080
+echo.
+
+echo ============================================================
+echo   ChildGuard Services Active:
+echo   - Admin Portal:   http://localhost:5080
+echo   - API Backend:    http://localhost:5275
+echo   - Face Service:   http://127.0.0.1:8001
+echo   - Diagnostics:    http://localhost:5080/Diagnostics
+echo.
+echo   Default Admin Credentials:
+echo   Email:     admin@childguard.local
+echo   Password:  Admin@2026!
+echo ============================================================
+echo.
+
+REM Optional launch of Guardian Flutter App
+set "LAUNCH_APP="
+if /i "%~1"=="--with-app" set "LAUNCH_APP=y"
+if /i "%~1"=="-app" set "LAUNCH_APP=y"
+
+if defined LAUNCH_APP goto :do_launch_app
+
+echo Would you like to start the Guardian App [Flutter Web] as well?
+set /p "LAUNCH_APP=Press Y and Enter to launch, or just press Enter to skip [y/N]: "
+
+:do_launch_app
+if /i "%LAUNCH_APP%"=="y" (
+    echo.
+    echo Starting Guardian App on Chrome [Port 5090]...
+    start "ChildGuard-GuardianApp" cmd /k "title ChildGuard - Guardian App [Web] && cd /d "%ROOT%guardian_app" && flutter run -d chrome --web-port 5090 --dart-define=API_BASE_URL=http://localhost:5275"
+)
+
+echo.
+echo Opening Admin Web Portal in your default browser...
+ping -n 3 127.0.0.1 >nul
+start http://localhost:5080
+
+echo.
+echo [INFO] To stop all services anytime, run stop.bat or close their windows.
+echo Press any key to close this launcher window.
+pause >nul

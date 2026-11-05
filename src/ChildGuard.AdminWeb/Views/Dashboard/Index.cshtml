@@ -1,60 +1,602 @@
 @model DashboardSummaryDto
-@{ ViewData["Title"] = "Dashboard"; }
+@using System.Globalization
+@{
+    ViewData["Title"] = "Dashboard";
+    var greeting = DateTime.Now.Hour switch
+    {
+        < 12 => "Good morning",
+        < 17 => "Good afternoon",
+        _ => "Good evening"
+    };
+    var adminFirstName = (User.Identity?.Name ?? "Admin").Split(' ')[0];
+}
 
 @if (Model is null)
 {
-    <div class="cg-alert cg-alert--error">Could not load dashboard data from the API.</div>
-}
-else
-{
-    <p class="cg-muted" style="margin:0 0 18px;">@DateTime.Now.ToString("dddd, d MMMM yyyy")</p>
-
-    <h4 class="cg-section-title">Organization</h4>
-    <div class="cg-summary-grid">
-        <div class="cg-summary-card"><div class="cg-summary-card__icon">@await Html.PartialAsync("_Icon", "students")</div><div class="cg-summary-card__label">Total Students</div><div class="cg-summary-card__value">@Model.TotalStudents</div></div>
-        <div class="cg-summary-card"><div class="cg-summary-card__icon">@await Html.PartialAsync("_Icon", "rfid")</div><div class="cg-summary-card__label">Active RFID Cards</div><div class="cg-summary-card__value">@Model.ActiveRfidCards</div></div>
-        <div class="cg-summary-card"><div class="cg-summary-card__icon">@await Html.PartialAsync("_Icon", "guardians")</div><div class="cg-summary-card__label">Total Guardians</div><div class="cg-summary-card__value">@Model.TotalGuardians</div></div>
-        <div class="cg-summary-card"><div class="cg-summary-card__icon">@await Html.PartialAsync("_Icon", "buses")</div><div class="cg-summary-card__label">Active Buses</div><div class="cg-summary-card__value">@Model.ActiveBuses</div></div>
+    <div class="cg-alert cg-alert--danger" role="alert">
+        <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "alert-circle")</span>
+        <div class="cg-alert__body">
+            <div class="cg-alert__title">Dashboard data could not be loaded</div>
+            <div>@(ViewBag.LoadError as string ?? "The ChildGuard API did not respond.") <a href="/Diagnostics">Run diagnostics</a>.</div>
+        </div>
     </div>
+    return;
+}
 
-    <h4 class="cg-section-title">Today</h4>
-    <div class="cg-summary-grid">
-        <div class="cg-summary-card"><div class="cg-summary-card__icon">@await Html.PartialAsync("_Icon", "attendance")</div><div class="cg-summary-card__label">Today's Attendance</div><div class="cg-summary-card__value">@Model.TodaysAttendanceCount</div></div>
-        <div class="cg-summary-card"><div class="cg-summary-card__icon">@await Html.PartialAsync("_Icon", "journey")</div><div class="cg-summary-card__label">Today's Journey Events</div><div class="cg-summary-card__value">@Model.TodaysJourneyEventCount</div></div>
-        <div class="cg-summary-card">
-            <div class="cg-summary-card__icon">@await Html.PartialAsync("_Icon", "verification")</div>
-            <div class="cg-summary-card__label">Verification Status</div>
-            <div class="cg-summary-card__value">@Model.TodaysVerificationCount</div>
-            <div class="cg-flex" style="gap:6px;margin-top:6px;flex-wrap:wrap;">
-                <span class="cg-badge cg-badge--success">@Model.TodaysVerificationStatus.Matched matched</span>
-                <span class="cg-badge cg-badge--error">@Model.TodaysVerificationStatus.NoMatch no match</span>
-                <span class="cg-badge cg-badge--success">@Model.TodaysVerificationStatus.PickupsApproved approved</span>
-                <span class="cg-badge cg-badge--neutral">@Model.TodaysVerificationStatus.PickupsRejected rejected</span>
+@{
+    var attendance = Model.Attendance;
+    var journey = Model.Journey;
+    var transport = Model.Transport;
+    var criticalCount = Model.Alerts.Count(a => a.Severity == AlertSeverity.Critical);
+    var warningCount = Model.Alerts.Count(a => a.Severity == AlertSeverity.Warning);
+
+    // The headline answer to "are the children safe right now?" — derived only
+    // from recorded conditions, never assumed.
+    var (statusPulse, statusHeadline, statusDetail) = criticalCount > 0
+        ? ("cg-pulse--danger", $"{criticalCount} critical alert{(criticalCount == 1 ? "" : "s")}", "Needs immediate attention")
+        : warningCount > 0
+            ? ("cg-pulse--warning", $"{warningCount} item{(warningCount == 1 ? "" : "s")} to review", "No critical issues")
+            : ("", "All systems operational", "No open safety alerts");
+
+    var trend = Model.AttendanceTrend.ToList();
+}
+
+<section class="cg-hero">
+    <div class="cg-hero__inner">
+        <div>
+            <div class="cg-hero__greeting">@greeting, @adminFirstName</div>
+            <p class="cg-hero__sub">
+                @DateTime.Now.ToString("dddd, d MMMM yyyy") — here is your school's safety overview.
+            </p>
+            <div class="cg-hero__meta">
+                <div>
+                    <div class="cg-hero__stat-label">On roll</div>
+                    <div class="cg-hero__stat-value">@Model.TotalStudents students</div>
+                </div>
+                <div>
+                    <div class="cg-hero__stat-label">At school now</div>
+                    <div class="cg-hero__stat-value">@journey.AtSchool</div>
+                </div>
+                <div>
+                    <div class="cg-hero__stat-label">Checkpoints today</div>
+                    <div class="cg-hero__stat-value">@Model.TodaysJourneyEventCount</div>
+                </div>
             </div>
         </div>
+
+        <a class="cg-sysstatus" href="#alerts" style="text-decoration:none">
+            <span class="cg-pulse @statusPulse"></span>
+            <span>
+                <span class="cg-sysstatus__label">@statusDetail</span>
+                @statusHeadline
+            </span>
+        </a>
+    </div>
+</section>
+
+<div class="cg-grid cg-grid--kpi">
+
+    @* Primary KPI: today's attendance, with the breakdown and the day-on-day move. *@
+    <article class="cg-kpi cg-kpi--hero">
+        <div class="cg-kpi__top">
+            <div>
+                <div class="cg-kpi__label">Today's attendance</div>
+                <div class="cg-kpi__value">
+                    @attendance.PresentRate.ToString("0.#", CultureInfo.InvariantCulture)<span class="cg-kpi__unit">%</span>
+                </div>
+            </div>
+            <span class="cg-kpi__icon cg-kpi__icon--success">@await Html.PartialAsync("_Icon", "attendance")</span>
+        </div>
+
+        <div class="cg-kpi__foot">
+            @if (attendance.RateChange is { } change && change != 0)
+            {
+                <span class="cg-delta @(change > 0 ? "cg-delta--up" : "cg-delta--down")">
+                    @await Html.PartialAsync("_Icon", change > 0 ? "arrow-up" : "arrow-down")
+                    @Math.Abs(change).ToString("0.#", CultureInfo.InvariantCulture)%
+                </span>
+                <span class="cg-kpi__note">vs previous school day</span>
+            }
+            else if (attendance.PreviousDayPresentRate is null)
+            {
+                <span class="cg-kpi__note">No previous school day to compare against.</span>
+            }
+            else
+            {
+                <span class="cg-delta cg-delta--flat">No change</span>
+                <span class="cg-kpi__note">vs previous school day</span>
+            }
+        </div>
+
+        @{
+            var present = attendance.Present;
+            var late = attendance.Late;
+            var absent = attendance.Absent;
+            var roster = Math.Max(1, attendance.RosterSize);
+            string Pct(int n) => (n * 100.0 / roster).ToString("0.##", CultureInfo.InvariantCulture);
+        }
+        <div class="cg-stackbar" role="img"
+             aria-label="@present present, @late late, @absent absent of @attendance.RosterSize students">
+            <span class="cg-stackbar__part" style="width:@Pct(present - late)%;background:var(--cg-success)"></span>
+            <span class="cg-stackbar__part" style="width:@Pct(late)%;background:var(--cg-warning-accent)"></span>
+            <span class="cg-stackbar__part" style="width:@Pct(absent)%;background:var(--cg-border-strong)"></span>
+        </div>
+
+        <div class="cg-kpi__breakdown">
+            <div class="cg-kpi__breakdown-item">
+                <div class="cg-kpi__breakdown-label"><span class="cg-badge__dot" style="color:var(--cg-success)"></span>Present</div>
+                <div class="cg-kpi__breakdown-value">@present</div>
+            </div>
+            <div class="cg-kpi__breakdown-item">
+                <div class="cg-kpi__breakdown-label"><span class="cg-badge__dot" style="color:var(--cg-warning-accent)"></span>Late</div>
+                <div class="cg-kpi__breakdown-value">@late</div>
+            </div>
+            <div class="cg-kpi__breakdown-item">
+                <div class="cg-kpi__breakdown-label"><span class="cg-badge__dot" style="color:var(--cg-muted-2)"></span>Absent</div>
+                <div class="cg-kpi__breakdown-value">@absent</div>
+            </div>
+            <div class="cg-kpi__breakdown-item">
+                <div class="cg-kpi__breakdown-label">Late after</div>
+                <div class="cg-kpi__breakdown-value">@attendance.LateAfter</div>
+            </div>
+        </div>
+    </article>
+
+    <article class="cg-kpi">
+        <div class="cg-kpi__top">
+            <div class="cg-kpi__label">Total students</div>
+            <span class="cg-kpi__icon">@await Html.PartialAsync("_Icon", "students")</span>
+        </div>
+        <div class="cg-kpi__value">@Model.TotalStudents</div>
+        <div class="cg-kpi__foot">
+            <span class="cg-badge cg-badge--neutral">@Model.ActiveRfidCards RFID cards active</span>
+        </div>
+    </article>
+
+    <article class="cg-kpi">
+        <div class="cg-kpi__top">
+            <div class="cg-kpi__label">Active guardians</div>
+            <span class="cg-kpi__icon cg-kpi__icon--info">@await Html.PartialAsync("_Icon", "guardians")</span>
+        </div>
+        <div class="cg-kpi__value">@Model.TotalGuardians</div>
+        <div class="cg-kpi__foot">
+            <a class="cg-text-sm" href="/Guardians">Manage guardians</a>
+        </div>
+    </article>
+
+    <article class="cg-kpi">
+        <div class="cg-kpi__top">
+            <div class="cg-kpi__label">Buses in service</div>
+            <span class="cg-kpi__icon cg-kpi__icon--neutral">@await Html.PartialAsync("_Icon", "bus")</span>
+        </div>
+        <div class="cg-kpi__value">@transport.ActiveBuses</div>
+        <div class="cg-kpi__foot">
+            <span class="cg-kpi__note">@transport.StudentsAssigned assigned · @transport.StudentsUnassigned unassigned</span>
+        </div>
+    </article>
+
+    <article class="cg-kpi">
+        <div class="cg-kpi__top">
+            <div class="cg-kpi__label">Pending verifications</div>
+            <span class="cg-kpi__icon @(Model.PendingVerifications > 0 ? "cg-kpi__icon--warning" : "cg-kpi__icon--neutral")">
+                @await Html.PartialAsync("_Icon", "pickup")
+            </span>
+        </div>
+        <div class="cg-kpi__value">@Model.PendingVerifications</div>
+        <div class="cg-kpi__foot">
+            @if (Model.PendingVerifications > 0)
+            {
+                <a class="cg-btn cg-btn--sm cg-btn--secondary" href="/Verification">Open pickup desk</a>
+            }
+            else
+            {
+                <span class="cg-kpi__note">No handovers waiting on a decision.</span>
+            }
+        </div>
+    </article>
+
+    <article class="cg-kpi">
+        <div class="cg-kpi__top">
+            <div class="cg-kpi__label">Safety alerts</div>
+            <span class="cg-kpi__icon @(criticalCount > 0 ? "cg-kpi__icon--danger" : warningCount > 0 ? "cg-kpi__icon--warning" : "cg-kpi__icon--success")">
+                @await Html.PartialAsync("_Icon", criticalCount > 0 ? "alert-octagon" : "shield-check")
+            </span>
+        </div>
+        <div class="cg-kpi__value">@Model.Alerts.Count</div>
+        <div class="cg-kpi__foot">
+            @if (criticalCount > 0)
+            {
+                <span class="cg-badge cg-badge--danger"><span class="cg-badge__dot"></span>@criticalCount critical</span>
+            }
+            @if (warningCount > 0)
+            {
+                <span class="cg-badge cg-badge--warning"><span class="cg-badge__dot"></span>@warningCount to review</span>
+            }
+            @if (Model.Alerts.Count == 0)
+            {
+                <span class="cg-badge cg-badge--success"><span class="cg-badge__dot"></span>All clear</span>
+            }
+        </div>
+    </article>
+</div>
+
+<div class="cg-grid cg-grid--sidebar">
+    <div>
+        @* --- Attendance trend ------------------------------------------------ *@
+        <section class="cg-card">
+            <div class="cg-card__head">
+                <div>
+                    <h2 class="cg-card__title">Attendance trend</h2>
+                    <div class="cg-card__sub">Distinct students checked in per day, last @trend.Count days</div>
+                </div>
+                <a class="cg-btn cg-btn--sm cg-btn--ghost" href="/Attendance">
+                    Open attendance @await Html.PartialAsync("_Icon", "chevron-right")
+                </a>
+            </div>
+            <div class="cg-card__body">
+                @if (trend.All(p => p.Present == 0))
+                {
+                    @await Html.PartialAsync("_EmptyState", ("attendance", "No attendance recorded yet",
+                        "Once students start scanning in at a checkpoint, their daily attendance appears here.",
+                        (string?)null, (string?)null))
+                }
+                else
+                {
+                    // Plotted by hand: a small polyline needs no charting library,
+                        // so the page has nothing to download and nothing to block on.
+                        const int chartW = 720, chartH = 180, padX = 10, padTop = 12, padBottom = 26;
+                        var maxValue = Math.Max(1, trend.Max(p => p.RosterSize));
+                        var stepX = trend.Count > 1 ? (chartW - padX * 2) / (double)(trend.Count - 1) : 0;
+                        var baseline = chartH - padBottom;
+
+                        var xs = trend.Select((_, i) => padX + i * stepX).ToArray();
+                        var ys = trend.Select(p => padTop + (baseline - padTop) * (1 - p.Present / (double)maxValue)).ToArray();
+
+                        string N(double v) => v.ToString("0.##", CultureInfo.InvariantCulture);
+
+                        var linePoints = string.Join(" ", xs.Select((x, i) => $"{N(x)},{N(ys[i])}"));
+
+                        // The area repeats the line and closes on the baseline, so the
+                        // fill sits under the curve rather than around it.
+                    var area = new System.Text.StringBuilder($"M {N(xs[0])} {N(baseline)}");
+                    for (var i = 0; i < xs.Length; i++) area.Append($" L {N(xs[i])} {N(ys[i])}");
+                    area.Append($" L {N(xs[^1])} {N(baseline)} Z");
+                    <svg class="cg-chart" viewBox="0 0 @chartW @chartH" preserveAspectRatio="none" role="img"
+                         aria-label="Attendance for the last @trend.Count days">
+                        <defs>
+                            <linearGradient id="cgAreaFill" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stop-color="#2563EB" stop-opacity="0.20" />
+                                <stop offset="100%" stop-color="#2563EB" stop-opacity="0.01" />
+                            </linearGradient>
+                        </defs>
+
+                        @for (var g = 0; g <= 2; g++)
+                        {
+                            var gridY = N(padTop + (baseline - padTop) * g / 2.0);
+                            <line class="cg-chart__grid" x1="@padX" x2="@(chartW - padX)" y1="@gridY" y2="@gridY" />
+                        }
+
+                        <path class="cg-chart__area" d="@area.ToString()" />
+                        <polyline class="cg-chart__line" points="@linePoints" />
+
+                        @for (var i = 0; i < trend.Count; i++)
+                        {
+                            <circle class="cg-chart__dot" r="3.5" cx="@N(xs[i])" cy="@N(ys[i])">
+                                <title>@trend[i].Date.ToString("ddd d MMM"): @trend[i].Present of @trend[i].RosterSize present</title>
+                            </circle>
+                        }
+                    </svg>
+
+                    @* Day labels sit outside the SVG: the plot is stretched to the card
+                       width, and text inside it would be stretched with it. *@
+                    <div class="cg-row" style="justify-content:space-between;margin-top:2px">
+                        @foreach (var point in trend)
+                        {
+                            <span class="cg-text-sm cg-muted" title="@point.Date.ToString("d MMM yyyy")">
+                                @point.Date.ToString("ddd")
+                            </span>
+                        }
+                    </div>
+
+                    <div class="cg-chart-legend">
+                        <span class="cg-chart-legend__item">
+                            <span class="cg-chart-legend__swatch" style="background:#2563EB"></span>
+                            Students checked in
+                        </span>
+                        <span class="cg-chart-legend__item cg-muted">
+                            Peak of @trend.Max(p => p.Present) · roster @trend[^1].RosterSize
+                        </span>
+                    </div>
+                }
+            </div>
+        </section>
+
+        @* --- Journey status --------------------------------------------------- *@
+        <section class="cg-card">
+            <div class="cg-card__head">
+                <div>
+                    <h2 class="cg-card__title">Where students are now</h2>
+                    <div class="cg-card__sub">From each student's latest recorded checkpoint today</div>
+                </div>
+                <a class="cg-btn cg-btn--sm cg-btn--ghost" href="/Journey">
+                    Journey board @await Html.PartialAsync("_Icon", "chevron-right")
+                </a>
+            </div>
+            <div class="cg-card__body">
+                @{
+                    var journeySegments = new (string Label, int Value, string Color)[]
+                    {
+                        ("At school", journey.AtSchool, "#16A34A"),
+                        ("On the bus", journey.OnBusToSchool, "#0EA5E9"),
+                        ("Left school", journey.LeftSchool, "#F59E0B"),
+                        ("Dropped off", journey.DroppedOffHome, "#2563EB"),
+                        ("No activity", journey.NoActivityToday, "#CBD5E1")
+                    };
+                    var journeyTotal = journeySegments.Sum(s => s.Value);
+                }
+
+                @if (journeyTotal == 0)
+                {
+                    @await Html.PartialAsync("_EmptyState", ("journey", "No journey activity today",
+                        "Checkpoint scans recorded today will place each student on this board.",
+                        (string?)null, (string?)null))
+                }
+                else
+                {
+                    // Donut drawn with stroke-dasharray on one circle per slice:
+                        // exact, and it scales without any layout maths.
+                        const double radius = 54;
+                        var circumference = 2 * Math.PI * radius;
+                        var drawn = journeySegments.Where(seg => seg.Value > 0).ToList();
+
+                        // Each slice starts where the previous one ended.
+                        var lengths = drawn.Select(seg => circumference * seg.Value / journeyTotal).ToArray();
+                        var offsets = new double[lengths.Length];
+                        for (var i = 1; i < lengths.Length; i++) offsets[i] = offsets[i - 1] + lengths[i - 1];
+
+                    string D(double v) => v.ToString("0.##", CultureInfo.InvariantCulture);
+                    <div class="cg-donut">
+                        <div class="cg-donut__figure">
+                            <svg width="140" height="140" viewBox="0 0 140 140" role="img"
+                                 aria-label="Journey status of @journeyTotal students">
+                                <g transform="rotate(-90 70 70)">
+                                    @for (var i = 0; i < drawn.Count; i++)
+                                    {
+                                        <circle class="cg-donut__segment" cx="70" cy="70" r="@radius" fill="none"
+                                                stroke="@drawn[i].Color" stroke-width="18"
+                                                stroke-dasharray="@D(lengths[i]) @D(circumference - lengths[i])"
+                                                stroke-dashoffset="@D(-offsets[i])">
+                                            <title>@drawn[i].Label: @drawn[i].Value</title>
+                                        </circle>
+                                    }
+                                </g>
+                            </svg>
+                            <div class="cg-donut__center">
+                                <div class="cg-donut__center-value">@journeyTotal</div>
+                                <div class="cg-donut__center-label">students</div>
+                            </div>
+                        </div>
+
+                        <div class="cg-donut__list">
+                            @foreach (var segment in journeySegments)
+                            {
+                                <div class="cg-donut__row">
+                                    <span class="cg-chart-legend__swatch" style="background:@segment.Color"></span>
+                                    <span class="cg-donut__row-name">@segment.Label</span>
+                                    <span class="cg-donut__row-value">@segment.Value</span>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </section>
+
+        @* --- Attendance by grade --------------------------------------------- *@
+        @if (Model.AttendanceByGrade.Any())
+        {
+            <section class="cg-card">
+                <div class="cg-card__head">
+                    <h2 class="cg-card__title">Attendance by grade</h2>
+                    <div class="cg-card__sub">Checked in today</div>
+                </div>
+                <div class="cg-card__body">
+                    <div class="cg-bars">
+                        @foreach (var grade in Model.AttendanceByGrade)
+                        {
+                            var fill = grade.PresentRate >= 90 ? "cg-bar__fill--success"
+                                : grade.PresentRate >= 70 ? "" : "cg-bar__fill--warning";
+                            <div>
+                                <div class="cg-bar__head">
+                                    <span class="cg-bar__name">@grade.Grade</span>
+                                    <span class="cg-bar__value">
+                                        @grade.Present / @grade.RosterSize ·
+                                        @grade.PresentRate.ToString("0.#", CultureInfo.InvariantCulture)%
+                                    </span>
+                                </div>
+                                <div class="cg-bar__track">
+                                    <div class="cg-bar__fill @fill" style="width:@grade.PresentRate.ToString("0.##", CultureInfo.InvariantCulture)%"></div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </section>
+        }
     </div>
 
-    <div class="cg-card">
-        <h3 class="cg-card__title">Recent Activity</h3>
-        <div class="cg-table-wrap">
-            <table class="cg-table">
-                <thead><tr><th>Student</th><th>Event</th><th>Time</th><th>Source</th></tr></thead>
-                <tbody>
+    <div>
+        @* --- Alert centre ----------------------------------------------------- *@
+        <section class="cg-card" id="alerts">
+            <div class="cg-card__head">
+                <div>
+                    <h2 class="cg-card__title">Safety alert centre</h2>
+                    <div class="cg-card__sub">
+                        @(Model.Alerts.Count == 0 ? "Nothing needs attention" : $"{Model.Alerts.Count} open")
+                    </div>
+                </div>
+                @if (criticalCount > 0)
+                {
+                    <span class="cg-badge cg-badge--danger cg-badge--lg">
+                        <span class="cg-badge__dot"></span>@criticalCount critical
+                    </span>
+                }
+            </div>
+
+            @if (!Model.Alerts.Any())
+            {
+                <div class="cg-card__body">
+                    <div class="cg-empty" style="padding:28px 12px">
+                        <div class="cg-empty__art" style="background:var(--cg-success-soft);color:var(--cg-success)">
+                            @await Html.PartialAsync("_Icon", "shield-check")
+                        </div>
+                        <div class="cg-empty__title">All systems operational</div>
+                        <p class="cg-empty__text">
+                            No failed verifications, missing check-ins or disconnected scanners.
+                        </p>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="cg-card__body cg-card__body--flush">
+                    @foreach (var alert in Model.Alerts.Take(8))
+                    {
+                        <div class="cg-alertrow">
+                            <span class="cg-alertrow__mark @SafetyUi.AlertMarkClass(alert.Severity)">
+                                @await Html.PartialAsync("_Icon", SafetyUi.AlertIcon(alert.Severity))
+                            </span>
+                            <div class="cg-alertrow__body">
+                                <div class="cg-alertrow__title">
+                                    @alert.Title
+                                    <span class="cg-badge @SafetyUi.AlertBadgeClass(alert.Severity)">@alert.Category</span>
+                                </div>
+                                <div class="cg-alertrow__detail">@alert.Detail</div>
+                                <div class="cg-alertrow__action">
+                                    <strong>Recommended:</strong> @alert.RecommendedAction
+                                </div>
+                                @if (!string.IsNullOrEmpty(alert.Link))
+                                {
+                                    <a class="cg-btn cg-btn--sm cg-btn--secondary" style="margin-top:9px" href="@alert.Link">
+                                        Take action @await Html.PartialAsync("_Icon", "chevron-right")
+                                    </a>
+                                }
+                            </div>
+                            <div class="cg-alertrow__side">
+                                @if (alert.OccurredAt is { } at)
+                                {
+                                    <span class="cg-alertrow__time" data-cg-ago="@at.ToString("O")">
+                                        @at.ToLocalTime().ToString("HH:mm")
+                                    </span>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+                @if (Model.Alerts.Count > 8)
+                {
+                    <div class="cg-card__foot cg-text-sm cg-muted">
+                        Showing the 8 most urgent of @Model.Alerts.Count open alerts.
+                    </div>
+                }
+            }
+        </section>
+
+        @* --- Live activity ---------------------------------------------------- *@
+        <section class="cg-card">
+            <div class="cg-card__head">
+                <div>
+                    <h2 class="cg-card__title">Safety activity</h2>
+                    <div class="cg-card__sub">Most recent checkpoints</div>
+                </div>
+                <span class="cg-pulse" title="Live"></span>
+            </div>
+            <div class="cg-card__body">
                 @if (!Model.RecentActivity.Any())
                 {
-                    <tr><td colspan="4" class="cg-muted">No recent activity.</td></tr>
+                    @await Html.PartialAsync("_EmptyState", ("activity", "No activity yet",
+                        "Verified checkpoint scans will appear here as they happen.",
+                        (string?)null, (string?)null))
                 }
-                @foreach (var e in Model.RecentActivity)
+                else
                 {
-                    <tr>
-                        <td>@e.StudentName</td>
-                        <td><span class="cg-badge cg-badge--neutral">@e.EventType</span></td>
-                        <td>@e.Timestamp.ToLocalTime().ToString("g")</td>
-                        <td>@e.Source</td>
-                    </tr>
+                    <ol class="cg-timeline">
+                        @foreach (var e in Model.RecentActivity)
+                        {
+                            var marker = e.EventType switch
+                            {
+                                JourneyEventType.SchoolArrival => "cg-timeline__marker--success",
+                                JourneyEventType.BusDropoff => "cg-timeline__marker--success",
+                                JourneyEventType.SchoolDeparture => "cg-timeline__marker--warning",
+                                _ => ""
+                            };
+                            <li class="cg-timeline__item">
+                                <span class="cg-timeline__marker @marker">
+                                    @await Html.PartialAsync("_Icon", SafetyUi.EventIcon(e.EventType))
+                                </span>
+                                <div class="cg-timeline__head">
+                                    <a class="cg-timeline__title" href="/Students/Details/@e.StudentId">@e.StudentName</a>
+                                    <span class="cg-timeline__time">@e.Timestamp.ToLocalTime().ToString("HH:mm")</span>
+                                </div>
+                                <div class="cg-timeline__body">
+                                    @SafetyUi.EventLabel(e.EventType) ·
+                                    @(e.Source == EventSource.Rfid ? "RFID verification" : "Recorded by staff")
+                                </div>
+                            </li>
+                        }
+                    </ol>
                 }
-                </tbody>
-            </table>
-        </div>
+            </div>
+            <div class="cg-card__foot">
+                <a class="cg-text-sm" href="/Journey">View the full journey board</a>
+            </div>
+        </section>
+
+        @* --- Verification outcome today --------------------------------------- *@
+        <section class="cg-card">
+            <div class="cg-card__head">
+                <h2 class="cg-card__title">Verifications today</h2>
+                <span class="cg-badge cg-badge--neutral">@Model.TodaysVerificationCount attempts</span>
+            </div>
+            <div class="cg-card__body">
+                <div class="cg-grid cg-grid--2" style="margin-bottom:0;gap:12px">
+                    <div class="cg-keyvalue">
+                        <span class="cg-keyvalue__key">Face matched</span>
+                        <span class="cg-keyvalue__value" style="color:var(--cg-success)">@Model.TodaysVerificationStatus.Matched</span>
+                    </div>
+                    <div class="cg-keyvalue">
+                        <span class="cg-keyvalue__key">No match</span>
+                        <span class="cg-keyvalue__value" style="color:var(--cg-danger)">@Model.TodaysVerificationStatus.NoMatch</span>
+                    </div>
+                    <div class="cg-keyvalue">
+                        <span class="cg-keyvalue__key">Handovers approved</span>
+                        <span class="cg-keyvalue__value">@Model.TodaysVerificationStatus.PickupsApproved</span>
+                    </div>
+                    <div class="cg-keyvalue">
+                        <span class="cg-keyvalue__key">Handovers rejected</span>
+                        <span class="cg-keyvalue__value">@Model.TodaysVerificationStatus.PickupsRejected</span>
+                    </div>
+                </div>
+            </div>
+            <div class="cg-card__foot">
+                <a class="cg-text-sm" href="/Verification/History">Open the verification log</a>
+            </div>
+        </section>
+
+        @* --- Scanner health ---------------------------------------------------- *@
+        <section class="cg-card">
+            <div class="cg-card__head">
+                <h2 class="cg-card__title">Checkpoint scanners</h2>
+                <span class="cg-badge @(transport.ScannersConnected == transport.ScannersTotal && transport.ScannersTotal > 0 ? "cg-badge--success" : "cg-badge--warning")">
+                    <span class="cg-badge__dot"></span>@transport.ScannersConnected of @transport.ScannersTotal online
+                </span>
+            </div>
+            <div class="cg-card__body">
+                <p class="cg-text-sm cg-muted cg-mb-0">
+                    A scanner reports online once it has sent a heartbeat or read a card.
+                    Manage them from <a href="/Settings">Settings</a>.
+                </p>
+            </div>
+        </section>
     </div>
-}
+</div>

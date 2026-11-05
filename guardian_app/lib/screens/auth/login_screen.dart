@@ -16,6 +16,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _contactCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   bool _loading = false;
+  bool _obscure = true;
 
   @override
   void dispose() {
@@ -41,56 +42,90 @@ class _LoginScreenState extends State<LoginScreen> {
     final auth = context.watch<AuthProvider>();
     return Scaffold(
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text('ChildGuard', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700, color: CgColors.primaryDark)),
-              const SizedBox(height: 4),
-              const Text('Guardian sign in', style: TextStyle(color: CgColors.textMuted)),
-              const SizedBox(height: 28),
-              if (auth.lastError != null)
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(color: CgColors.errorBg, borderRadius: BorderRadius.circular(8)),
-                  child: Text(auth.lastError!, style: const TextStyle(color: CgColors.error)),
-                ),
-              TextField(
-                controller: _contactCtrl,
-                decoration: const InputDecoration(labelText: 'Contact Number'),
-                keyboardType: TextInputType.phone,
-                autofillHints: const [AutofillHints.telephoneNumber],
-              ),
-              const SizedBox(height: 14),
-              TextField(controller: _passwordCtrl, decoration: const InputDecoration(labelText: 'Password'), obscureText: true),
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ForgotPasswordScreen())),
-                  child: const Text('Forgot password?'),
-                ),
-              ),
-              const SizedBox(height: 8),
-              ElevatedButton(
-                onPressed: _loading ? null : _submit,
-                child: _loading ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Sign In'),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 400),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Text("Don't have an account?", style: TextStyle(color: CgColors.textMuted)),
-                  TextButton(
-                    onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const RegisterScreen())),
-                    child: const Text('Register'),
+                  Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(colors: [CgColors.primary, Color(0xFF3B82F6)]),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [BoxShadow(color: CgColors.primary.withValues(alpha: 0.3), blurRadius: 16, offset: const Offset(0, 6))],
+                    ),
+                    child: const Icon(Icons.shield_rounded, color: Colors.white, size: 30),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text('Welcome back', style: TextStyle(fontSize: 25, fontWeight: FontWeight.w800, color: CgColors.text, letterSpacing: -0.4)),
+                  const SizedBox(height: 4),
+                  const Text('Sign in to see your children\'s safety status.', style: TextStyle(color: CgColors.textMuted, fontSize: 13.5)),
+                  const SizedBox(height: 28),
+                  if (auth.lastError != null)
+                    Container(
+                      padding: const EdgeInsets.all(13),
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(color: CgColors.errorSoft, borderRadius: BorderRadius.circular(12), border: Border.all(color: CgColors.errorBorder)),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.error_outline_rounded, color: CgColors.error, size: 18),
+                          const SizedBox(width: 10),
+                          Expanded(child: Text(auth.lastError!, style: const TextStyle(color: CgColors.error, fontSize: 13))),
+                        ],
+                      ),
+                    ),
+                  TextField(
+                    controller: _contactCtrl,
+                    decoration: const InputDecoration(labelText: 'Contact number', prefixIcon: Icon(Icons.phone_outlined)),
+                    keyboardType: TextInputType.phone,
+                    autofillHints: const [AutofillHints.telephoneNumber],
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: _passwordCtrl,
+                    decoration: InputDecoration(
+                      labelText: 'Password',
+                      prefixIcon: const Icon(Icons.lock_outline_rounded),
+                      suffixIcon: IconButton(
+                        icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined, size: 20),
+                        onPressed: () => setState(() => _obscure = !_obscure),
+                      ),
+                    ),
+                    obscureText: _obscure,
+                    onSubmitted: (_) => _loading ? null : _submit(),
+                  ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ForgotPasswordScreen())),
+                      child: const Text('Forgot password?'),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  ElevatedButton(
+                    onPressed: _loading ? null : _submit,
+                    child: _loading
+                        ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : const Text('Sign in'),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text("Don't have an account?", style: TextStyle(color: CgColors.textMuted, fontSize: 13.5)),
+                      TextButton(
+                        onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const RegisterScreen())),
+                        child: const Text('Register'),
+                      ),
+                    ],
                   ),
                 ],
               ),
-            ],
+            ),
           ),
         ),
       ),

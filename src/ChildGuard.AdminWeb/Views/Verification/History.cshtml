@@ -1,0 +1,186 @@
+@model List<GuardianVerificationHistoryDto>
+@{
+    ViewData["Title"] = "Verification Log";
+    var students = ViewBag.Students as List<StudentListItemDto> ?? new();
+    var studentId = ViewData["StudentId"] as int?;
+
+    var matched = Model.Count(v => v.Result == VerificationResult.Match);
+    var failed = Model.Count(v => v.Result == VerificationResult.NoMatch);
+    var approved = Model.Count(v => v.PickupApproved);
+}
+
+<div class="cg-page-head">
+    <div class="cg-page-head__text">
+        <h1 class="cg-page-head__title">Verification log</h1>
+        <p class="cg-page-head__sub">
+            Every pickup verification attempt, its match score and the handover decision that followed.
+        </p>
+    </div>
+    <div class="cg-page-head__actions">
+        <a class="cg-btn cg-btn--primary" href="/Verification">
+            @await Html.PartialAsync("_Icon", "pickup") Open pickup desk
+        </a>
+    </div>
+</div>
+
+@if (ViewBag.LoadError is string loadError)
+{
+    <div class="cg-alert cg-alert--danger" role="alert">
+        <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "alert-circle")</span>
+        <div class="cg-alert__body">@loadError</div>
+    </div>
+}
+
+<div class="cg-grid cg-grid--4">
+    <article class="cg-kpi">
+        <div class="cg-kpi__top">
+            <div class="cg-kpi__label">Attempts</div>
+            <span class="cg-kpi__icon">@await Html.PartialAsync("_Icon", "verification")</span>
+        </div>
+        <div class="cg-kpi__value cg-kpi__value--sm">@Model.Count</div>
+    </article>
+    <article class="cg-kpi">
+        <div class="cg-kpi__top">
+            <div class="cg-kpi__label">Face matched</div>
+            <span class="cg-kpi__icon cg-kpi__icon--success">@await Html.PartialAsync("_Icon", "user-check")</span>
+        </div>
+        <div class="cg-kpi__value cg-kpi__value--sm">@matched</div>
+    </article>
+    <article class="cg-kpi">
+        <div class="cg-kpi__top">
+            <div class="cg-kpi__label">No match</div>
+            <span class="cg-kpi__icon @(failed > 0 ? "cg-kpi__icon--danger" : "cg-kpi__icon--neutral")">
+                @await Html.PartialAsync("_Icon", "user-x")
+            </span>
+        </div>
+        <div class="cg-kpi__value cg-kpi__value--sm">@failed</div>
+        <div class="cg-kpi__note">Student must not be released on a no-match</div>
+    </article>
+    <article class="cg-kpi">
+        <div class="cg-kpi__top">
+            <div class="cg-kpi__label">Handovers approved</div>
+            <span class="cg-kpi__icon cg-kpi__icon--info">@await Html.PartialAsync("_Icon", "check-circle")</span>
+        </div>
+        <div class="cg-kpi__value cg-kpi__value--sm">@approved</div>
+    </article>
+</div>
+
+<section class="cg-card">
+    <div class="cg-toolbar">
+        <form method="get" class="cg-row" style="gap:10px">
+            <select class="cg-select" name="studentId" style="max-width:220px" aria-label="Filter by student">
+                <option value="">All students</option>
+                @foreach (var s in students)
+                {
+                    <option value="@s.StudentId" selected="@(studentId == s.StudentId)">@s.FullName</option>
+                }
+            </select>
+            <button class="cg-btn cg-btn--secondary" type="submit">
+                @await Html.PartialAsync("_Icon", "filter") Apply
+            </button>
+        </form>
+
+        <span class="cg-toolbar__spacer"></span>
+
+        <div class="cg-input-group" style="max-width:240px">
+            <span class="cg-input-group__icon">@await Html.PartialAsync("_Icon", "search")</span>
+            <input class="cg-input" placeholder="Search student or guardian"
+                   data-cg-search data-cg-search-scope="verifications" aria-label="Search the verification log" />
+        </div>
+
+        <select class="cg-select" style="max-width:150px" data-cg-filter="result" data-cg-filter-scope="verifications"
+                aria-label="Filter by result">
+            <option value="__all">Any result</option>
+            <option value="Match">Match</option>
+            <option value="NoMatch">No match</option>
+        </select>
+
+        <select class="cg-select" style="max-width:170px" data-cg-filter="handover" data-cg-filter-scope="verifications"
+                aria-label="Filter by handover">
+            <option value="__all">Any handover</option>
+            <option value="approved">Approved</option>
+            <option value="not">Not approved</option>
+        </select>
+
+        <button type="button" class="cg-btn cg-btn--ghost cg-btn--sm" data-cg-reset data-cg-reset-scope="verifications">Clear</button>
+        <span class="cg-text-sm cg-muted" data-cg-count data-cg-count-scope="verifications"></span>
+    </div>
+
+    @if (!Model.Any())
+    {
+        @await Html.PartialAsync("_EmptyState", ("verification", "No verification attempts recorded",
+            "Attempts are logged whenever a guardian is verified at the pickup desk.",
+            "Open the pickup desk", "/Verification"))
+    }
+    else
+    {
+        <div class="cg-table-wrap">
+            <table class="cg-table" data-cg-table="verifications" data-cg-page-size="50">
+                <thead>
+                    <tr>
+                        <th><span class="cg-th-sort" data-cg-sort="when">When @await Html.PartialAsync("_Icon", "arrow-down")</span></th>
+                        <th>Student</th>
+                        <th>Guardian</th>
+                        <th><span class="cg-th-sort" data-cg-sort="score">Match score @await Html.PartialAsync("_Icon", "arrow-down")</span></th>
+                        <th>Result</th>
+                        <th>Handover</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var v in Model)
+                {
+                    <tr data-row
+                        data-search="@v.StudentName @v.GuardianName"
+                        data-result="@(v.Result == VerificationResult.Match ? "Match" : "NoMatch")"
+                        data-handover="@(v.PickupApproved ? "approved" : "not")"
+                        data-sort-when="@v.AttemptedAt.Ticks"
+                        data-sort-score="@v.MatchScore.ToString("0.0000", System.Globalization.CultureInfo.InvariantCulture)">
+                        <td class="cg-text-sm">
+                            <div>@v.AttemptedAt.ToLocalTime().ToString("d MMM yyyy")</div>
+                            <div class="cg-muted">@v.AttemptedAt.ToLocalTime().ToString("HH:mm")</div>
+                        </td>
+                        <td><a href="/Students/Details/@v.StudentId">@v.StudentName</a></td>
+                        <td><a href="/Guardians/Details/@v.GuardianId">@v.GuardianName</a></td>
+                        <td class="cg-num">@v.MatchScore.ToString("0.00")</td>
+                        <td>
+                            @if (v.Result == VerificationResult.Match)
+                            {
+                                <span class="cg-badge cg-badge--success"><span class="cg-badge__dot"></span>Match</span>
+                            }
+                            else
+                            {
+                                <span class="cg-badge cg-badge--danger"><span class="cg-badge__dot"></span>No match</span>
+                            }
+                        </td>
+                        <td>
+                            @if (v.PickupApproved)
+                            {
+                                <span class="cg-badge cg-badge--success"><span class="cg-badge__dot"></span>Approved</span>
+                            }
+                            else if (v.Result == VerificationResult.NoMatch)
+                            {
+                                <span class="cg-badge cg-badge--neutral">Not released</span>
+                            }
+                            else
+                            {
+                                <span class="cg-badge cg-badge--warning"><span class="cg-badge__dot"></span>Awaiting decision</span>
+                            }
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="cg-empty" data-cg-noresults data-cg-noresults-scope="verifications" hidden>
+            <div class="cg-empty__art">@await Html.PartialAsync("_Icon", "filter")</div>
+            <div class="cg-empty__title">No attempts match these filters</div>
+            <p class="cg-empty__text">Clear one or more filters to widen the log.</p>
+        </div>
+
+        <div class="cg-pagination">
+            <span class="cg-text-sm">Showing up to 50 attempts per page</span>
+            <div class="cg-pagination__pages" data-cg-pager data-cg-pager-scope="verifications"></div>
+        </div>
+    }
+</section>

@@ -31,6 +31,8 @@ public class GuardianRepository : IGuardianRepository
     public Task<List<Guardian>> GetAllAsync(CancellationToken ct = default) =>
         _db.Guardians
             .Include(g => g.StudentGuardians)
+            // FaceData drives the "verification ready" column on the guardian list.
+            .Include(g => g.FaceData)
             .OrderBy(g => g.FullName)
             .ToListAsync(ct);
 

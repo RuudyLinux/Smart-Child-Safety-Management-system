@@ -91,6 +91,23 @@ class GuardianApiService {
   Future<void> registerDeviceToken(String fcmToken) async {
     await _client.post('/api/me/device-token', {'fcmToken': fcmToken});
   }
+
+  // ---- Profile photo ----
+  // Images are fetched with Image.network(url, headers: authHeaders) rather
+  // than a plain URL, so the bearer token travels with the request and the
+  // API's authorization is never bypassed from the app side.
+
+  String get myPhotoUrl => _client.imageUrl('/api/me/photo');
+  String studentPhotoUrl(int studentId) => _client.imageUrl('/api/me/students/$studentId/photo');
+  Future<Map<String, String>> photoHeaders() => _client.authHeaders();
+
+  Future<void> uploadMyPhoto(List<int> bytes, String filename, String contentType) async {
+    await _client.postFile('/api/me/photo', bytes, filename, contentType);
+  }
+
+  Future<void> deleteMyPhoto() async {
+    await _client.delete('/api/me/photo');
+  }
 }
 
 String encodeImageBytes(List<int> bytes) => base64Encode(bytes);

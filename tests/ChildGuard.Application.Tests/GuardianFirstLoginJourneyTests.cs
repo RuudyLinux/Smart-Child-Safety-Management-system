@@ -37,7 +37,7 @@ public class GuardianFirstLoginJourneyTests
         public Harness()
         {
             var hasher = new FakePasswordHasher();
-            GuardianService = new GuardianService(Guardians, hasher, Email);
+            GuardianService = new GuardianService(Guardians, hasher, Email, new FakePhotoRepository(), new FakeSafetyReadService(), new FakeVerificationRepository());
             Auth = new AuthService(Admins, Guardians, hasher, new FakeJwtTokenGenerator(),
                 new FakePasswordResetNotifier(), OtpSender, Options, Clock);
         }

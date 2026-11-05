@@ -1,0 +1,98 @@
+@model ChildGuard.AdminWeb.Models.ViewModels.PhotoManagerModel
+@{
+    // The whole photo lifecycle in one panel: view, upload, replace, remove.
+    // The upload posts as a normal multipart form, so it still works with
+    // JavaScript disabled; app.js adds the drag-and-drop, preview and local
+    // size/type check on top. The bytes are validated again by the API.
+    var photoUrl = Model.HasPhoto
+        ? Url.Action("Photo", Model.Controller, new { id = Model.OwnerId, v = Model.UpdatedAt?.Ticks })
+        : null;
+    var removeConfirm = $"Remove the photo for {Model.OwnerName}? The record itself is not deleted, and a new photo can be uploaded at any time.";
+}
+
+<section class="cg-card">
+    <div class="cg-card__head">
+        <div>
+            <h2 class="cg-card__title">@Model.Title</h2>
+            <div class="cg-card__sub">@Model.Description</div>
+        </div>
+        @if (Model.HasPhoto)
+        {
+            <span class="cg-badge cg-badge--success"><span class="cg-badge__dot"></span>Photo on file</span>
+        }
+        else
+        {
+            <span class="cg-badge cg-badge--neutral"><span class="cg-badge__dot"></span>No photo</span>
+        }
+    </div>
+
+    <div class="cg-card__body">
+        <div class="cg-row cg-row--wrap" style="align-items:flex-start;gap:20px">
+            <div style="text-align:center">
+                @await Html.PartialAsync("_Avatar", new AvatarModel(photoUrl, Model.OwnerName, "2xl", Model.IsGuardian, true))
+                @if (Model.HasPhoto && Model.UpdatedAt is { } updated)
+                {
+                    <div class="cg-text-sm cg-muted" style="margin-top:8px">
+                        Updated <span data-cg-ago="@updated.ToString("O")">@updated.ToLocalTime().ToString("d MMM yyyy")</span>
+                    </div>
+                }
+            </div>
+
+            <div style="flex:1;min-width:260px">
+                <form method="post" enctype="multipart/form-data"
+                      asp-controller="@Model.Controller" asp-action="UploadPhoto" asp-route-id="@Model.OwnerId"
+                      class="cg-form" data-cg-busy>
+                    @Html.AntiForgeryToken()
+
+                    <div class="cg-dropzone" data-cg-dropzone data-cg-max-bytes="4194304">
+                        <input type="file" name="file" accept="image/jpeg,image/png,image/webp"
+                               aria-label="Choose a photo to upload" />
+                        @await Html.PartialAsync("_Icon", "upload")
+                        <div class="cg-dropzone__title">
+                            @(Model.HasPhoto ? "Drag a replacement photo here" : "Drag a photo here, or browse")
+                        </div>
+                        <div class="cg-dropzone__hint">JPEG, PNG or WebP · up to 4 MB</div>
+                    </div>
+
+                    <div data-cg-preview hidden>
+                        <div class="cg-upload-preview">
+                            @* The preview is drawn from the chosen file in the browser; nothing is uploaded until Save. *@
+                            <span class="cg-avatar cg-avatar--lg cg-avatar--square"><img src="" alt="" /></span>
+                            <div class="cg-upload-preview__meta">
+                                <div class="cg-upload-preview__name" data-cg-preview-name></div>
+                                <div class="cg-upload-preview__size" data-cg-preview-size></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="cg-error-text" data-cg-upload-error role="alert" hidden></div>
+
+                    <div class="cg-btn-group">
+                        <button type="submit" class="cg-btn cg-btn--primary" data-cg-upload-submit disabled>
+                            @await Html.PartialAsync("_Icon", "check")
+                            <span class="cg-btn__label">@(Model.HasPhoto ? "Save replacement" : "Save photo")</span>
+                        </button>
+                        <button type="button" class="cg-btn cg-btn--ghost" data-cg-upload-cancel>Cancel</button>
+                    </div>
+
+                    <p class="cg-hint">
+                        Photos are stored with the record and served only to signed-in staff.
+                        The file name is not kept, and no storage location is ever shown.
+                    </p>
+                </form>
+
+                @if (Model.HasPhoto)
+                {
+                    <div class="cg-divider"></div>
+                    <form method="post" asp-controller="@Model.Controller" asp-action="DeletePhoto"
+                          asp-route-id="@Model.OwnerId" data-cg-confirm="@removeConfirm">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="cg-btn cg-btn--danger-soft cg-btn--sm">
+                            @await Html.PartialAsync("_Icon", "trash") Remove photo
+                        </button>
+                    </form>
+                }
+            </div>
+        </div>
+    </div>
+</section>

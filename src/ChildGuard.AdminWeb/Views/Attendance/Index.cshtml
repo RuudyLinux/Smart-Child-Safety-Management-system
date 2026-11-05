@@ -1,31 +1,245 @@
 @model List<AttendanceRecordDto>
-@{ ViewData["Title"] = "Attendance"; }
+@using System.Globalization
+@{
+    ViewData["Title"] = "Attendance";
+    var from = (DateOnly)ViewData["From"]!;
+    var to = (DateOnly)ViewData["To"]!;
+    var studentId = ViewData["StudentId"] as int?;
+    var grades = ViewBag.Grades as List<string> ?? new List<string>();
+    var summary = ViewBag.Summary as DashboardSummaryDto;
+    var daily = ViewBag.DailyArrivals as List<(DateOnly Date, int Present, int Late)> ?? new();
 
-<div class="cg-card">
-    <form method="get" class="cg-toolbar">
-        <input class="cg-input" name="studentId" type="number" placeholder="Student ID" value="@ViewData["StudentId"]" style="max-width:140px;" />
-        <input class="cg-input" name="from" type="date" value="@ViewData["From"]" />
-        <input class="cg-input" name="to" type="date" value="@ViewData["To"]" />
-        <button class="cg-btn cg-btn--secondary" type="submit">Filter</button>
-    </form>
-    <div class="cg-table-wrap">
-        <table class="cg-table">
-            <thead><tr><th>Student</th><th>Event</th><th>Date</th><th>Time</th></tr></thead>
-            <tbody>
-            @if (!Model.Any())
-            {
-                <tr><td colspan="4" class="cg-muted">No attendance records.</td></tr>
-            }
-            @foreach (var a in Model)
-            {
-                <tr>
-                    <td>@a.StudentName</td>
-                    <td><span class="cg-badge cg-badge--neutral">@a.EventType</span></td>
-                    <td>@a.Date.ToString("d MMM yyyy")</td>
-                    <td>@a.Time.ToString("h:mm tt")</td>
-                </tr>
-            }
-            </tbody>
-        </table>
+    var arrivals = Model.Where(r => r.EventType == AttendanceEventType.SchoolArrival).ToList();
+    var lateCount = arrivals.Count(r => r.IsLate);
+    var studentsSeen = Model.Select(r => r.StudentId).Distinct().Count();
+}
+
+<div class="cg-page-head">
+    <div class="cg-page-head__text">
+        <h1 class="cg-page-head__title">Attendance</h1>
+        <p class="cg-page-head__sub">
+            @from.ToString("d MMM yyyy") – @to.ToString("d MMM yyyy") ·
+            @Model.Count record@(Model.Count == 1 ? "" : "s") across @studentsSeen student@(studentsSeen == 1 ? "" : "s")
+        </p>
+    </div>
+    <div class="cg-page-head__actions">
+        <a class="cg-btn cg-btn--secondary"
+           href="/Reports/ExportAttendance?from=@from.ToString("yyyy-MM-dd")&to=@to.ToString("yyyy-MM-dd")@(studentId.HasValue ? "&studentId=" + studentId : "")">
+            @await Html.PartialAsync("_Icon", "download") Export CSV
+        </a>
     </div>
 </div>
+
+@if (ViewBag.LoadError is string loadError)
+{
+    <div class="cg-alert cg-alert--danger" role="alert">
+        <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "alert-circle")</span>
+        <div class="cg-alert__body">@loadError</div>
+    </div>
+}
+
+@if (summary is not null)
+{
+    <div class="cg-grid cg-grid--4">
+        <article class="cg-kpi">
+            <div class="cg-kpi__top">
+                <div class="cg-kpi__label">Today's attendance</div>
+                <span class="cg-kpi__icon cg-kpi__icon--success">@await Html.PartialAsync("_Icon", "attendance")</span>
+            </div>
+            <div class="cg-kpi__value cg-kpi__value--sm">
+                @summary.Attendance.PresentRate.ToString("0.#", CultureInfo.InvariantCulture)<span class="cg-kpi__unit">%</span>
+            </div>
+            <div class="cg-kpi__note">@summary.Attendance.Present of @summary.Attendance.RosterSize on roll</div>
+        </article>
+        <article class="cg-kpi">
+            <div class="cg-kpi__top">
+                <div class="cg-kpi__label">Absent today</div>
+                <span class="cg-kpi__icon cg-kpi__icon--neutral">@await Html.PartialAsync("_Icon", "user-x")</span>
+            </div>
+            <div class="cg-kpi__value cg-kpi__value--sm">@summary.Attendance.Absent</div>
+            <div class="cg-kpi__note">No arrival recorded</div>
+        </article>
+        <article class="cg-kpi">
+            <div class="cg-kpi__top">
+                <div class="cg-kpi__label">Late today</div>
+                <span class="cg-kpi__icon cg-kpi__icon--warning">@await Html.PartialAsync("_Icon", "clock")</span>
+            </div>
+            <div class="cg-kpi__value cg-kpi__value--sm">@summary.Attendance.Late</div>
+            <div class="cg-kpi__note">Arrived after @summary.Attendance.LateAfter</div>
+        </article>
+        <article class="cg-kpi">
+            <div class="cg-kpi__top">
+                <div class="cg-kpi__label">Late in range</div>
+                <span class="cg-kpi__icon cg-kpi__icon--info">@await Html.PartialAsync("_Icon", "trending-up")</span>
+            </div>
+            <div class="cg-kpi__value cg-kpi__value--sm">@lateCount</div>
+            <div class="cg-kpi__note">Of @arrivals.Count arrivals shown</div>
+        </article>
+    </div>
+}
+
+@if (daily.Count > 1)
+{
+    <section class="cg-card">
+        <div class="cg-card__head">
+            <div>
+                <h2 class="cg-card__title">Arrivals per day</h2>
+                <div class="cg-card__sub">Distinct students who checked in, over the selected range</div>
+            </div>
+        </div>
+        <div class="cg-card__body">
+            @{
+                var peak = Math.Max(1, daily.Max(d => d.Present));
+            }
+            <div class="cg-bars">
+                @foreach (var day in daily)
+                {
+                    var width = day.Present * 100.0 / peak;
+                    <div>
+                        <div class="cg-bar__head">
+                            <span class="cg-bar__name">@day.Date.ToString("ddd d MMM")</span>
+                            <span class="cg-bar__value">
+                                @day.Present checked in@(day.Late > 0 ? $" · {day.Late} late" : "")
+                            </span>
+                        </div>
+                        <div class="cg-bar__track">
+                            <div class="cg-bar__fill @(day.Late > 0 ? "cg-bar__fill--warning" : "cg-bar__fill--success")"
+                                 style="width:@width.ToString("0.##", CultureInfo.InvariantCulture)%"></div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </section>
+}
+
+<section class="cg-card">
+    <div class="cg-toolbar">
+        <form method="get" class="cg-row cg-row--wrap" style="gap:10px">
+            <div class="cg-field" style="gap:4px">
+                <label class="cg-label cg-text-sm" for="from">From</label>
+                <input class="cg-input" id="from" type="date" name="from" value="@from.ToString("yyyy-MM-dd")" />
+            </div>
+            <div class="cg-field" style="gap:4px">
+                <label class="cg-label cg-text-sm" for="to">To</label>
+                <input class="cg-input" id="to" type="date" name="to" value="@to.ToString("yyyy-MM-dd")" />
+            </div>
+            <div class="cg-field" style="gap:4px">
+                <label class="cg-label cg-text-sm" for="studentId">Student ID</label>
+                <input class="cg-input" id="studentId" type="number" name="studentId" min="1"
+                       value="@studentId" placeholder="All" style="max-width:110px" />
+            </div>
+            <div class="cg-field" style="gap:4px;justify-content:flex-end">
+                <span class="cg-label cg-text-sm" aria-hidden="true">&nbsp;</span>
+                <button class="cg-btn cg-btn--secondary" type="submit">
+                    @await Html.PartialAsync("_Icon", "filter") Apply
+                </button>
+            </div>
+        </form>
+
+        <span class="cg-toolbar__spacer"></span>
+
+        <div class="cg-input-group" style="max-width:230px">
+            <span class="cg-input-group__icon">@await Html.PartialAsync("_Icon", "search")</span>
+            <input class="cg-input" placeholder="Filter by name" data-cg-search data-cg-search-scope="attendance"
+                   aria-label="Filter loaded rows by student name" />
+        </div>
+
+        <select class="cg-select" style="max-width:140px" data-cg-filter="grade" data-cg-filter-scope="attendance"
+                aria-label="Filter by grade">
+            <option value="__all">All grades</option>
+            @foreach (var grade in grades)
+            {
+                <option value="@grade">@grade</option>
+            }
+        </select>
+
+        <select class="cg-select" style="max-width:160px" data-cg-filter="kind" data-cg-filter-scope="attendance"
+                aria-label="Filter by event type">
+            <option value="__all">Arrivals and departures</option>
+            <option value="SchoolArrival">Arrivals only</option>
+            <option value="SchoolDeparture">Departures only</option>
+        </select>
+
+        <select class="cg-select" style="max-width:140px" data-cg-filter="late" data-cg-filter-scope="attendance"
+                aria-label="Filter by punctuality">
+            <option value="__all">On time and late</option>
+            <option value="late">Late only</option>
+        </select>
+
+        <button type="button" class="cg-btn cg-btn--ghost cg-btn--sm" data-cg-reset data-cg-reset-scope="attendance">Clear</button>
+        <span class="cg-text-sm cg-muted" data-cg-count data-cg-count-scope="attendance"></span>
+    </div>
+
+    @if (!Model.Any())
+    {
+        @await Html.PartialAsync("_EmptyState", ("attendance", "No attendance in this range",
+            "Nothing was recorded between these dates. Widen the range, or check that checkpoint scanners are online.",
+            "Check scanners", "/Settings"))
+    }
+    else
+    {
+        <div class="cg-table-wrap">
+            <table class="cg-table" data-cg-table="attendance" data-cg-page-size="50">
+                <thead>
+                    <tr>
+                        <th><span class="cg-th-sort" data-cg-sort="name">Student @await Html.PartialAsync("_Icon", "arrow-down")</span></th>
+                        <th>Grade</th>
+                        <th>Event</th>
+                        <th><span class="cg-th-sort" data-cg-sort="when">Date @await Html.PartialAsync("_Icon", "arrow-down")</span></th>
+                        <th>Time</th>
+                        <th>Punctuality</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var a in Model)
+                {
+                    <tr data-row
+                        data-search="@a.StudentName @a.Grade"
+                        data-grade="@(a.Grade ?? "")"
+                        data-kind="@a.EventType"
+                        data-late="@(a.IsLate ? "late" : "ontime")"
+                        data-sort-name="@a.StudentName"
+                        data-sort-when="@a.Date.ToString("yyyyMMdd")@a.Time.ToString("HHmm")">
+                        <td><a href="/Students/Details/@a.StudentId">@a.StudentName</a></td>
+                        <td>@(a.Grade ?? "—")</td>
+                        <td>
+                            <span class="cg-badge @(a.EventType == AttendanceEventType.SchoolArrival ? "cg-badge--success" : "cg-badge--neutral")">
+                                @await Html.PartialAsync("_Icon", a.EventType == AttendanceEventType.SchoolArrival ? "log-in" : "log-out")
+                                @(a.EventType == AttendanceEventType.SchoolArrival ? "Arrival" : "Departure")
+                            </span>
+                        </td>
+                        <td>@a.Date.ToString("ddd d MMM yyyy")</td>
+                        <td class="cg-num">@a.Time.ToString("HH:mm")</td>
+                        <td>
+                            @if (a.EventType != AttendanceEventType.SchoolArrival)
+                            {
+                                <span class="cg-muted">—</span>
+                            }
+                            else if (a.IsLate)
+                            {
+                                <span class="cg-badge cg-badge--warning"><span class="cg-badge__dot"></span>Late</span>
+                            }
+                            else
+                            {
+                                <span class="cg-badge cg-badge--success"><span class="cg-badge__dot"></span>On time</span>
+                            }
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="cg-empty" data-cg-noresults data-cg-noresults-scope="attendance" hidden>
+            <div class="cg-empty__art">@await Html.PartialAsync("_Icon", "filter")</div>
+            <div class="cg-empty__title">No records match these filters</div>
+            <p class="cg-empty__text">Clear one or more filters to widen the list.</p>
+        </div>
+
+        <div class="cg-pagination">
+            <span class="cg-text-sm">Showing up to 50 records per page</span>
+            <div class="cg-pagination__pages" data-cg-pager data-cg-pager-scope="attendance"></div>
+        </div>
+    }
+</section>

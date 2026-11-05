@@ -21,6 +21,8 @@ public class AccountController : Controller
         return View(new LoginViewModel());
     }
 
+    /// <summary>Signing out clears the cookie and returns to the sign-in page with a confirmation.</summary>
+
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Login(LoginViewModel model)
@@ -43,7 +45,12 @@ public class AccountController : Controller
             new("api_token", result.Value.Token)
         };
         var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
-        await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity));
+        await HttpContext.SignInAsync(
+            CookieAuthenticationDefaults.AuthenticationScheme,
+            new ClaimsPrincipal(identity),
+            // "Keep me signed in" is the only thing that makes the cookie survive a
+            // browser restart; without it the session ends when the browser closes.
+            new AuthenticationProperties { IsPersistent = model.RememberMe });
 
         return RedirectToAction("Index", "Dashboard");
     }
@@ -52,6 +59,7 @@ public class AccountController : Controller
     public async Task<IActionResult> Logout()
     {
         await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        TempData["Info"] = "You have been signed out.";
         return RedirectToAction("Login");
     }
 

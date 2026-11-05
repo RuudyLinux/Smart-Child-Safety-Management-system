@@ -1,17 +1,15 @@
 using ChildGuard.AdminWeb.Services;
 using ChildGuard.Application.DTOs;
-using ChildGuard.Domain.Enums;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ChildGuard.AdminWeb.Controllers;
 
 /// <summary>
-/// Backs the "Student Drop-off & Pickup Verification" demo/operational page.
-/// A generic USB RFID reader in keyboard-wedge mode types the card UID straight
-/// into the page's focused input (real hardware pattern, no simulation needed);
-/// the browser's own camera captures the guardian's face for verification.
-/// Every action here is a thin AJAX proxy to ChildGuard.Api — no business logic
-/// lives in AdminWeb.
+/// Backs the pickup and drop-off desk. A generic USB RFID reader in keyboard-wedge
+/// mode types the card UID straight into the page's focused input (real hardware
+/// pattern, no simulation), and the browser's own camera captures the guardian's
+/// face for verification. Every action here is a thin authenticated proxy to
+/// ChildGuard.Api — no business logic lives in AdminWeb.
 /// </summary>
 public class VerificationController : BaseAdminController
 {
@@ -19,12 +17,29 @@ public class VerificationController : BaseAdminController
 
     public async Task<IActionResult> Index(CancellationToken ct)
     {
-        ViewData["Title"] = "Student Drop-off & Pickup Verification";
+        SetPage("Pickup & Drop-off", "Safety Operations");
         var devices = await Api.GetAsync<List<RfidDeviceDto>>("/api/rfid/devices", ct);
         var recent = await Api.GetAsync<List<GuardianVerificationHistoryDto>>("/api/reports/verification", ct);
         ViewBag.Devices = devices.Value ?? new();
-        ViewBag.RecentVerifications = (recent.Value ?? new()).Take(10).ToList();
+        ViewBag.RecentVerifications = (recent.Value ?? new()).Take(8).ToList();
         return View();
+    }
+
+    /// <summary>
+    /// The audit trail behind the desk: every verification attempt, its match score
+    /// and the handover decision that followed.
+    /// </summary>
+    public async Task<IActionResult> History(int? studentId, CancellationToken ct)
+    {
+        SetPage("Verification Log", "Safety Operations");
+        var url = studentId.HasValue ? $"/api/reports/verification?studentId={studentId}" : "/api/reports/verification";
+        var history = await Api.GetAsync<List<GuardianVerificationHistoryDto>>(url, ct);
+        if (!history.Succeeded) ViewBag.LoadError = history.Error;
+
+        var students = await Api.GetAsync<List<StudentListItemDto>>("/api/students", ct);
+        ViewBag.Students = students.Value ?? new();
+        ViewData["StudentId"] = studentId;
+        return View(history.Value ?? new());
     }
 
     [HttpPost]
@@ -39,7 +54,19 @@ public class VerificationController : BaseAdminController
     {
         var result = await Api.GetAsync<StudentDetailDto>($"/api/students/{studentId}", ct);
         if (!result.Succeeded) return StatusCode(result.StatusCode, new { message = result.Error });
-        return Json(result.Value!.Guardians.Where(g => g.IsAuthorizedForPickup));
+
+        // Only guardians authorised for pickup are offered at the desk, and the
+        // photo is served through AdminWeb so no API token reaches the page.
+        return Json(result.Value!.Guardians
+            .Where(g => g.IsAuthorizedForPickup)
+            .Select(g => new
+            {
+                g.GuardianId,
+                g.FullName,
+                g.Relationship,
+                g.FaceRegistered,
+                PhotoUrl = g.HasPhoto ? Url.Action(nameof(GuardiansController.Photo), "Guardians", new { id = g.GuardianId }) : null
+            }));
     }
 
     [HttpPost]

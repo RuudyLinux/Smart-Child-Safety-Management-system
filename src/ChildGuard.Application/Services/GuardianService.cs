@@ -8,15 +8,30 @@ namespace ChildGuard.Application.Services;
 
 public class GuardianService : IGuardianService
 {
+    /// <summary>Recent verification attempts shown on a guardian profile.</summary>
+    private const int ProfileHistoryRows = 10;
+
     private readonly IGuardianRepository _guardians;
     private readonly IPasswordHasherService _hasher;
     private readonly IEmailSender _email;
+    private readonly IPhotoRepository _photos;
+    private readonly ISafetyReadService _safety;
+    private readonly IVerificationRepository _verifications;
 
-    public GuardianService(IGuardianRepository guardians, IPasswordHasherService hasher, IEmailSender email)
+    public GuardianService(
+        IGuardianRepository guardians,
+        IPasswordHasherService hasher,
+        IEmailSender email,
+        IPhotoRepository photos,
+        ISafetyReadService safety,
+        IVerificationRepository verifications)
     {
         _guardians = guardians;
         _hasher = hasher;
         _email = email;
+        _photos = photos;
+        _safety = safety;
+        _verifications = verifications;
     }
 
     public async Task<Result<CreateGuardianResultDto>> CreateAsync(CreateGuardianRequest request, CancellationToken ct = default)
@@ -59,8 +74,19 @@ public class GuardianService : IGuardianService
     public async Task<List<GuardianListItemDto>> GetAllAsync(CancellationToken ct = default)
     {
         var list = await _guardians.GetAllAsync(ct);
+        if (list.Count == 0) return new List<GuardianListItemDto>();
+
+        var ids = list.Select(g => g.GuardianId).ToList();
+        var photos = await _photos.GetGuardianPhotoTimestampsAsync(ids, ct);
+        var lastActivity = await _verifications.GetLastActivityByGuardianAsync(ct);
+
         return list.Select(g => new GuardianListItemDto(
-            g.GuardianId, g.FullName, g.Email, g.Phone, g.Status, g.StudentGuardians.Count)).ToList();
+            g.GuardianId, g.FullName, g.Email, g.Phone, g.Status, g.StudentGuardians.Count,
+            photos.ContainsKey(g.GuardianId),
+            photos.TryGetValue(g.GuardianId, out var at) ? at : null,
+            g.FaceData is not null && g.FaceData.IsActive,
+            g.PasswordResetRequired,
+            lastActivity.TryGetValue(g.GuardianId, out var lastAt) ? lastAt : null)).ToList();
     }
 
     public async Task<Result<GuardianDetailDto>> GetByIdAsync(int id, CancellationToken ct = default)
@@ -68,13 +94,37 @@ public class GuardianService : IGuardianService
         var g = await _guardians.GetWithStudentsAsync(id, ct);
         if (g is null) return Result<GuardianDetailDto>.Failure("Guardian not found.");
 
+        var photos = await _photos.GetGuardianPhotoTimestampsAsync(new[] { id }, ct);
+        var studentIds = g.StudentGuardians.Select(sg => sg.StudentId).ToList();
+        var snapshots = await _safety.GetSnapshotsAsync(studentIds, ct);
+
+        var history = (await _verifications.GetHistoryForGuardianAsync(id, ProfileHistoryRows, ct))
+            .Select(v => new GuardianVerificationHistoryDto(
+                v.Id, v.StudentId, v.Student.FullName, v.GuardianId, v.Guardian.FullName,
+                v.AttemptedAt, v.MatchScore, v.Result, v.PickupApproved))
+            .ToList();
+
+        var children = g.StudentGuardians.Select(sg =>
+        {
+            var snap = snapshots.TryGetValue(sg.StudentId, out var found)
+                ? found
+                : StudentSafetySnapshot.Unknown(sg.StudentId);
+            return new StudentSummaryDto(
+                sg.StudentId, sg.Student.FullName, sg.Student.Grade, sg.Relationship, sg.IsAuthorizedForPickup,
+                snap.HasPhoto, snap.Status, snap.LastEventAt, snap.LastEventType,
+                snap.CheckInTime, snap.PresentToday, snap.BusNumber, snap.RouteName);
+        }).ToList();
+
         return Result<GuardianDetailDto>.Success(new GuardianDetailDto(
             g.GuardianId, g.FullName, g.Email, g.Phone, g.Status,
             g.FaceData is not null && g.FaceData.IsActive,
             g.PasswordResetRequired,
-            g.StudentGuardians.Select(sg => new StudentSummaryDto(
-                sg.StudentId, sg.Student.FullName, sg.Student.Grade, sg.Relationship, sg.IsAuthorizedForPickup)).ToList(),
-            g.CreatedAt));
+            children,
+            g.CreatedAt,
+            photos.ContainsKey(id),
+            photos.TryGetValue(id, out var photoAt) ? photoAt : null,
+            history.FirstOrDefault()?.AttemptedAt,
+            history));
     }
 
     public async Task<Result> AdminUpdateAsync(int id, AdminUpdateGuardianRequest request, CancellationToken ct = default)

@@ -18,7 +18,7 @@ public class GuardianCreationTests
         public FakeEmailSender Email { get; } = new();
         public GuardianService Service { get; }
 
-        public Harness() => Service = new GuardianService(Guardians, new FakePasswordHasher(), Email);
+        public Harness() => Service = new GuardianService(Guardians, new FakePasswordHasher(), Email, new FakePhotoRepository(), new FakeSafetyReadService(), new FakeVerificationRepository());
 
         public Task<Result<CreateGuardianResultDto>> CreateAsync(
             string fullName = "Priya Patel",

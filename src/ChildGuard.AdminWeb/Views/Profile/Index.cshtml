@@ -1,28 +1,125 @@
-@{ ViewData["Title"] = "Profile"; }
+@using System.Security.Claims
+@{
+    ViewData["Title"] = "Profile";
+    var name = User.Identity?.Name ?? "Administrator";
+    var email = User.FindFirst(ClaimTypes.Email)?.Value ?? "—";
+    var role = User.FindFirst(ClaimTypes.Role)?.Value ?? "Admin";
+}
 
-@if (TempData["Success"] != null) { <div class="cg-alert cg-alert--success">@TempData["Success"]</div> }
-@if (TempData["Error"] != null) { <div class="cg-alert cg-alert--error">@TempData["Error"]</div> }
-
-<div class="cg-card" style="max-width:480px;">
-    <h3 class="cg-card__title">Account</h3>
-    <p><strong>Name:</strong> @User.Identity!.Name</p>
-    <p><strong>Email:</strong> @User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value</p>
-    <p><strong>Role:</strong> <span class="cg-badge cg-badge--neutral">@User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value</span></p>
+<div class="cg-page-head">
+    <div class="cg-page-head__text">
+        <h1 class="cg-page-head__title">My profile</h1>
+        <p class="cg-page-head__sub">Your administrator account and sign-in security.</p>
+    </div>
 </div>
 
-<div class="cg-card" style="max-width:480px;">
-    <h3 class="cg-card__title">Change Password</h3>
-    <form asp-action="ChangePassword" method="post">
-        @Html.AntiForgeryToken()
-        <div class="cg-form-group">
-            <label class="cg-label">Current Password</label>
-            <input class="cg-input" type="password" name="currentPassword" autocomplete="current-password" required />
+<section class="cg-profile">
+    @await Html.PartialAsync("_Avatar", new AvatarModel(null, name, "2xl", false, true))
+    <div class="cg-profile__main">
+        <h2 class="cg-profile__name">@name</h2>
+        <div class="cg-profile__meta">
+            <span class="cg-badge cg-badge--primary">@await Html.PartialAsync("_Icon", "shield") @role</span>
+            <span class="cg-badge cg-badge--success"><span class="cg-badge__dot"></span>Signed in</span>
         </div>
-        <div class="cg-form-group">
-            <label class="cg-label">New Password</label>
-            <input class="cg-input" type="password" name="newPassword" autocomplete="new-password" required minlength="8" />
-            <p class="cg-help">At least 8 characters, one uppercase letter, one digit.</p>
+        <div class="cg-profile__facts">
+            <div class="cg-keyvalue">
+                <span class="cg-keyvalue__key">Email</span>
+                <span class="cg-keyvalue__value" style="font-size:14px">@email</span>
+            </div>
+            <div class="cg-keyvalue">
+                <span class="cg-keyvalue__key">Role</span>
+                <span class="cg-keyvalue__value" style="font-size:14px">@role</span>
+            </div>
         </div>
-        <button class="cg-btn cg-btn--primary" type="submit">Update Password</button>
-    </form>
+    </div>
+    <div class="cg-profile__actions">
+        <a class="cg-btn cg-btn--secondary" href="/Account/Logout">
+            @await Html.PartialAsync("_Icon", "logout") Sign out
+        </a>
+    </div>
+</section>
+
+<div class="cg-grid cg-grid--split">
+    <section class="cg-card">
+        <div class="cg-card__head">
+            <div>
+                <h2 class="cg-card__title">Change password</h2>
+                <div class="cg-card__sub">You stay signed in on this device after changing it</div>
+            </div>
+        </div>
+        <div class="cg-card__body">
+            <form asp-action="ChangePassword" method="post" class="cg-form" data-cg-busy>
+                @Html.AntiForgeryToken()
+
+                <div class="cg-field">
+                    <label class="cg-label" for="currentPassword">Current password</label>
+                    <div class="cg-input-group cg-input-group--action">
+                        <span class="cg-input-group__icon">@await Html.PartialAsync("_Icon", "lock")</span>
+                        <input class="cg-input" type="password" id="currentPassword" name="currentPassword"
+                               autocomplete="current-password" required />
+                        <button type="button" class="cg-input-group__action" data-cg-reveal="currentPassword"
+                                aria-label="Show password" aria-pressed="false">
+                            @await Html.PartialAsync("_Icon", "eye")
+                        </button>
+                    </div>
+                </div>
+
+                <div class="cg-field">
+                    <label class="cg-label" for="newPassword">New password</label>
+                    <div class="cg-input-group cg-input-group--action">
+                        <span class="cg-input-group__icon">@await Html.PartialAsync("_Icon", "key")</span>
+                        <input class="cg-input" type="password" id="newPassword" name="newPassword"
+                               autocomplete="new-password" minlength="8" required />
+                        <button type="button" class="cg-input-group__action" data-cg-reveal="newPassword"
+                                aria-label="Show password" aria-pressed="false">
+                            @await Html.PartialAsync("_Icon", "eye")
+                        </button>
+                    </div>
+                    <p class="cg-hint">At least 8 characters, including one uppercase letter and one digit.</p>
+                </div>
+
+                <button class="cg-btn cg-btn--primary" type="submit">
+                    <span class="cg-btn__label">Update password</span>
+                </button>
+            </form>
+        </div>
+    </section>
+
+    <div>
+        <section class="cg-card">
+            <div class="cg-card__head">
+                <h2 class="cg-card__title">What this account can do</h2>
+            </div>
+            <div class="cg-card__body">
+                <ul class="cg-timeline" style="list-style:none">
+                    <li class="cg-timeline__item">
+                        <span class="cg-timeline__marker">@await Html.PartialAsync("_Icon", "students")</span>
+                        <div class="cg-timeline__title">Manage students and guardians</div>
+                        <div class="cg-timeline__body">Records, photos, links and pickup authorisation.</div>
+                    </li>
+                    <li class="cg-timeline__item">
+                        <span class="cg-timeline__marker">@await Html.PartialAsync("_Icon", "pickup")</span>
+                        <div class="cg-timeline__title">Approve handovers</div>
+                        <div class="cg-timeline__body">Every approval is recorded against your account.</div>
+                    </li>
+                    <li class="cg-timeline__item">
+                        <span class="cg-timeline__marker">@await Html.PartialAsync("_Icon", "reports")</span>
+                        <div class="cg-timeline__title">Read reports</div>
+                        <div class="cg-timeline__body">Attendance, journey and verification history.</div>
+                    </li>
+                </ul>
+            </div>
+        </section>
+
+        <div class="cg-alert cg-alert--info">
+            <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "shield")</span>
+            <div class="cg-alert__body">
+                <div class="cg-alert__title">Keep this account to yourself</div>
+                <div>
+                    Handover approvals are attributed to whoever is signed in. If someone else needs
+                    access, give them their own administrator account rather than sharing this one.
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
