@@ -8,7 +8,7 @@
         : null;
     var byDay = Model
         .OrderByDescending(e => e.Timestamp)
-        .GroupBy(e => e.Timestamp.ToLocalTime().Date)
+        .GroupBy(e => e.Timestamp.ToSchoolTime().Date)
         .ToList();
 }
 
@@ -68,7 +68,7 @@
         {
             foreach (var day in byDay)
             {
-                var isToday = day.Key == DateTime.Today;
+                var isToday = day.Key == SchoolTime.Today;
                 <div class="cg-section-head" style="margin-top:18px">
                     <span class="cg-section-head__title">
                         @(isToday ? "Today" : day.Key.ToString("dddd, d MMMM yyyy"))
@@ -91,7 +91,7 @@
                             </span>
                             <div class="cg-timeline__head">
                                 <span class="cg-timeline__title">@SafetyUi.EventLabel(e.EventType)</span>
-                                <span class="cg-timeline__time">@e.Timestamp.ToLocalTime().ToString("HH:mm")</span>
+                                <span class="cg-timeline__time">@e.Timestamp.ToSchoolTime().ToString("HH:mm")</span>
                             </div>
                             <div class="cg-timeline__body">
                                 @(e.Source == EventSource.Rfid

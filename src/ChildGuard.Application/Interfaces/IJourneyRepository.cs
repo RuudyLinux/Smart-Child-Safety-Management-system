@@ -21,6 +21,9 @@ public interface IJourneyRepository
     /// </summary>
     Task<T> RunSerializedForStudentAsync<T>(int studentId, Func<CancellationToken, Task<T>> work, CancellationToken ct = default);
 
+    /// <summary>The event a scanner already recorded under this idempotency key, if any.</summary>
+    Task<JourneyEvent?> GetByScanIdAsync(int rfidDeviceId, string scanId, CancellationToken ct = default);
+
     Task AddJourneyEventAsync(JourneyEvent journeyEvent, CancellationToken ct = default);
     Task AddAttendanceAsync(Attendance attendance, CancellationToken ct = default);
     Task<List<JourneyEvent>> GetHistoryAsync(int studentId, CancellationToken ct = default);

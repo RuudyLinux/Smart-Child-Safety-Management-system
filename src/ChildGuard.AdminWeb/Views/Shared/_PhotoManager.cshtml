@@ -33,7 +33,7 @@
                 @if (Model.HasPhoto && Model.UpdatedAt is { } updated)
                 {
                     <div class="cg-text-sm cg-muted" style="margin-top:8px">
-                        Updated <span data-cg-ago="@updated.ToString("O")">@updated.ToLocalTime().ToString("d MMM yyyy")</span>
+                        Updated <span data-cg-ago="@updated.ToString("O")">@updated.ToSchoolTime().ToString("d MMM yyyy")</span>
                     </div>
                 }
             </div>

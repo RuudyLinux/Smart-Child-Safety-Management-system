@@ -17,7 +17,7 @@ public class ReportsController : BaseAdminController
     {
         SetPage("Reports", "Insights");
 
-        var today = DateOnly.FromDateTime(DateTime.Today);
+        var today = SchoolTime.TodayDate;
         var rangeTo = to ?? today;
         var rangeFrom = from ?? rangeTo.AddDays(-29);
         journeyPage = Math.Max(journeyPage, 1);
@@ -59,7 +59,7 @@ public class ReportsController : BaseAdminController
     /// </summary>
     public async Task<IActionResult> ExportAttendance(DateOnly? from, DateOnly? to, int? studentId, CancellationToken ct)
     {
-        var today = DateOnly.FromDateTime(DateTime.Today);
+        var today = SchoolTime.TodayDate;
         var rangeTo = to ?? today;
         var rangeFrom = from ?? rangeTo.AddDays(-29);
 

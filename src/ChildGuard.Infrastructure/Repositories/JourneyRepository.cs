@@ -44,6 +44,9 @@ public class JourneyRepository : IJourneyRepository
         _db.Database.ExecuteSqlInterpolatedAsync(
             $"SELECT StudentId FROM Students WHERE StudentId = {studentId} FOR UPDATE", ct);
 
+    public Task<JourneyEvent?> GetByScanIdAsync(int rfidDeviceId, string scanId, CancellationToken ct = default) =>
+        _db.JourneyEvents.FirstOrDefaultAsync(e => e.RfidDeviceId == rfidDeviceId && e.ScanId == scanId, ct);
+
     public async Task AddJourneyEventAsync(JourneyEvent journeyEvent, CancellationToken ct = default) =>
         await _db.JourneyEvents.AddAsync(journeyEvent, ct);
 

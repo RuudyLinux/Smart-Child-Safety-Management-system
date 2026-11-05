@@ -19,19 +19,21 @@ public class DashboardService : IDashboardService
     private readonly ChildGuardDbContext _db;
     private readonly ISafetyReadService _safety;
     private readonly SchoolOptions _school;
+    private readonly SchoolClock _clock;
 
-    public DashboardService(ChildGuardDbContext db, ISafetyReadService safety, SchoolOptions school)
+    public DashboardService(ChildGuardDbContext db, ISafetyReadService safety, SchoolOptions school, SchoolClock clock)
     {
         _db = db;
         _safety = safety;
         _school = school;
+        _clock = clock;
     }
 
     public async Task<DashboardSummaryDto> GetSummaryAsync(CancellationToken ct = default)
     {
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        var todayStart = DateTime.UtcNow.Date;
-        var todayEnd = todayStart.AddDays(1);
+        // "Today" is the school's calendar day, bounded by local midnights in UTC.
+        var today = _clock.Today;
+        var (todayStart, todayEnd) = _clock.RangeUtc(today, today);
 
         var roster = await _db.Students.AsNoTracking()
             .Where(s => s.Status == RecordStatus.Active)
@@ -182,7 +184,7 @@ public class DashboardService : IDashboardService
         CancellationToken ct)
     {
         var alerts = new List<SafetyAlertDto>();
-        var todayStart = DateTime.UtcNow.Date;
+        var todayStart = _clock.TodayStartUtc;
 
         // 1. Failed face verifications today — the most serious routine condition.
         var failedVerifications = await _db.GuardianVerifications.AsNoTracking()
@@ -205,7 +207,8 @@ public class DashboardService : IDashboardService
 
         // 2. Missing check-ins, but only once the school day is far enough along
         //    that an absence is meaningful rather than simply not-yet.
-        var nowLocalTime = TimeOnly.FromDateTime(DateTime.Now);
+        // School wall-clock time, not the server's (which may run in UTC).
+        var nowLocalTime = TimeOnly.FromDateTime(_clock.LocalNow);
         if (nowLocalTime > _school.MissingCheckInAfterTime)
         {
             var missing = snapshots.Values

@@ -94,6 +94,9 @@ internal sealed class FakeJourneyRepository : IJourneyRepository
         return Task.FromResult((matching.Skip(skip).Take(take).ToList(), matching.Count));
     }
 
+    public Task<JourneyEvent?> GetByScanIdAsync(int rfidDeviceId, string scanId, CancellationToken ct = default) =>
+        Task.FromResult(Events.FirstOrDefault(e => e.RfidDeviceId == rfidDeviceId && e.ScanId == scanId));
+
     public Task AddJourneyEventAsync(JourneyEvent journeyEvent, CancellationToken ct = default)
     {
         Events.Add(journeyEvent);

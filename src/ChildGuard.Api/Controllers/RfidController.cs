@@ -72,6 +72,7 @@ public class RfidController : ControllerBase
     [Authorize(Policy = "AdminOrDevice")]
     public async Task<IActionResult> Heartbeat(int id, CancellationToken ct)
     {
+        if (!CallerMayActAsDevice(id)) return Forbid();
         var result = await _rfidService.HeartbeatAsync(id, ct);
         return result.Succeeded ? Ok(new { message = "Connected." }) : NotFound(new { message = result.Error });
     }
@@ -87,6 +88,39 @@ public class RfidController : ControllerBase
     public async Task<IActionResult> Scan(RfidScanRequest request, CancellationToken ct)
     {
         await _scanValidator.ValidateAndThrowAsync(request, ct);
+        if (!CallerMayActAsDevice(request.RfidDeviceId)) return Forbid();
         return Ok(await _rfidService.ProcessScanAsync(request, ct));
+    }
+
+    /// <summary>
+    /// Issues (or rotates) the scanner's own API key. The key is in this response only —
+    /// store it on the device; it cannot be retrieved again. Rotating invalidates the old key.
+    /// </summary>
+    [HttpPost("devices/{id:int}/credentials")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> IssueCredential(int id, CancellationToken ct)
+    {
+        var result = await _rfidService.IssueDeviceKeyAsync(id, ct);
+        if (!result.Succeeded) return NotFound(new { message = result.Error });
+        Response.Headers.CacheControl = "no-store";
+        return Ok(result.Value);
+    }
+
+    [HttpDelete("devices/{id:int}/credentials")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> RevokeCredential(int id, CancellationToken ct)
+    {
+        var result = await _rfidService.RevokeDeviceKeyAsync(id, ct);
+        return result.Succeeded ? Ok(new { message = "Scanner key revoked." }) : NotFound(new { message = result.Error });
+    }
+
+    /// <summary>
+    /// A scanner holding its own key may only act as itself. Admins (browser demo) and
+    /// the deprecated shared key carry no device_id claim and are not restricted.
+    /// </summary>
+    private bool CallerMayActAsDevice(int deviceId)
+    {
+        var claim = User.FindFirst(ApiKeyAuthenticationHandler.DeviceIdClaim)?.Value;
+        return claim is null || claim == deviceId.ToString();
     }
 }

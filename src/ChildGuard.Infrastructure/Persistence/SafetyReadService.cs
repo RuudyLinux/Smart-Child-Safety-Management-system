@@ -16,11 +16,13 @@ public class SafetyReadService : ISafetyReadService
 {
     private readonly ChildGuardDbContext _db;
     private readonly SchoolOptions _school;
+    private readonly SchoolClock _clock;
 
-    public SafetyReadService(ChildGuardDbContext db, SchoolOptions school)
+    public SafetyReadService(ChildGuardDbContext db, SchoolOptions school, SchoolClock clock)
     {
         _db = db;
         _school = school;
+        _clock = clock;
     }
 
     public async Task<IReadOnlyDictionary<int, StudentSafetySnapshot>> GetSnapshotsAsync(
@@ -29,8 +31,8 @@ public class SafetyReadService : ISafetyReadService
         if (studentIds.Count == 0) return new Dictionary<int, StudentSafetySnapshot>();
 
         var ids = studentIds.Distinct().ToList();
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        var dayStart = DateTime.UtcNow.Date;
+        var today = _clock.Today;
+        var dayStart = _clock.TodayStartUtc;
 
         // Latest event per student, taken from today's events only: yesterday's
         // "dropped off home" must not read as today's known position.
@@ -100,7 +102,7 @@ public class SafetyReadService : ISafetyReadService
 
     public async Task<List<StudentJourneyStatusDto>> GetLiveJourneyStatusesAsync(CancellationToken ct = default)
     {
-        var dayStart = DateTime.UtcNow.Date;
+        var dayStart = _clock.TodayStartUtc;
 
         var students = await _db.Students.AsNoTracking()
             .Where(s => s.Status == RecordStatus.Active)
@@ -139,7 +141,7 @@ public class SafetyReadService : ISafetyReadService
     public async Task<AttendanceStatsDto> GetAttendanceStatsAsync(int studentId, CancellationToken ct = default)
     {
         var windowDays = Math.Max(1, _school.AttendanceWindowDays);
-        var from = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-windowDays));
+        var from = _clock.Today.AddDays(-windowDays);
 
         var arrivals = await _db.AttendanceRecords.AsNoTracking()
             .Where(a => a.StudentId == studentId && a.Date >= from && a.EventType == AttendanceEventType.SchoolArrival)

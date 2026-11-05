@@ -45,6 +45,22 @@ public enum VerificationResult
     NoMatch = 2
 }
 
+/// <summary>
+/// Where a pickup verification stands. Derived (never stored) from Result,
+/// PickupApproved, ApprovedByAdminId and AttemptedAt — see GuardianVerification.GetState.
+/// </summary>
+public enum PickupVerificationState
+{
+    /// <summary>Face matched; awaiting an admin decision and still inside the expiry window.</summary>
+    Pending = 1,
+    Approved = 2,
+    Rejected = 3,
+    /// <summary>Face matched but no decision was made within the expiry window. Terminal.</summary>
+    Expired = 4,
+    /// <summary>Face did not match and no decision recorded. Can only be rejected.</summary>
+    NotMatched = 5
+}
+
 public enum NotificationType
 {
     Attendance = 1,

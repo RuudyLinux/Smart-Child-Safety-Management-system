@@ -16,14 +16,17 @@ public class StudentService : IStudentService
     private readonly IJourneyRepository _journey;
     private readonly IPhotoRepository _photos;
     private readonly ISafetyReadService _safety;
+    private readonly SchoolClock _clock;
 
     public StudentService(
         IStudentRepository students,
         IGuardianRepository guardians,
         IJourneyRepository journey,
         IPhotoRepository photos,
-        ISafetyReadService safety)
+        ISafetyReadService safety,
+        SchoolClock clock)
     {
+        _clock = clock;
         _students = students;
         _guardians = guardians;
         _journey = journey;
@@ -189,8 +192,8 @@ public class StudentService : IStudentService
     /// cutoff lives in the safety read model, and back-dating it row by row here would
     /// duplicate that policy in a second place.
     /// </summary>
-    private static bool IsLate(Attendance a, StudentSafetySnapshot snap) =>
-        snap.LateToday && a.Date == DateOnly.FromDateTime(DateTime.UtcNow) && a.Time == snap.CheckInTime;
+    private bool IsLate(Attendance a, StudentSafetySnapshot snap) =>
+        snap.LateToday && a.Date == _clock.Today && a.Time == snap.CheckInTime;
 
     private static StudentSafetySnapshot Snapshot(IReadOnlyDictionary<int, StudentSafetySnapshot> map, int studentId) =>
         map.TryGetValue(studentId, out var found) ? found : StudentSafetySnapshot.Unknown(studentId);

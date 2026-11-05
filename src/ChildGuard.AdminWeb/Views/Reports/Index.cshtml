@@ -267,7 +267,7 @@
                                     @SafetyUi.EventLabel(j.EventType)
                                 </span>
                             </td>
-                            <td class="cg-text-sm">@j.Timestamp.ToLocalTime().ToString("d MMM yyyy, HH:mm")</td>
+                            <td class="cg-text-sm">@j.Timestamp.ToSchoolTime().ToString("d MMM yyyy, HH:mm")</td>
                             <td class="cg-text-sm cg-muted">
                                 @(j.Source == EventSource.Rfid ? "RFID" : "Staff")
                             </td>
@@ -323,7 +323,7 @@
                         <tr data-row data-search="@v.StudentName @v.GuardianName">
                             <td><a href="/Students/Details/@v.StudentId">@v.StudentName</a></td>
                             <td><a href="/Guardians/Details/@v.GuardianId">@v.GuardianName</a></td>
-                            <td class="cg-text-sm">@v.AttemptedAt.ToLocalTime().ToString("d MMM yyyy, HH:mm")</td>
+                            <td class="cg-text-sm">@v.AttemptedAt.ToSchoolTime().ToString("d MMM yyyy, HH:mm")</td>
                             <td class="cg-num">@v.MatchScore.ToString("0.00")</td>
                             <td>
                                 @if (v.Result == VerificationResult.Match)
@@ -336,14 +336,7 @@
                                 }
                             </td>
                             <td>
-                                @if (v.PickupApproved)
-                                {
-                                    <span class="cg-badge cg-badge--success"><span class="cg-badge__dot"></span>Approved</span>
-                                }
-                                else
-                                {
-                                    <span class="cg-badge cg-badge--neutral">Not approved</span>
-                                }
+                                <partial name="_PickupStateBadge" model="v" />
                             </td>
                         </tr>
                     }

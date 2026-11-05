@@ -1,5 +1,7 @@
 using System.Security.Claims;
 using System.Text.Encodings.Web;
+using ChildGuard.Application.Common;
+using ChildGuard.Application.Interfaces;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -8,16 +10,22 @@ using Microsoft.Extensions.Options;
 namespace ChildGuard.Api.Security;
 
 /// <summary>
-/// Lets a physical RFID scanner device call the scan/heartbeat endpoints directly
-/// without an Admin login, by presenting a shared secret in the X-Device-Key header.
-/// Configured via Rfid:DeviceApiKey (config/env — never hardcoded). This is additive:
-/// the existing Admin-JWT path (Admin Web's browser-based keyboard-wedge demo) keeps
-/// working unchanged; this only opens a second, device-shaped path for rule 22
-/// ("additional RFID scanners can be added later").
+/// Lets a physical RFID scanner call the scan/heartbeat endpoints without an Admin
+/// login by presenting its own API key in the X-Device-Key header.
+///
+/// Each scanner has an individual key (issued via POST /api/rfid/devices/{id}/credentials,
+/// only its SHA-256 stored). The authenticated principal carries a "device_id" claim and
+/// the controller only lets it act as that device, so one leaked key cannot impersonate
+/// another scanner and can be revoked on its own.
+///
+/// Legacy: a single shared Rfid:DeviceApiKey is still honoured if configured, so
+/// existing scanners keep working during migration, but it is logged as deprecated
+/// on every use. Leave it empty once every scanner has its own key.
 /// </summary>
 public class ApiKeyAuthenticationHandler : AuthenticationHandler<AuthenticationSchemeOptions>
 {
     public const string SchemeName = "DeviceKey";
+    public const string DeviceIdClaim = "device_id";
     private const string HeaderName = "X-Device-Key";
 
     private readonly IConfiguration _configuration;
@@ -32,24 +40,42 @@ public class ApiKeyAuthenticationHandler : AuthenticationHandler<AuthenticationS
         _configuration = configuration;
     }
 
-    protected override Task<AuthenticateResult> HandleAuthenticateAsync()
+    protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
     {
-        var configuredKey = _configuration["Rfid:DeviceApiKey"];
-        if (string.IsNullOrWhiteSpace(configuredKey))
-            return Task.FromResult(AuthenticateResult.NoResult());
+        if (!Request.Headers.TryGetValue(HeaderName, out var providedValues))
+            return AuthenticateResult.NoResult();
+        var provided = providedValues.ToString();
+        if (string.IsNullOrWhiteSpace(provided))
+            return AuthenticateResult.NoResult();
 
-        if (!Request.Headers.TryGetValue(HeaderName, out var provided) ||
-            string.IsNullOrWhiteSpace(provided))
-            return Task.FromResult(AuthenticateResult.NoResult());
+        if (provided.StartsWith(DeviceKeys.Prefix, StringComparison.Ordinal))
+        {
+            var repo = Context.RequestServices.GetRequiredService<IRfidRepository>();
+            var device = await repo.GetDeviceByKeyHashAsync(DeviceKeys.Hash(provided), Context.RequestAborted);
+            if (device is null)
+                return AuthenticateResult.Fail("Invalid device key.");
 
-        if (!CryptographicEquals(provided.ToString(), configuredKey))
-            return Task.FromResult(AuthenticateResult.Fail("Invalid device key."));
+            return Success(
+                new Claim(ClaimTypes.Name, device.DeviceLabel),
+                new Claim("scanner", "device"),
+                new Claim(DeviceIdClaim, device.RfidDeviceId.ToString()));
+        }
 
-        var claims = new[] { new Claim(ClaimTypes.Name, "rfid-scanner-device"), new Claim("scanner", "device") };
-        var identity = new ClaimsIdentity(claims, SchemeName);
-        var principal = new ClaimsPrincipal(identity);
-        var ticket = new AuthenticationTicket(principal, SchemeName);
-        return Task.FromResult(AuthenticateResult.Success(ticket));
+        var sharedKey = _configuration["Rfid:DeviceApiKey"];
+        if (!string.IsNullOrWhiteSpace(sharedKey) && CryptographicEquals(provided, sharedKey))
+        {
+            Logger.LogWarning(
+                "A scanner authenticated with the deprecated shared Rfid:DeviceApiKey. Issue it an individual key and clear the shared key.");
+            return Success(new Claim(ClaimTypes.Name, "rfid-scanner-shared-key"), new Claim("scanner", "device"));
+        }
+
+        return AuthenticateResult.Fail("Invalid device key.");
+    }
+
+    private static AuthenticateResult Success(params Claim[] claims)
+    {
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, SchemeName));
+        return AuthenticateResult.Success(new AuthenticationTicket(principal, SchemeName));
     }
 
     private static bool CryptographicEquals(string a, string b)

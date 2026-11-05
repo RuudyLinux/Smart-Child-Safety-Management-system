@@ -10,6 +10,7 @@ public class AttendanceConfiguration : IEntityTypeConfiguration<Attendance>
     {
         b.HasKey(x => x.AttendanceId);
         b.HasIndex(x => new { x.StudentId, x.Date, x.EventType });
+        b.Property(x => x.RecordedAtUtc).IsRequired();
 
         b.HasOne(x => x.Student)
             .WithMany(x => x.AttendanceRecords)
@@ -31,6 +32,11 @@ public class JourneyEventConfiguration : IEntityTypeConfiguration<JourneyEvent>
         b.HasIndex(x => new { x.StudentId, x.Timestamp });
         // All-student date-range report (paged journey report) seeks on Timestamp alone.
         b.HasIndex(x => x.Timestamp);
+
+        b.Property(x => x.ScanId).HasMaxLength(64);
+        // Idempotency: one recorded event per scanner-supplied key per device.
+        // MySQL unique indexes allow many NULLs, so scans without a key are unaffected.
+        b.HasIndex(x => new { x.RfidDeviceId, x.ScanId }).IsUnique();
 
         b.HasOne(x => x.Student)
             .WithMany(x => x.JourneyEvents)

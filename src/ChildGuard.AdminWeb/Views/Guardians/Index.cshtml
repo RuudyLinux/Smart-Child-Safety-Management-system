@@ -191,7 +191,7 @@
                         <td class="cg-text-sm cg-muted">
                             @if (g.LastActivityAt is { } lastAt)
                             {
-                                <span data-cg-ago="@lastAt.ToString("O")">@lastAt.ToLocalTime().ToString("d MMM")</span>
+                                <span data-cg-ago="@lastAt.ToString("O")">@lastAt.ToSchoolTime().ToString("d MMM")</span>
                             }
                             else
                             {

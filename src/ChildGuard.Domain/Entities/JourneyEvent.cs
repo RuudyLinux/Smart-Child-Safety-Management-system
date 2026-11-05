@@ -14,6 +14,12 @@ public class JourneyEvent
     public JourneyEventType EventType { get; set; }
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
     public EventSource Source { get; set; } = EventSource.Rfid;
+
+    /// <summary>
+    /// Optional idempotency key sent by the scanner for this tap (unique per device).
+    /// A retry carrying the same key returns the original result instead of re-scanning.
+    /// </summary>
+    public string? ScanId { get; set; }
     public RecordStatus Status { get; set; } = RecordStatus.Active;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

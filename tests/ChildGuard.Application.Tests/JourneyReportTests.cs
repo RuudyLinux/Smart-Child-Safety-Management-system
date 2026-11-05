@@ -26,7 +26,7 @@ public class JourneyReportTests
                 Source = EventSource.Rfid
             });
         }
-        return (new AttendanceJourneyService(repo, new FakeSafetyReadService(), new SchoolOptions()), repo);
+        return (new AttendanceJourneyService(repo, new FakeSafetyReadService(), new SchoolOptions(), TestClock.Create().Clock), repo);
     }
 
     [Fact]

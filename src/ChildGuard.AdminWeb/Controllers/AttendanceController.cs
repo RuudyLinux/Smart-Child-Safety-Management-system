@@ -15,7 +15,7 @@ public class AttendanceController : BaseAdminController
 
         // A blank page defaults to the last seven days rather than the whole
         // history, which is both faster and the range an admin usually wants.
-        var today = DateOnly.FromDateTime(DateTime.Today);
+        var today = SchoolTime.TodayDate;
         var rangeTo = to ?? today;
         var rangeFrom = from ?? rangeTo.AddDays(-6);
 

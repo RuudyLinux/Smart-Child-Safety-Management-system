@@ -193,7 +193,7 @@
                         <td class="cg-text-sm cg-muted">
                             @if (s.LastEventAt is { } lastAt)
                             {
-                                <span data-cg-ago="@lastAt.ToString("O")">@lastAt.ToLocalTime().ToString("HH:mm")</span>
+                                <span data-cg-ago="@lastAt.ToString("O")">@lastAt.ToSchoolTime().ToString("HH:mm")</span>
                                 <div>@SafetyUi.EventLabel(s.LastEventType)</div>
                             }
                             else

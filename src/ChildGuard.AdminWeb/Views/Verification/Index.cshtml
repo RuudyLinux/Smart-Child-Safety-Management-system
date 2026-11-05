@@ -261,7 +261,7 @@
                         <td><a href="/Students/Details/@v.StudentId">@v.StudentName</a></td>
                         <td><a href="/Guardians/Details/@v.GuardianId">@v.GuardianName</a></td>
                         <td class="cg-text-sm cg-muted">
-                            <span data-cg-ago="@v.AttemptedAt.ToString("O")">@v.AttemptedAt.ToLocalTime().ToString("HH:mm")</span>
+                            <span data-cg-ago="@v.AttemptedAt.ToString("O")">@v.AttemptedAt.ToSchoolTime().ToString("HH:mm")</span>
                         </td>
                         <td class="cg-num">@v.MatchScore.ToString("0.00")</td>
                         <td>
@@ -275,14 +275,7 @@
                             }
                         </td>
                         <td>
-                            @if (v.PickupApproved)
-                            {
-                                <span class="cg-badge cg-badge--success"><span class="cg-badge__dot"></span>Approved</span>
-                            }
-                            else
-                            {
-                                <span class="cg-badge cg-badge--neutral">Not approved</span>
-                            }
+                            <partial name="_PickupStateBadge" model="v" />
                         </td>
                     </tr>
                 }

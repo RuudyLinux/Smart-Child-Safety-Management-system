@@ -23,4 +23,19 @@ public class GuardianVerification
     /// can't both win the check-then-act in ApproveAsync/RejectAsync.
     /// </summary>
     public uint Version { get; set; }
+
+    /// <summary>
+    /// The verification's state at <paramref name="nowUtc"/>. Expiry is measured
+    /// between two UTC instants, so it does not depend on server time zone or
+    /// restarts. A decision (approve/reject) is final and is never reported as expired.
+    /// </summary>
+    public PickupVerificationState GetState(DateTime nowUtc, TimeSpan pendingExpiry)
+    {
+        if (PickupApproved) return PickupVerificationState.Approved;
+        if (ApprovedByAdminId is not null) return PickupVerificationState.Rejected;
+        if (Result != VerificationResult.Match) return PickupVerificationState.NotMatched;
+        return nowUtc - AttemptedAt > pendingExpiry
+            ? PickupVerificationState.Expired
+            : PickupVerificationState.Pending;
+    }
 }

@@ -40,7 +40,12 @@ public static class DependencyInjection
         // School-day policy (late/absent cutoffs) lives in configuration so the
         // rule is stated once and no screen invents its own threshold.
         services.AddSingleton(config.GetSection("School").Get<SchoolOptions>() ?? new SchoolOptions());
+        services.AddSingleton(config.GetSection("Rfid").Get<RfidOptions>() ?? new RfidOptions());
+        services.AddSingleton(config.GetSection("Verification").Get<VerificationOptions>() ?? new VerificationOptions());
         services.AddSingleton(TimeProvider.System);
+        // School calendar (time zone, "today", day boundaries). Resolving it validates
+        // School:TimeZone, so a bad id fails at startup rather than on the first scan.
+        services.AddSingleton<SchoolClock>();
         services.AddScoped<IAuthService, AuthService>();
 
         services.AddScoped<IStudentRepository, StudentRepository>();

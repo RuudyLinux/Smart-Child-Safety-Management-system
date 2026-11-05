@@ -136,8 +136,8 @@
                         data-sort-when="@v.AttemptedAt.Ticks"
                         data-sort-score="@v.MatchScore.ToString("0.0000", System.Globalization.CultureInfo.InvariantCulture)">
                         <td class="cg-text-sm">
-                            <div>@v.AttemptedAt.ToLocalTime().ToString("d MMM yyyy")</div>
-                            <div class="cg-muted">@v.AttemptedAt.ToLocalTime().ToString("HH:mm")</div>
+                            <div>@v.AttemptedAt.ToSchoolTime().ToString("d MMM yyyy")</div>
+                            <div class="cg-muted">@v.AttemptedAt.ToSchoolTime().ToString("HH:mm")</div>
                         </td>
                         <td><a href="/Students/Details/@v.StudentId">@v.StudentName</a></td>
                         <td><a href="/Guardians/Details/@v.GuardianId">@v.GuardianName</a></td>
@@ -153,18 +153,7 @@
                             }
                         </td>
                         <td>
-                            @if (v.PickupApproved)
-                            {
-                                <span class="cg-badge cg-badge--success"><span class="cg-badge__dot"></span>Approved</span>
-                            }
-                            else if (v.Result == VerificationResult.NoMatch)
-                            {
-                                <span class="cg-badge cg-badge--neutral">Not released</span>
-                            }
-                            else
-                            {
-                                <span class="cg-badge cg-badge--warning"><span class="cg-badge__dot"></span>Awaiting decision</span>
-                            }
+                            <partial name="_PickupStateBadge" model="v" />
                         </td>
                     </tr>
                 }

@@ -10,12 +10,14 @@ public class AttendanceJourneyService : IAttendanceJourneyService
     private readonly IJourneyRepository _journey;
     private readonly ISafetyReadService _safety;
     private readonly SchoolOptions _school;
+    private readonly SchoolClock _clock;
 
-    public AttendanceJourneyService(IJourneyRepository journey, ISafetyReadService safety, SchoolOptions school)
+    public AttendanceJourneyService(IJourneyRepository journey, ISafetyReadService safety, SchoolOptions school, SchoolClock clock)
     {
         _journey = journey;
         _safety = safety;
         _school = school;
+        _clock = clock;
     }
 
     public async Task<List<AttendanceRecordDto>> GetAttendanceAsync(int? studentId, DateOnly? from, DateOnly? to, CancellationToken ct = default)
@@ -55,10 +57,10 @@ public class AttendanceJourneyService : IAttendanceJourneyService
         page = Math.Clamp(page, 1, 100_000); // upper bound keeps (page - 1) * pageSize from overflowing
         pageSize = Math.Clamp(pageSize, 1, MaxReportPageSize);
 
-        // Inclusive calendar dates -> half-open UTC instant range, so an event at
-        // 23:59:59.9 on 'to' is included and nothing from the next day is.
-        var fromUtc = from.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
-        var toUtcExclusive = to.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        // Inclusive school-calendar dates -> half-open UTC instant range (local
+        // midnight to local midnight), so an event at 23:59:59.9 school time on 'to'
+        // is included and nothing from the next school day is.
+        var (fromUtc, toUtcExclusive) = _clock.RangeUtc(from, to);
 
         var (items, total) = await _journey.GetPageAsync(fromUtc, toUtcExclusive, studentId, (page - 1) * pageSize, pageSize, ct);
         var dtos = items

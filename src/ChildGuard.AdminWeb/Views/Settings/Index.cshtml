@@ -2,6 +2,7 @@
     ViewData["Title"] = "Settings";
     var devices = (List<RfidDeviceDto>)ViewBag.Devices;
     var connected = devices.Count(d => d.ConnectionStatus == RfidConnectionStatus.Connected);
+    var issued = ViewBag.IssuedCredential as DeviceCredentialDto;
 }
 
 <div class="cg-page-head">
@@ -20,6 +21,21 @@
         </a>
     </div>
 </div>
+
+@if (issued is not null)
+{
+    <section class="cg-alert cg-alert--warning" role="alert" style="margin-bottom:18px">
+        <div class="cg-alert__body">
+            <div class="cg-alert__title">New key for @issued.DeviceLabel — copy it now</div>
+            <p class="cg-text-sm">
+                Configure the scanner to send this value in the <code>X-Device-Key</code> header.
+                It is shown once and cannot be retrieved again; any previous key for this scanner has stopped working.
+            </p>
+            <input class="cg-input" readonly value="@issued.ApiKey" aria-label="Scanner API key"
+                   onclick="this.select()" style="font-family:monospace;width:100%;max-width:100%" />
+        </div>
+    </section>
+}
 
 <div class="cg-grid cg-grid--sidebar">
     <section class="cg-card">
@@ -43,7 +59,7 @@
         {
             <div class="cg-table-wrap">
                 <table class="cg-table">
-                    <thead><tr><th>Device</th><th>Status</th><th>Last seen</th><th class="cg-table__actions">Use</th></tr></thead>
+                    <thead><tr><th>Device</th><th>Status</th><th>Last seen</th><th class="cg-table__actions">Scanner key</th></tr></thead>
                     <tbody>
                     @foreach (var d in devices)
                     {
@@ -74,7 +90,7 @@
                             <td class="cg-text-sm cg-muted">
                                 @if (d.LastSeenAt is { } seen)
                                 {
-                                    <span data-cg-ago="@seen.ToString("O")">@seen.ToLocalTime().ToString("g")</span>
+                                    <span data-cg-ago="@seen.ToString("O")">@seen.ToSchoolTime().ToString("g")</span>
                                 }
                                 else
                                 {
@@ -82,7 +98,29 @@
                                 }
                             </td>
                             <td class="cg-table__actions">
-                                <a class="cg-btn cg-btn--sm cg-btn--ghost" href="/Verification">Open desk</a>
+                                <div class="cg-row cg-row--wrap" style="gap:6px;justify-content:flex-end">
+                                    @if (d.HasCredential)
+                                    {
+                                        <span class="cg-badge cg-badge--success" title="Issued @(d.CredentialIssuedAt?.ToSchoolTime().ToString("g"))">Own key</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="cg-badge cg-badge--neutral">No key</span>
+                                    }
+                                    <form method="post" action="/Settings/IssueKey/@d.RfidDeviceId"
+                                          onsubmit="return confirm('@(d.HasCredential ? "Rotate this scanner key? The current key stops working immediately." : "Issue a key for this scanner?")')">
+                                        @Html.AntiForgeryToken()
+                                        <button class="cg-btn cg-btn--sm cg-btn--secondary" type="submit">@(d.HasCredential ? "Rotate" : "Issue")</button>
+                                    </form>
+                                    @if (d.HasCredential)
+                                    {
+                                        <form method="post" action="/Settings/RevokeKey/@d.RfidDeviceId"
+                                              onsubmit="return confirm('Revoke this scanner key? The scanner will be rejected until a new key is issued.')">
+                                            @Html.AntiForgeryToken()
+                                            <button class="cg-btn cg-btn--sm cg-btn--ghost" type="submit">Revoke</button>
+                                        </form>
+                                    }
+                                </div>
                             </td>
                         </tr>
                     }

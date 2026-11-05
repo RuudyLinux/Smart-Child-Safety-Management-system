@@ -131,7 +131,7 @@
                                 {
                                     <div>@SafetyUi.EventLabel(s.LastEventType)</div>
                                     <div class="cg-muted" data-cg-ago="@lastAt.ToString("O")">
-                                        @lastAt.ToLocalTime().ToString("HH:mm")
+                                        @lastAt.ToSchoolTime().ToString("HH:mm")
                                     </div>
                                 }
                                 else
@@ -221,7 +221,7 @@
                             </span>
                             <div class="cg-timeline__head">
                                 <a class="cg-timeline__title" href="/Students/Details/@e.StudentId">@e.StudentName</a>
-                                <span class="cg-timeline__time">@e.Timestamp.ToLocalTime().ToString("d MMM HH:mm")</span>
+                                <span class="cg-timeline__time">@e.Timestamp.ToSchoolTime().ToString("d MMM HH:mm")</span>
                             </div>
                             <div class="cg-timeline__body">
                                 @SafetyUi.EventLabel(e.EventType) ·

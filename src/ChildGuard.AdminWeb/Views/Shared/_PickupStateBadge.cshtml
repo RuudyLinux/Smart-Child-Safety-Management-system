@@ -1,0 +1,22 @@
+@model GuardianVerificationHistoryDto
+@* One rendering of the backend's pickup state (GuardianVerification.GetState) for every list. *@
+@switch (Model.State)
+{
+    case PickupVerificationState.Approved:
+        <span class="cg-badge cg-badge--success"><span class="cg-badge__dot"></span>Approved</span>
+        break;
+    case PickupVerificationState.Rejected:
+        <span class="cg-badge cg-badge--danger"><span class="cg-badge__dot"></span>Rejected</span>
+        break;
+    case PickupVerificationState.Expired:
+        <span class="cg-badge cg-badge--neutral" title="No decision within the approval window — a new verification is needed">Expired</span>
+        break;
+    case PickupVerificationState.NotMatched:
+        <span class="cg-badge cg-badge--neutral">Not released</span>
+        break;
+    default:
+        <span class="cg-badge cg-badge--warning" title="@(Model.ExpiresAt is { } exp ? "Expires " + exp.ToSchoolTime().ToString("HH:mm") : "")">
+            <span class="cg-badge__dot"></span>Awaiting decision
+        </span>
+        break;
+}

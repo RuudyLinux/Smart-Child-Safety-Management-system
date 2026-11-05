@@ -8,6 +8,7 @@ using ChildGuard.Domain.Enums;
 using ChildGuard.Infrastructure;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
@@ -100,18 +101,38 @@ builder.Services.AddAuthorizationBuilder()
         .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme, ApiKeyAuthenticationHandler.SchemeName)
         .RequireAssertion(ctx => ctx.User.IsInRole("Admin") || ctx.User.HasClaim("scanner", "device")));
 
+// ---- Reverse proxy ----
+// Behind a proxy/load balancer every request arrives from the proxy's address, which
+// would put all callers in one rate-limit bucket. X-Forwarded-For is only trusted
+// from the proxies listed here — never from arbitrary clients, who could forge it.
+var knownProxies = builder.Configuration.GetSection("ReverseProxy:KnownProxies").Get<string[]>() ?? [];
+var knownNetworks = builder.Configuration.GetSection("ReverseProxy:KnownNetworks").Get<string[]>() ?? [];
+var behindProxy = knownProxies.Length > 0 || knownNetworks.Length > 0;
+if (behindProxy)
+{
+    builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    {
+        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+        options.KnownProxies.Clear();
+        options.KnownIPNetworks.Clear();
+        foreach (var proxy in knownProxies) options.KnownProxies.Add(System.Net.IPAddress.Parse(proxy));
+        foreach (var network in knownNetworks) options.KnownIPNetworks.Add(System.Net.IPNetwork.Parse(network));
+    });
+}
+
 // ---- Rate limiting (brute-force / scan-flood protection) ----
+var limits = builder.Configuration.GetSection("RateLimiting");
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    // Partitioned per caller IP so one attacker cannot exhaust the window for
-    // every other user (a single shared window would lock legitimate users out).
-    options.AddPolicy(RateLimitPolicies.Auth, PerCallerFixedWindow(permitLimit: 10, window: TimeSpan.FromMinutes(1)));
-    options.AddPolicy(RateLimitPolicies.Otp, PerCallerFixedWindow(permitLimit: 20, window: TimeSpan.FromMinutes(1)));
-    // Per caller (scanner), not one window shared by every scanner: a single global
-    // 30/min bucket meant two gates in the morning rush rejected real taps with 429.
-    // 60/min allows a sustained one tap per second per reader.
-    options.AddPolicy(RateLimitPolicies.RfidScan, PerCallerFixedWindow(permitLimit: 60, window: TimeSpan.FromMinutes(1)));
+    // Login/OTP are anonymous, so they partition per client IP (the real client IP
+    // when ReverseProxy is configured) — one attacker cannot exhaust everyone's window.
+    options.AddPolicy(RateLimitPolicies.Auth, PerCallerFixedWindow(limits.GetValue("AuthPerMinute", 10), TimeSpan.FromMinutes(1)));
+    options.AddPolicy(RateLimitPolicies.Otp, PerCallerFixedWindow(limits.GetValue("OtpPerMinute", 20), TimeSpan.FromMinutes(1)));
+    // Scans partition per authenticated scanner (or admin), not per IP: several
+    // scanners behind one NAT/proxy must not share a bucket. 60/min = a sustained
+    // tap per second per reader.
+    options.AddPolicy(RateLimitPolicies.RfidScan, PerIdentityFixedWindow(limits.GetValue("RfidScanPerMinute", 60), TimeSpan.FromMinutes(1)));
 });
 
 builder.Services.AddCors(options =>
@@ -138,15 +159,36 @@ static bool IsLoopbackOrigin(string origin) =>
 
 static Func<HttpContext, RateLimitPartition<string>> PerCallerFixedWindow(int permitLimit, TimeSpan window) =>
     httpContext => RateLimitPartition.GetFixedWindowLimiter(
-        httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        "ip:" + (httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown"),
         _ => new FixedWindowRateLimiterOptions { PermitLimit = permitLimit, Window = window, QueueLimit = 0 });
+
+static Func<HttpContext, RateLimitPartition<string>> PerIdentityFixedWindow(int permitLimit, TimeSpan window) =>
+    httpContext =>
+    {
+        var user = httpContext.User;
+        var device = user.FindFirst(ApiKeyAuthenticationHandler.DeviceIdClaim)?.Value;
+        var subject = user.FindFirst(JwtRegisteredClaimNames.Sub)?.Value ?? user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var key = device is not null ? "device:" + device
+            : subject is not null ? "user:" + subject
+            : "ip:" + (httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown");
+        return RateLimitPartition.GetFixedWindowLimiter(key,
+            _ => new FixedWindowRateLimiterOptions { PermitLimit = permitLimit, Window = window, QueueLimit = 0 });
+    };
 
 var app = builder.Build();
 
 // ---- Pipeline ----
+if (behindProxy)
+    app.UseForwardedHeaders(); // first, so logging, HTTPS redirect and rate limits see the real client
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+}
+else
+{
+    app.UseHsts();
+    WarnOnInsecureProductionSettings(app.Configuration, app.Logger);
 }
 
 app.UseSerilogRequestLogging();
@@ -161,9 +203,33 @@ app.UseRateLimiter();
 app.MapControllers();
 
 await ChildGuard.Infrastructure.Persistence.DbSeeder.SeedAsync(app.Services);
+await ChildGuard.Infrastructure.Persistence.AttendanceTimeProjection.SyncAsync(app.Services);
 if (app.Configuration.GetValue<bool>("SeedDemoData"))
 {
-    await ChildGuard.Infrastructure.Persistence.DemoDataSeeder.SeedAsync(app.Services);
+    // Demo guardians share a documented default password: never seed them outside Development.
+    if (app.Environment.IsDevelopment())
+        await ChildGuard.Infrastructure.Persistence.DemoDataSeeder.SeedAsync(app.Services);
+    else
+        app.Logger.LogWarning("SeedDemoData is ignored outside Development.");
 }
 
 app.Run();
+
+/// Startup warnings for settings that are acceptable in development but not in production.
+/// Logged (never the values themselves), not fatal, so an operator sees them on first boot.
+static void WarnOnInsecureProductionSettings(IConfiguration config, Microsoft.Extensions.Logging.ILogger logger)
+{
+    var cs = config.GetConnectionString("ChildGuardDb") ?? "";
+    var sslMode = System.Text.RegularExpressions.Regex.Match(cs, @"(?i)ssl\s*mode\s*=\s*([a-z]+)");
+    var verified = sslMode.Success && sslMode.Groups[1].Value.ToLowerInvariant() is "verifyca" or "verifyfull";
+    var hasCa = System.Text.RegularExpressions.Regex.IsMatch(cs, @"(?i)ssl\s*ca\s*=");
+    if (!verified || !hasCa)
+        logger.LogWarning("Database connection is not using SslMode=VerifyFull (or VerifyCA) with SslCa: the server certificate is not verified.");
+    if (!string.IsNullOrWhiteSpace(config["Rfid:DeviceApiKey"]))
+        logger.LogWarning("Rfid:DeviceApiKey (shared scanner key) is set. Issue per-scanner keys and remove it.");
+    if ((config["AllowedHosts"] ?? "*") == "*")
+        logger.LogWarning("AllowedHosts is '*'. Set it to the API's public host name(s).");
+}
+
+/// Exposed for WebApplicationFactory-based integration tests.
+public partial class Program;

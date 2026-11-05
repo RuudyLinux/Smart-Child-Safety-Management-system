@@ -62,7 +62,7 @@
             </div>
             <div class="cg-keyvalue">
                 <span class="cg-keyvalue__key">Registered</span>
-                <span class="cg-keyvalue__value" style="font-size:14px">@Model.CreatedAt.ToLocalTime().ToString("d MMM yyyy")</span>
+                <span class="cg-keyvalue__value" style="font-size:14px">@Model.CreatedAt.ToSchoolTime().ToString("d MMM yyyy")</span>
             </div>
         </div>
     </div>
@@ -156,7 +156,7 @@
                                     <span class="cg-personcard__fact">
                                         @await Html.PartialAsync("_Icon", "clock")
                                         @(child.LastEventAt is { } lastAt
-                                            ? $"{SafetyUi.EventLabel(child.LastEventType)} at {lastAt.ToLocalTime():HH\\:mm}"
+                                            ? $"{SafetyUi.EventLabel(child.LastEventType)} at {lastAt.ToSchoolTime():HH\\:mm}"
                                             : "No activity today")
                                     </span>
                                 </div>
@@ -237,7 +237,7 @@
                         <tr>
                             <td><a href="/Students/Details/@v.StudentId">@v.StudentName</a></td>
                             <td class="cg-text-sm cg-muted">
-                                <span data-cg-ago="@v.AttemptedAt.ToString("O")">@v.AttemptedAt.ToLocalTime().ToString("g")</span>
+                                <span data-cg-ago="@v.AttemptedAt.ToString("O")">@v.AttemptedAt.ToSchoolTime().ToString("g")</span>
                             </td>
                             <td class="cg-num">@v.MatchScore.ToString("0.00")</td>
                             <td>
@@ -298,7 +298,7 @@
                         }
                     </dd>
                     <dt>Last verification</dt>
-                    <dd>@(Model.LastActivityAt?.ToLocalTime().ToString("g") ?? "Never")</dd>
+                    <dd>@(Model.LastActivityAt?.ToSchoolTime().ToString("g") ?? "Never")</dd>
                 </dl>
                 <p class="cg-hint">
                     Name, email and contact number are changed from

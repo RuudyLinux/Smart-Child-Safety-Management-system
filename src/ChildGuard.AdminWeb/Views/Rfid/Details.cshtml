@@ -57,7 +57,7 @@
             <span class="cg-kpi__icon cg-kpi__icon--neutral">@await Html.PartialAsync("_Icon", "calendar")</span>
         </div>
         <div class="cg-kpi__value cg-kpi__value--sm" style="font-size:17px">
-            @(Model.AssignedAt?.ToLocalTime().ToString("d MMM yyyy") ?? "—")
+            @(Model.AssignedAt?.ToSchoolTime().ToString("d MMM yyyy") ?? "—")
         </div>
     </article>
     <article class="cg-kpi">
@@ -66,7 +66,7 @@
             <span class="cg-kpi__icon cg-kpi__icon--neutral">@await Html.PartialAsync("_Icon", "clock")</span>
         </div>
         <div class="cg-kpi__value cg-kpi__value--sm" style="font-size:17px">
-            @Model.CreatedAt.ToLocalTime().ToString("d MMM yyyy")
+            @Model.CreatedAt.ToSchoolTime().ToString("d MMM yyyy")
         </div>
     </article>
 </div>
@@ -100,7 +100,7 @@
                         <span class="cg-timeline__marker">@await Html.PartialAsync("_Icon", SafetyUi.EventIcon(j.EventType))</span>
                         <div class="cg-timeline__head">
                             <span class="cg-timeline__title">@SafetyUi.EventLabel(j.EventType)</span>
-                            <span class="cg-timeline__time">@j.Timestamp.ToLocalTime().ToString("d MMM, HH:mm")</span>
+                            <span class="cg-timeline__time">@j.Timestamp.ToSchoolTime().ToString("d MMM, HH:mm")</span>
                         </div>
                         <div class="cg-timeline__body">
                             @(j.Source == EventSource.Rfid ? "RFID verification" : "Recorded by staff")

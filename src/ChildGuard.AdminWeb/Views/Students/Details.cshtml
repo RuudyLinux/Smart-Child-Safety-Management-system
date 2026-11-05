@@ -141,7 +141,7 @@
                             {
                                 <p class="cg-text-sm cg-muted" style="margin-top:6px">
                                     Last checkpoint: @SafetyUi.EventLabel(Model.LastEventType) at
-                                    @lastEventAt.ToLocalTime().ToString("HH:mm on d MMM")
+                                    @lastEventAt.ToSchoolTime().ToString("HH:mm on d MMM")
                                 </p>
                             }
                         </div>
@@ -159,7 +159,7 @@
                 <div class="cg-card__body">
                     @{
                         var todaysEvents = Model.RecentJourney
-                            .Where(e => e.Timestamp.ToLocalTime().Date == DateTime.Today)
+                            .Where(e => e.Timestamp.ToSchoolTime().Date == SchoolTime.Today)
                             .OrderBy(e => e.Timestamp)
                             .ToList();
                     }
@@ -180,7 +180,7 @@
                                     </span>
                                     <div class="cg-timeline__head">
                                         <span class="cg-timeline__title">@SafetyUi.EventLabel(e.EventType)</span>
-                                        <span class="cg-timeline__time">@e.Timestamp.ToLocalTime().ToString("HH:mm")</span>
+                                        <span class="cg-timeline__time">@e.Timestamp.ToSchoolTime().ToString("HH:mm")</span>
                                     </div>
                                     <div class="cg-timeline__body">
                                         @(e.Source == EventSource.Rfid ? "RFID verification" : "Recorded by staff")
@@ -239,7 +239,7 @@
                         <dt>Driver</dt>
                         <dd>@(Model.DriverName ?? "—")</dd>
                         <dt>Added</dt>
-                        <dd>@Model.CreatedAt.ToLocalTime().ToString("d MMM yyyy")</dd>
+                        <dd>@Model.CreatedAt.ToSchoolTime().ToString("d MMM yyyy")</dd>
                     </dl>
                 </div>
             </section>
@@ -337,7 +337,7 @@
                             </span>
                             <div class="cg-timeline__head">
                                 <span class="cg-timeline__title">@SafetyUi.EventLabel(e.EventType)</span>
-                                <span class="cg-timeline__time">@e.Timestamp.ToLocalTime().ToString("ddd d MMM, HH:mm")</span>
+                                <span class="cg-timeline__time">@e.Timestamp.ToSchoolTime().ToString("ddd d MMM, HH:mm")</span>
                             </div>
                             <div class="cg-timeline__body">
                                 @(e.Source == EventSource.Rfid ? "RFID verification" : "Recorded by staff")
@@ -476,7 +476,7 @@
                         <dt>Card UID</dt>
                         <dd class="cg-mono">@Model.MaskedRfid</dd>
                         <dt>Assigned</dt>
-                        <dd>@(Model.RfidAssignedAt?.ToLocalTime().ToString("d MMM yyyy") ?? "—")</dd>
+                        <dd>@(Model.RfidAssignedAt?.ToSchoolTime().ToString("d MMM yyyy") ?? "—")</dd>
                     </dl>
                     <p class="cg-hint">
                         Only the last four characters of a card UID are ever shown, so a full

@@ -18,5 +18,8 @@ public class RfidScanRequestValidator : AbstractValidator<RfidScanRequest>
         RuleFor(x => x.CardUid).NotEmpty().MaximumLength(100);
         RuleFor(x => x.RfidDeviceId).GreaterThan(0);
         RuleFor(x => x.Checkpoint).IsInEnum();
+        RuleFor(x => x.ScanId).MaximumLength(64)
+            .Matches("^[A-Za-z0-9._:-]+$").When(x => !string.IsNullOrWhiteSpace(x.ScanId))
+            .WithMessage("ScanId may contain only letters, digits, '.', '_', ':' and '-'.");
     }
 }

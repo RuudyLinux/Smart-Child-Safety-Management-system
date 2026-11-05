@@ -167,7 +167,7 @@
                         </td>
                         <td><span class="cg-badge @badge"><span class="cg-badge__dot"></span>@c.Status</span></td>
                         <td class="cg-text-sm cg-muted">
-                            @(c.AssignedAt?.ToLocalTime().ToString("d MMM yyyy") ?? "—")
+                            @(c.AssignedAt?.ToSchoolTime().ToString("d MMM yyyy") ?? "—")
                         </td>
                         <td>
                             <form asp-action="UpdateStatus" asp-route-id="@c.RfidCardId" method="post" class="cg-row">

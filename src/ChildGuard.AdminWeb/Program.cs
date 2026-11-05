@@ -36,6 +36,9 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
 
 builder.Services.AddAuthorization();
 
+// Must match the API's School:TimeZone: every page renders instants in school time.
+ChildGuard.AdminWeb.Services.SchoolTime.Configure(builder.Configuration["School:TimeZone"]);
+
 var app = builder.Build();
 
 if (!app.Environment.IsDevelopment())

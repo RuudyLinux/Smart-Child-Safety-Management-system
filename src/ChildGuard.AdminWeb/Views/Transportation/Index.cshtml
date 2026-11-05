@@ -269,7 +269,7 @@
                         <td><a href="/Students/Details/@a.StudentId">@a.StudentName</a></td>
                         <td><span class="cg-tag">@await Html.PartialAsync("_Icon", "bus") @a.BusNumber</span></td>
                         <td>@(a.RouteName ?? "—")</td>
-                        <td class="cg-text-sm cg-muted">@a.AssignedAt.ToLocalTime().ToString("d MMM yyyy")</td>
+                        <td class="cg-text-sm cg-muted">@a.AssignedAt.ToSchoolTime().ToString("d MMM yyyy")</td>
                         <td>
                             <span class="cg-badge @(a.Status == RecordStatus.Active ? "cg-badge--success" : "cg-badge--neutral")">
                                 <span class="cg-badge__dot"></span>@a.Status

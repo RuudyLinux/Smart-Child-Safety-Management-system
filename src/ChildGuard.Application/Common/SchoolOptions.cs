@@ -12,6 +12,13 @@ public class SchoolOptions
 {
     public string Name { get; set; } = "ChildGuard Academy";
 
+    /// <summary>
+    /// IANA (or Windows) id of the school's time zone. Every school-calendar rule —
+    /// the school day boundary, Attendance.Date/Time, the late cutoff, report date
+    /// ranges — is evaluated in this zone. Instants (timestamps) stay in UTC.
+    /// </summary>
+    public string TimeZone { get; set; } = "Asia/Kolkata";
+
     /// <summary>Local time-of-day after which a recorded arrival counts as late. 24-hour "HH:mm".</summary>
     public string LateArrivalAfter { get; set; } = "08:30";
 

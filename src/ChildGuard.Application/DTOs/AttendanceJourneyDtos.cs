@@ -11,7 +11,7 @@ public record JourneyEventDto(int JourneyEventId, int StudentId, string StudentN
 /// <summary>
 /// One page of the journey report. <see cref="TotalCount"/> is the number of events
 /// in the whole [From, To] range, so a caller can always tell when <see cref="Items"/>
-/// is only part of the result. From/To are UTC calendar dates, inclusive.
+/// is only part of the result. From/To are school-calendar dates (School:TimeZone), inclusive.
 /// </summary>
 public record JourneyReportPageDto(
     IReadOnlyList<JourneyEventDto> Items, int TotalCount, int Page, int PageSize,

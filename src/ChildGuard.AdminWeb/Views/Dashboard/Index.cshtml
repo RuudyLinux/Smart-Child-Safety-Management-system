@@ -2,7 +2,7 @@
 @using System.Globalization
 @{
     ViewData["Title"] = "Dashboard";
-    var greeting = DateTime.Now.Hour switch
+    var greeting = SchoolTime.Now.Hour switch
     {
         < 12 => "Good morning",
         < 17 => "Good afternoon",
@@ -46,7 +46,7 @@
         <div>
             <div class="cg-hero__greeting">@greeting, @adminFirstName</div>
             <p class="cg-hero__sub">
-                @DateTime.Now.ToString("dddd, d MMMM yyyy") — here is your school's safety overview.
+                @SchoolTime.Now.ToString("dddd, d MMMM yyyy") — here is your school's safety overview.
             </p>
             <div class="cg-hero__meta">
                 <div>
@@ -486,7 +486,7 @@
                                 @if (alert.OccurredAt is { } at)
                                 {
                                     <span class="cg-alertrow__time" data-cg-ago="@at.ToString("O")">
-                                        @at.ToLocalTime().ToString("HH:mm")
+                                        @at.ToSchoolTime().ToString("HH:mm")
                                     </span>
                                 }
                             </div>
@@ -536,7 +536,7 @@
                                 </span>
                                 <div class="cg-timeline__head">
                                     <a class="cg-timeline__title" href="/Students/Details/@e.StudentId">@e.StudentName</a>
-                                    <span class="cg-timeline__time">@e.Timestamp.ToLocalTime().ToString("HH:mm")</span>
+                                    <span class="cg-timeline__time">@e.Timestamp.ToSchoolTime().ToString("HH:mm")</span>
                                 </div>
                                 <div class="cg-timeline__body">
                                     @SafetyUi.EventLabel(e.EventType) ·

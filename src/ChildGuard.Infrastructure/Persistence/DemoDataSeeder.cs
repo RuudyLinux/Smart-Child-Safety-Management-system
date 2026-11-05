@@ -1,3 +1,4 @@
+using ChildGuard.Application.Common;
 using ChildGuard.Domain.Entities;
 using ChildGuard.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -20,6 +21,7 @@ public static class DemoDataSeeder
     {
         using var scope = services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ChildGuardDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<SchoolClock>();
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<object>>();
 
         if (await db.Students.AnyAsync())
@@ -83,13 +85,17 @@ public static class DemoDataSeeder
         await db.SaveChangesAsync();
 
         // --- A day of journey/attendance history for Rahul (yesterday, full cycle) ---
-        var y = DateTime.UtcNow.Date.AddDays(-1);
+        // Times are school-local wall-clock times on yesterday's school date,
+        // stored as UTC instants like every real scan.
+        var yesterday = clock.Today.AddDays(-1);
+        var y = clock.StartOfDayUtc(yesterday);
+        DateTime At(int h, int m) => y.AddHours(h).AddMinutes(m);
         var events = new[]
         {
-            (JourneyEventType.BusBoarding, y.AddHours(7).AddMinutes(15)),
-            (JourneyEventType.SchoolArrival, y.AddHours(7).AddMinutes(55)),
-            (JourneyEventType.SchoolDeparture, y.AddHours(14).AddMinutes(30)),
-            (JourneyEventType.BusDropoff, y.AddHours(15).AddMinutes(10)),
+            (JourneyEventType.BusBoarding, At(7, 15)),
+            (JourneyEventType.SchoolArrival, At(7, 55)),
+            (JourneyEventType.SchoolDeparture, At(14, 30)),
+            (JourneyEventType.BusDropoff, At(15, 10)),
         };
         foreach (var (type, ts) in events)
         {
@@ -103,16 +109,26 @@ public static class DemoDataSeeder
             });
         }
         db.AttendanceRecords.AddRange(
-            new Attendance { StudentId = rahul.StudentId, RfidCardId = cardRahul.RfidCardId, EventType = AttendanceEventType.SchoolArrival, Date = DateOnly.FromDateTime(y), Time = TimeOnly.FromDateTime(y.AddHours(7).AddMinutes(55)) },
-            new Attendance { StudentId = rahul.StudentId, RfidCardId = cardRahul.RfidCardId, EventType = AttendanceEventType.SchoolDeparture, Date = DateOnly.FromDateTime(y), Time = TimeOnly.FromDateTime(y.AddHours(14).AddMinutes(30)) }
+            DemoAttendance(clock, rahul.StudentId, cardRahul.RfidCardId, AttendanceEventType.SchoolArrival, At(7, 55)),
+            DemoAttendance(clock, rahul.StudentId, cardRahul.RfidCardId, AttendanceEventType.SchoolDeparture, At(14, 30))
         );
 
         db.Notifications.AddRange(
-            new Notification { GuardianId = priya.GuardianId, StudentId = rahul.StudentId, Type = NotificationType.Journey, Title = "School Arrival recorded", Message = "Rahul Patel: School Arrival recorded at 7:55 AM.", SentAt = y.AddHours(7).AddMinutes(55) },
-            new Notification { GuardianId = priya.GuardianId, StudentId = rahul.StudentId, Type = NotificationType.Journey, Title = "School Departure recorded", Message = "Rahul Patel: School Departure recorded at 2:30 PM.", SentAt = y.AddHours(14).AddMinutes(30) }
+            new Notification { GuardianId = priya.GuardianId, StudentId = rahul.StudentId, Type = NotificationType.Journey, Title = "School Arrival recorded", Message = "Rahul Patel: School Arrival recorded at 7:55 AM.", SentAt = At(7, 55) },
+            new Notification { GuardianId = priya.GuardianId, StudentId = rahul.StudentId, Type = NotificationType.Journey, Title = "School Departure recorded", Message = "Rahul Patel: School Departure recorded at 2:30 PM.", SentAt = At(14, 30) }
         );
 
         await db.SaveChangesAsync();
         logger.LogInformation("Demo data seeded: 3 students, 3 guardians, 2 buses, 1 day of history for Rahul Patel.");
+    }
+
+    private static Attendance DemoAttendance(SchoolClock clock, int studentId, int rfidCardId, AttendanceEventType type, DateTime utc)
+    {
+        var (date, time) = clock.ToSchoolDateTime(utc);
+        return new Attendance
+        {
+            StudentId = studentId, RfidCardId = rfidCardId, EventType = type,
+            RecordedAtUtc = utc, Date = date, Time = time
+        };
     }
 }

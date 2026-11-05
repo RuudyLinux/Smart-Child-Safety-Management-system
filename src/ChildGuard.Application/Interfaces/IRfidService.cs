@@ -12,4 +12,10 @@ public interface IRfidService
     Task<List<RfidDeviceDto>> GetDevicesAsync(CancellationToken ct = default);
     Task<Result> HeartbeatAsync(int deviceId, CancellationToken ct = default);
     Task<RfidScanResultDto> ProcessScanAsync(RfidScanRequest request, CancellationToken ct = default);
+
+    /// <summary>Issues (or rotates) this scanner's own API key. The plaintext is returned once and never stored.</summary>
+    Task<Result<DeviceCredentialDto>> IssueDeviceKeyAsync(int deviceId, CancellationToken ct = default);
+
+    /// <summary>Revokes this scanner's API key; it can no longer authenticate.</summary>
+    Task<Result> RevokeDeviceKeyAsync(int deviceId, CancellationToken ct = default);
 }

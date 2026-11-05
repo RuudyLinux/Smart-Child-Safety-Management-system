@@ -1,3 +1,4 @@
+using ChildGuard.Application.Common;
 using ChildGuard.Application.DTOs;
 using ChildGuard.Application.Services;
 using ChildGuard.Application.Tests.Fakes;
@@ -18,6 +19,8 @@ public class VerificationServiceTests
         public FakeNotificationRepository Notifications { get; } = new();
         public FakePushNotificationSender Push { get; } = new();
         public FakeFaceServiceClient FaceClient { get; } = new();
+        public SchoolClock Clock { get; }
+        public MutableTimeProvider Time { get; }
         public VerificationService Service { get; }
 
         public Student Student { get; } = new() { StudentId = 1, FullName = "Rahul Patel", DateOfBirth = new DateTime(2016, 4, 2), Status = RecordStatus.Active };
@@ -25,7 +28,9 @@ public class VerificationServiceTests
 
         public Harness()
         {
-            Service = new VerificationService(Verifications, Students, Guardians, Journey, Notifications, Push, FaceClient, new JourneyValidationService());
+            (Clock, Time) = TestClock.Create();
+            Service = new VerificationService(Verifications, Students, Guardians, Journey, Notifications, Push, FaceClient,
+                new JourneyValidationService(), Clock, new VerificationOptions());
             Students.Students.Add(Student);
             Guardians.Guardians.Add(Guardian);
             Students.Links.Add(new StudentGuardian { StudentId = 1, GuardianId = 1, IsAuthorizedForPickup = true });
@@ -36,7 +41,7 @@ public class VerificationServiceTests
             // A pickup only makes sense once the student is recorded as at school.
             Journey.Events.Add(new JourneyEvent
             {
-                StudentId = 1, EventType = JourneyEventType.SchoolArrival, Timestamp = DateTime.UtcNow.Date, Source = EventSource.Rfid
+                StudentId = 1, EventType = JourneyEventType.SchoolArrival, Timestamp = Clock.TodayStartUtc.AddHours(8), Source = EventSource.Rfid
             });
         }
 
@@ -202,13 +207,144 @@ public class VerificationServiceTests
         var h = new Harness();
         var id = await h.VerifyAsync();
         // Move the only arrival into yesterday: the student is not at school today.
-        h.Journey.Events[0].Timestamp = DateTime.UtcNow.Date.AddHours(-3);
+        h.Journey.Events[0].Timestamp = h.Clock.TodayStartUtc.AddHours(-3);
 
         var result = await h.Service.ApproveAsync(new ApprovePickupRequest(id), approvingAdminId: 7);
 
         Assert.False(result.Succeeded);
         Assert.False(h.Verifications.Verifications[0].PickupApproved);
         Assert.DoesNotContain(h.Journey.Events, e => e.EventType == JourneyEventType.SchoolDeparture);
+    }
+
+    [Fact]
+    public async Task Approve_AfterRejection_IsBlockedAndNothingIsRecorded()
+    {
+        var h = new Harness();
+        var id = await h.VerifyAsync();
+        await h.Service.RejectAsync(new RejectPickupRequest(id, "No ID shown"), actingAdminId: 7);
+
+        var result = await h.Service.ApproveAsync(new ApprovePickupRequest(id), approvingAdminId: 9);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(VerificationService.RejectedCannotBeApprovedMessage, result.Error);
+        Assert.False(h.Verifications.Verifications[0].PickupApproved);
+        Assert.DoesNotContain(h.Journey.Events, e => e.EventType == JourneyEventType.SchoolDeparture);
+        Assert.Empty(h.Journey.AttendanceRecords);
+    }
+
+    [Fact]
+    public async Task Approve_AfterRejection_NewVerificationCanBeApproved()
+    {
+        var h = new Harness();
+        var first = await h.VerifyAsync();
+        await h.Service.RejectAsync(new RejectPickupRequest(first, "Photo unclear"), actingAdminId: 7);
+
+        var second = await h.VerifyAsync();
+        var result = await h.Service.ApproveAsync(new ApprovePickupRequest(second), approvingAdminId: 7);
+
+        Assert.True(result.Succeeded);
+    }
+
+    [Fact]
+    public async Task Approve_AtExactlyFifteenMinutes_IsStillAllowed()
+    {
+        var h = new Harness();
+        var id = await h.VerifyAsync();
+        h.Time.Advance(TimeSpan.FromMinutes(15));
+
+        var result = await h.Service.ApproveAsync(new ApprovePickupRequest(id), approvingAdminId: 7);
+
+        Assert.True(result.Succeeded);
+    }
+
+    [Fact]
+    public async Task Approve_AfterFifteenMinutes_IsExpiredAndNothingIsRecorded()
+    {
+        var h = new Harness();
+        var id = await h.VerifyAsync();
+        h.Time.Advance(TimeSpan.FromMinutes(15).Add(TimeSpan.FromSeconds(1)));
+
+        var result = await h.Service.ApproveAsync(new ApprovePickupRequest(id), approvingAdminId: 7);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(VerificationService.ExpiredMessage, result.Error);
+        Assert.DoesNotContain(h.Journey.Events, e => e.EventType == JourneyEventType.SchoolDeparture);
+        Assert.Equal(PickupVerificationState.Expired,
+            h.Verifications.Verifications[0].GetState(h.Clock.UtcNow, TimeSpan.FromMinutes(15)));
+    }
+
+    [Fact]
+    public async Task Reject_OnExpiredVerification_IsRefusedWithExpiredMessage()
+    {
+        var h = new Harness();
+        var id = await h.VerifyAsync();
+        h.Time.Advance(TimeSpan.FromMinutes(16));
+
+        var result = await h.Service.RejectAsync(new RejectPickupRequest(id, "Too late"), actingAdminId: 7);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(VerificationService.ExpiredMessage, result.Error);
+        Assert.Empty(h.Notifications.Notifications);
+    }
+
+    [Fact]
+    public async Task Verify_ReportsExpiryFifteenMinutesAfterTheAttempt()
+    {
+        var h = new Harness();
+        h.FaceClient.NextMatch = true;
+
+        var result = await h.Service.VerifyAsync(new FaceVerifyRequest(1, 1, "img"));
+
+        Assert.Equal(h.Clock.UtcNow.AddMinutes(15), result.Value!.ExpiresAt);
+    }
+
+    [Fact]
+    public async Task Approve_RecordsSchoolDepartureAttendanceInSchoolTime()
+    {
+        var h = new Harness(); // 04:30 UTC = 10:00 at the school
+        var id = await h.VerifyAsync();
+
+        await h.Service.ApproveAsync(new ApprovePickupRequest(id), approvingAdminId: 7);
+
+        var row = Assert.Single(h.Journey.AttendanceRecords);
+        Assert.Equal(AttendanceEventType.SchoolDeparture, row.EventType);
+        Assert.Null(row.RfidCardId);
+        Assert.Equal(new DateOnly(2026, 11, 6), row.Date);
+        Assert.Equal(new TimeOnly(10, 0), row.Time);
+        Assert.Equal(h.Clock.UtcNow, row.RecordedAtUtc);
+    }
+
+    [Fact]
+    public async Task Approve_Retried_DoesNotAddASecondDepartureAttendance()
+    {
+        var h = new Harness();
+        var id = await h.VerifyAsync();
+        await h.Service.ApproveAsync(new ApprovePickupRequest(id), approvingAdminId: 7);
+
+        var retry = await h.Service.ApproveAsync(new ApprovePickupRequest(id), approvingAdminId: 7);
+
+        Assert.False(retry.Succeeded);
+        Assert.Single(h.Journey.AttendanceRecords);
+    }
+
+    [Fact]
+    public async Task History_ReportsDerivedStateForEachVerification()
+    {
+        var h = new Harness();
+        var approved = await h.VerifyAsync();
+        await h.Service.ApproveAsync(new ApprovePickupRequest(approved), approvingAdminId: 7);
+        var rejected = await h.VerifyAsync();
+        await h.Service.RejectAsync(new RejectPickupRequest(rejected, null), actingAdminId: 7);
+        var expired = await h.VerifyAsync();
+        h.Time.Advance(TimeSpan.FromMinutes(20));
+        var pending = await h.VerifyAsync();
+
+        var history = (await h.Service.GetHistoryAsync(null)).ToDictionary(v => v.Id, v => v.State);
+
+        Assert.Equal(PickupVerificationState.Approved, history[approved]);
+        Assert.Equal(PickupVerificationState.Rejected, history[rejected]);
+        Assert.Equal(PickupVerificationState.Expired, history[expired]);
+        Assert.Equal(PickupVerificationState.Pending, history[pending]);
     }
 
     [Fact]

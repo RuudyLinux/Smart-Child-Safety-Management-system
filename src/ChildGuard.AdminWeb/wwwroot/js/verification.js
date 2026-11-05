@@ -456,9 +456,13 @@
 
     setStep('step-face', 'done', 'Match ' + Number(data.matchScore).toFixed(2));
     setStep('step-decision', 'active', 'Awaiting decision');
+    // The backend refuses approval after expiresAt; say so up front.
+    var deadline = data.expiresAt
+      ? ' Approve before ' + new Date(data.expiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ', or verify again.'
+      : '';
     $('faceResult').innerHTML = banner('success', 'Face verified',
       data.message + ' Match score ' + Number(data.matchScore).toFixed(2) + '.',
-      'Confirm the handover to record the student leaving with this guardian.');
+      'Confirm the handover to record the student leaving with this guardian.' + deadline);
     $('approveBtn').disabled = false;
     $('rejectBtn').disabled = false;
   }

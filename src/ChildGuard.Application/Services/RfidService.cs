@@ -14,6 +14,8 @@ public class RfidService : IRfidService
     private readonly INotificationRepository _notifications;
     private readonly IPushNotificationSender _pushSender;
     private readonly JourneyValidationService _validation;
+    private readonly SchoolClock _clock;
+    private readonly RfidOptions _rfidOptions;
 
     public RfidService(
         IRfidRepository rfid,
@@ -21,8 +23,12 @@ public class RfidService : IRfidService
         IJourneyRepository journey,
         INotificationRepository notifications,
         IPushNotificationSender pushSender,
-        JourneyValidationService validation)
+        JourneyValidationService validation,
+        SchoolClock clock,
+        RfidOptions rfidOptions)
     {
+        _clock = clock;
+        _rfidOptions = rfidOptions;
         _rfid = rfid;
         _students = students;
         _journey = journey;
@@ -62,7 +68,7 @@ public class RfidService : IRfidService
             CardUid = request.CardUid,
             StudentId = request.StudentId,
             Status = RfidCardStatus.Active,
-            AssignedAt = DateTime.UtcNow
+            AssignedAt = _clock.UtcNow
         };
         await _rfid.AddAsync(card, ct);
         await _rfid.SaveChangesAsync(ct);
@@ -82,7 +88,7 @@ public class RfidService : IRfidService
     public async Task<List<RfidDeviceDto>> GetDevicesAsync(CancellationToken ct = default)
     {
         var devices = await _rfid.GetDevicesAsync(ct);
-        return devices.Select(d => new RfidDeviceDto(d.RfidDeviceId, d.DeviceLabel, d.ConnectionStatus, d.LastSeenAt)).ToList();
+        return devices.Select(d => new RfidDeviceDto(d.RfidDeviceId, d.DeviceLabel, d.ConnectionStatus, d.LastSeenAt, d.ApiKeyHash is not null, d.ApiKeyIssuedAt)).ToList();
     }
 
     public async Task<Result> HeartbeatAsync(int deviceId, CancellationToken ct = default)
@@ -91,7 +97,31 @@ public class RfidService : IRfidService
         if (device is null) return Result.Failure("Scanner device not recognized.");
 
         device.ConnectionStatus = RfidConnectionStatus.Connected;
-        device.LastSeenAt = DateTime.UtcNow;
+        device.LastSeenAt = _clock.UtcNow;
+        await _rfid.SaveChangesAsync(ct);
+        return Result.Success();
+    }
+
+    public async Task<Result<DeviceCredentialDto>> IssueDeviceKeyAsync(int deviceId, CancellationToken ct = default)
+    {
+        var device = await _rfid.GetDeviceByIdAsync(deviceId, ct);
+        if (device is null) return Result<DeviceCredentialDto>.Failure("Scanner device not recognized.");
+
+        // Issuing again rotates: the previous key stops working on save.
+        var key = DeviceKeys.Generate();
+        device.ApiKeyHash = DeviceKeys.Hash(key);
+        device.ApiKeyIssuedAt = _clock.UtcNow;
+        await _rfid.SaveChangesAsync(ct);
+        return Result<DeviceCredentialDto>.Success(
+            new DeviceCredentialDto(device.RfidDeviceId, device.DeviceLabel, key, device.ApiKeyIssuedAt.Value));
+    }
+
+    public async Task<Result> RevokeDeviceKeyAsync(int deviceId, CancellationToken ct = default)
+    {
+        var device = await _rfid.GetDeviceByIdAsync(deviceId, ct);
+        if (device is null) return Result.Failure("Scanner device not recognized.");
+        device.ApiKeyHash = null;
+        device.ApiKeyIssuedAt = null;
         await _rfid.SaveChangesAsync(ct);
         return Result.Success();
     }
@@ -105,7 +135,7 @@ public class RfidService : IRfidService
         // A scan reaching this point proves the physical reader is active — mark it
         // connected instead of leaving connection status permanently stale.
         device.ConnectionStatus = RfidConnectionStatus.Connected;
-        device.LastSeenAt = DateTime.UtcNow;
+        device.LastSeenAt = _clock.UtcNow;
         await _rfid.SaveChangesAsync(ct);
 
         var card = await _rfid.GetByCardUidAsync(request.CardUid, ct);
@@ -118,17 +148,37 @@ public class RfidService : IRfidService
             return new RfidScanResultDto(true, card.StudentId, student?.FullName, RfidMasking.Mask(card.CardUid),
                 false, null, "Student is not active.");
 
+        var masked = RfidMasking.Mask(card.CardUid);
+        var scanId = string.IsNullOrWhiteSpace(request.ScanId) ? null : request.ScanId.Trim();
+
         // Read-validate-write under a per-student lock: two taps arriving together
         // (double tap, scanner retry, two readers) are applied one after the other,
-        // so the second sees the first's event and is rejected as a duplicate
-        // instead of both passing validation against the same stale state.
-        var (journeyEvent, rejection) = await _journey.RunSerializedForStudentAsync(student.StudentId, async lockCt =>
+        // so the second sees the first's event instead of both passing validation
+        // against the same stale state.
+        var outcome = await _journey.RunSerializedForStudentAsync(student.StudentId, async lockCt =>
         {
-            var now = DateTime.UtcNow;
-            var lastEvent = await _journey.GetLastEventSinceAsync(student.StudentId, SchoolDay.StartUtc(now), lockCt);
+            // Retried request: the scanner resent a tap whose response it never got.
+            if (scanId is not null)
+            {
+                var original = await _journey.GetByScanIdAsync(device.RfidDeviceId, scanId, lockCt);
+                if (original is not null)
+                    return ScanOutcome.Already(original);
+            }
+
+            var now = _clock.UtcNow;
+            var lastEvent = await _journey.GetLastEventSinceAsync(student.StudentId, _clock.TodayStartUtc, lockCt);
+
+            // Same checkpoint again within the window: a double tap or a retry without
+            // a ScanId. Report success, write nothing, notify no one. Outside the window
+            // the state machine below rejects it as a duplicate as before.
+            if (lastEvent is not null
+                && lastEvent.EventType == request.Checkpoint
+                && now - lastEvent.Timestamp <= _rfidOptions.DuplicateScanWindow)
+                return ScanOutcome.Already(lastEvent);
+
             var validation = _validation.ValidateNextEvent(lastEvent?.EventType, request.Checkpoint);
             if (!validation.Succeeded)
-                return ((JourneyEvent?)null, validation.Error);
+                return ScanOutcome.Rejected(validation.Error!);
 
             var created = new JourneyEvent
             {
@@ -137,12 +187,14 @@ public class RfidService : IRfidService
                 RfidDeviceId = device.RfidDeviceId,
                 EventType = request.Checkpoint,
                 Timestamp = now,
-                Source = EventSource.Rfid
+                Source = EventSource.Rfid,
+                ScanId = scanId
             };
             await _journey.AddJourneyEventAsync(created, lockCt);
 
             if (request.Checkpoint is JourneyEventType.SchoolArrival or JourneyEventType.SchoolDeparture)
             {
+                var (date, time) = _clock.ToSchoolDateTime(now);
                 await _journey.AddAttendanceAsync(new Attendance
                 {
                     StudentId = student.StudentId,
@@ -150,26 +202,31 @@ public class RfidService : IRfidService
                     EventType = request.Checkpoint == JourneyEventType.SchoolArrival
                         ? AttendanceEventType.SchoolArrival
                         : AttendanceEventType.SchoolDeparture,
-                    Date = DateOnly.FromDateTime(now),
-                    Time = TimeOnly.FromDateTime(now)
+                    RecordedAtUtc = now,
+                    Date = date,
+                    Time = time
                 }, lockCt);
             }
 
             await _journey.SaveChangesAsync(lockCt);
-            return (created, (string?)null);
+            return ScanOutcome.Recorded(created);
         }, ct);
 
-        if (journeyEvent is null)
-            return new RfidScanResultDto(true, student.StudentId, student.FullName, RfidMasking.Mask(card.CardUid),
-                false, null, rejection!);
+        if (outcome.Event is null)
+            return new RfidScanResultDto(true, student.StudentId, student.FullName, masked, false, null, outcome.Rejection!);
 
-        var recordedAt = journeyEvent.Timestamp;
+        if (outcome.AlreadyRecorded)
+            return new RfidScanResultDto(true, student.StudentId, student.FullName, masked,
+                true, outcome.Event.EventType, "Already recorded.", AlreadyRecorded: true);
+
+        var journeyEvent = outcome.Event;
+        var localTime = _clock.ToLocal(journeyEvent.Timestamp);
 
         // Notify every guardian linked to this student — in-app record now, push delivery in Notifications phase.
         var guardianLinks = await _students.GetLinkedGuardiansAsync(student.StudentId, ct);
         var allGuardianIds = guardianLinks.Select(g => g.GuardianId).Distinct().ToList();
         var title = $"{request.Checkpoint} recorded";
-        var message = $"{student.FullName}: {request.Checkpoint} recorded at {recordedAt:t}.";
+        var message = $"{student.FullName}: {request.Checkpoint} recorded at {localTime:t}.";
         foreach (var guardianId in allGuardianIds)
         {
             await _notifications.AddAsync(new Notification
@@ -190,7 +247,14 @@ public class RfidService : IRfidService
             await _pushSender.SendAsync(title, message, guardianId, ct);
         }
 
-        return new RfidScanResultDto(true, student.StudentId, student.FullName, RfidMasking.Mask(card.CardUid),
+        return new RfidScanResultDto(true, student.StudentId, student.FullName, masked,
             true, request.Checkpoint, $"{request.Checkpoint} recorded successfully.");
+    }
+
+    private sealed record ScanOutcome(JourneyEvent? Event, bool AlreadyRecorded, string? Rejection)
+    {
+        public static ScanOutcome Recorded(JourneyEvent e) => new(e, false, null);
+        public static ScanOutcome Already(JourneyEvent e) => new(e, true, null);
+        public static ScanOutcome Rejected(string reason) => new(null, false, reason);
     }
 }
