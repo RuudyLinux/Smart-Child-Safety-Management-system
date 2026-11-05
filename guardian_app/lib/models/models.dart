@@ -26,8 +26,8 @@ class OtpChallenge {
   });
 
   factory OtpChallenge.fromJson(Map<String, dynamic> j) => OtpChallenge(
-        challengeToken: j['challengeToken'],
-        expiresAtUtc: DateTime.parse(j['expiresAtUtc']).toUtc(),
+        challengeToken: j['challengeToken']?.toString() ?? '',
+        expiresAtUtc: (DateTime.tryParse(j['expiresAtUtc']?.toString() ?? '') ?? DateTime.now()).toUtc(),
         codeLength: j['codeLength'] ?? 6,
         resendAvailableInSeconds: j['resendAvailableInSeconds'] ?? 0,
         resendsRemaining: j['resendsRemaining'] ?? 0,
@@ -69,9 +69,9 @@ class GuardianProfile {
   });
 
   factory GuardianProfile.fromJson(Map<String, dynamic> j) => GuardianProfile(
-        guardianId: j['guardianId'],
-        fullName: j['fullName'],
-        email: j['email'],
+        guardianId: j['guardianId'] ?? 0,
+        fullName: j['fullName']?.toString() ?? '',
+        email: j['email']?.toString() ?? '',
         phone: j['phone'],
         faceRegistered: j['faceRegistered'] ?? false,
         hasPhoto: j['hasPhoto'] ?? false,
@@ -118,8 +118,8 @@ class StudentSummary {
   });
 
   factory StudentSummary.fromJson(Map<String, dynamic> j) => StudentSummary(
-        studentId: j['studentId'],
-        fullName: j['fullName'],
+        studentId: j['studentId'] ?? 0,
+        fullName: j['fullName']?.toString() ?? '',
         grade: j['grade'],
         relationship: j['relationship'],
         isAuthorizedForPickup: j['isAuthorizedForPickup'] ?? false,
@@ -142,9 +142,9 @@ class AttendanceRecord {
   AttendanceRecord({required this.eventType, required this.date, required this.time});
 
   factory AttendanceRecord.fromJson(Map<String, dynamic> j) => AttendanceRecord(
-        eventType: j['eventType'],
-        date: DateTime.parse(j['date']),
-        time: j['time'],
+        eventType: j['eventType']?.toString() ?? '',
+        date: DateTime.tryParse(j['date']?.toString() ?? '') ?? DateTime.now(),
+        time: j['time']?.toString() ?? '',
       );
 }
 
@@ -156,9 +156,9 @@ class JourneyEvent {
   JourneyEvent({required this.eventType, required this.timestamp, required this.source});
 
   factory JourneyEvent.fromJson(Map<String, dynamic> j) => JourneyEvent(
-        eventType: j['eventType'],
-        timestamp: DateTime.parse(j['timestamp']),
-        source: j['source'],
+        eventType: j['eventType']?.toString() ?? '',
+        timestamp: DateTime.tryParse(j['timestamp']?.toString() ?? '') ?? DateTime.now(),
+        source: j['source']?.toString() ?? '',
       );
 }
 
@@ -180,11 +180,11 @@ class AppNotification {
   });
 
   factory AppNotification.fromJson(Map<String, dynamic> j) => AppNotification(
-        notificationId: j['notificationId'],
-        title: j['title'],
-        message: j['message'],
-        type: j['type'],
+        notificationId: j['notificationId'] ?? 0,
+        title: j['title']?.toString() ?? '',
+        message: j['message']?.toString() ?? '',
+        type: j['type']?.toString() ?? '',
         isRead: j['isRead'] ?? false,
-        sentAt: DateTime.parse(j['sentAt']),
+        sentAt: DateTime.tryParse(j['sentAt']?.toString() ?? '') ?? DateTime.now(),
       );
 }

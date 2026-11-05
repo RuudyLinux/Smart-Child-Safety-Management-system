@@ -110,17 +110,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           Positioned(
                             right: -2,
                             bottom: -2,
-                            child: GestureDetector(
-                              onTap: _uploadingPhoto ? null : _changePhoto,
-                              child: Container(
-                                width: 32,
-                                height: 32,
-                                decoration: BoxDecoration(
-                                  color: CgColors.primary,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(color: CgColors.background, width: 3),
+                            child: Semantics(
+                              label: 'Change photo',
+                              button: true,
+                              child: GestureDetector(
+                                onTap: _uploadingPhoto ? null : _changePhoto,
+                                child: Container(
+                                  width: 32,
+                                  height: 32,
+                                  decoration: BoxDecoration(
+                                    color: CgColors.primary,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: CgColors.background, width: 3),
+                                  ),
+                                  child: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 16),
                                 ),
-                                child: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 16),
                               ),
                             ),
                           ),

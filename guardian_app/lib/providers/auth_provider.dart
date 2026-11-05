@@ -27,6 +27,20 @@ class AuthProvider extends ChangeNotifier {
   AuthProvider({ApiClient? client}) : client = client ?? ApiClient() {
     api = GuardianApiService(this.client);
     _pushService = PushNotificationService(api);
+    this.client.onUnauthorized = _handleUnauthorized;
+  }
+
+  /// The API already cleared the token (expired, or the account was
+  /// deactivated) — drop the stale profile and send the guardian back to
+  /// login instead of leaving every screen stuck retrying a 401.
+  void _handleUnauthorized() {
+    if (status != AuthStatus.authenticated) return;
+    profile = null;
+    challenge = null;
+    resetTicket = null;
+    status = AuthStatus.unauthenticated;
+    lastError = 'Your session has expired. Please sign in again.';
+    notifyListeners();
   }
 
   Future<void> bootstrap() async {
@@ -133,7 +147,14 @@ class AuthProvider extends ChangeNotifier {
   Map<String, String> get photoHeaders => client.cachedAuthHeaders;
 
   Future<void> refreshProfile() async {
-    profile = await api.getProfile();
+    try {
+      profile = await api.getProfile();
+      lastError = null;
+    } on ApiException catch (e) {
+      lastError = e.message;
+    } catch (_) {
+      lastError = 'Could not reach server. Check your connection and try again.';
+    }
     notifyListeners();
   }
 

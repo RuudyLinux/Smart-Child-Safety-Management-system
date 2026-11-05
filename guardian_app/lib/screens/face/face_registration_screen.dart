@@ -41,7 +41,9 @@ class _FaceRegistrationScreenState extends State<FaceRegistrationScreen> {
         Navigator.of(context).pop();
       }
     } on ApiException catch (e) {
-      setState(() => _error = e.message);
+      if (mounted) setState(() => _error = e.message);
+    } catch (_) {
+      if (mounted) setState(() => _error = 'Could not reach server. Check your connection and try again.');
     } finally {
       if (mounted) setState(() => _submitting = false);
     }

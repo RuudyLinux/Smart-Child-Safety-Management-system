@@ -27,6 +27,9 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   @override
   void initState() {
     super.initState();
+    // Seed from the server-issued challenge once; _syncCountdowns only ever
+    // counts down from here, it never re-reads resendAvailableInSeconds.
+    _resendIn = context.read<AuthProvider>().challenge?.resendAvailableInSeconds ?? 0;
     _syncCountdowns();
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) => _syncCountdowns());
   }

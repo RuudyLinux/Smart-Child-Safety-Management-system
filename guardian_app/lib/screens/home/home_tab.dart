@@ -48,6 +48,7 @@ class HomeTab extends StatelessWidget {
                           headers: auth.photoHeaders,
                           size: 34,
                         ),
+                        tooltip: 'Profile',
                         onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ProfileScreen())),
                       ),
                       const SizedBox(width: 6),

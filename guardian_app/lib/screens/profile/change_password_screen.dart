@@ -15,6 +15,13 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   bool _loading = false;
   String? _error;
 
+  @override
+  void dispose() {
+    _currentCtrl.dispose();
+    _newCtrl.dispose();
+    super.dispose();
+  }
+
   Future<void> _submit() async {
     setState(() { _loading = true; _error = null; });
     try {
@@ -24,7 +31,9 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         Navigator.of(context).pop();
       }
     } on ApiException catch (e) {
-      setState(() => _error = e.message);
+      if (mounted) setState(() => _error = e.message);
+    } catch (_) {
+      if (mounted) setState(() => _error = 'Could not reach server. Check your connection and try again.');
     } finally {
       if (mounted) setState(() => _loading = false);
     }

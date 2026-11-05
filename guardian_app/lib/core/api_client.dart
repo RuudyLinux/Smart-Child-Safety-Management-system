@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io' show Platform;
 
 /// Base URL for ChildGuard.Api. Always pass --dart-define=API_BASE_URL=...
@@ -36,26 +36,31 @@ class ApiException implements Exception {
   String toString() => message;
 }
 
-/// Thin JSON HTTP client for the Guardian app. Persists the JWT via
-/// SharedPreferences and attaches it to every request.
+/// Thin JSON HTTP client for the Guardian app. Persists the JWT in the
+/// platform secure store (Keychain on iOS, Keystore-backed on Android) and
+/// attaches it to every request.
 class ApiClient {
   static const _tokenKey = 'cg_auth_token';
+  static const _storage = FlutterSecureStorage();
   String? _cachedToken;
+
+  /// Called whenever a request comes back 401 — the token is already cleared
+  /// by the time this runs, so the listener (AuthProvider) only needs to
+  /// reset its own state and get the guardian back to the login screen.
+  void Function()? onUnauthorized;
 
   Future<String?> get token async {
     if (_cachedToken != null) return _cachedToken;
-    final prefs = await SharedPreferences.getInstance();
-    _cachedToken = prefs.getString(_tokenKey);
+    _cachedToken = await _storage.read(key: _tokenKey);
     return _cachedToken;
   }
 
   Future<void> setToken(String? token) async {
     _cachedToken = token;
-    final prefs = await SharedPreferences.getInstance();
     if (token == null) {
-      await prefs.remove(_tokenKey);
+      await _storage.delete(key: _tokenKey);
     } else {
-      await prefs.setString(_tokenKey, token);
+      await _storage.write(key: _tokenKey, value: token);
     }
   }
 
@@ -129,7 +134,7 @@ class ApiClient {
     return _handle(resp);
   }
 
-  dynamic _handle(http.Response resp) {
+  Future<dynamic> _handle(http.Response resp) async {
     if (resp.statusCode >= 200 && resp.statusCode < 300) {
       if (resp.body.isEmpty) return null;
       return jsonDecode(resp.body);
@@ -139,6 +144,15 @@ class ApiClient {
       final decoded = jsonDecode(resp.body);
       if (decoded is Map && decoded['message'] != null) message = decoded['message'].toString();
     } catch (_) {}
+
+    // The token is no longer valid for any reason (expired, account
+    // deactivated) — drop it and let the app route back to login instead of
+    // every screen retrying a request that will keep failing the same way.
+    if (resp.statusCode == 401) {
+      await setToken(null);
+      onUnauthorized?.call();
+    }
+
     throw ApiException(message, resp.statusCode);
   }
 }

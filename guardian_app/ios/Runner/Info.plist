@@ -26,6 +26,10 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Used to capture a photo for guardian/child profiles and for face verification at pickup.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Used to choose a photo from your library for guardian/child profiles.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

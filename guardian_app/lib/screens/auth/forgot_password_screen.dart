@@ -17,15 +17,25 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   bool _loading = false;
   String? _message;
 
+  @override
+  void dispose() {
+    _emailCtrl.dispose();
+    _tokenCtrl.dispose();
+    _newPasswordCtrl.dispose();
+    super.dispose();
+  }
+
   Future<void> _requestToken() async {
     setState(() => _loading = true);
     try {
       await context.read<AuthProvider>().api.forgotPassword(_emailCtrl.text.trim());
-      setState(() { _requested = true; _message = 'If the account exists, a reset token has been sent.'; });
+      if (mounted) setState(() { _requested = true; _message = 'If the account exists, a reset token has been sent.'; });
     } on ApiException catch (e) {
-      setState(() => _message = e.message);
+      if (mounted) setState(() => _message = e.message);
+    } catch (_) {
+      if (mounted) setState(() => _message = 'Could not reach server. Check your connection and try again.');
     } finally {
-      setState(() => _loading = false);
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -38,7 +48,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         Navigator.of(context).pop();
       }
     } on ApiException catch (e) {
-      setState(() => _message = e.message);
+      if (mounted) setState(() => _message = e.message);
+    } catch (_) {
+      if (mounted) setState(() => _message = 'Could not reach server. Check your connection and try again.');
     } finally {
       if (mounted) setState(() => _loading = false);
     }

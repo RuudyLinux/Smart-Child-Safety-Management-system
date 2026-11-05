@@ -87,9 +87,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                               color: n.isRead ? CgColors.card : CgColors.primarySoft,
                               child: InkWell(
                                 onTap: () async {
-                                  if (!n.isRead) {
+                                  if (n.isRead) return;
+                                  try {
                                     await context.read<AuthProvider>().api.markNotificationRead(n.notificationId);
                                     _load();
+                                  } catch (_) {
+                                    if (!context.mounted) return;
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Could not mark this alert as read. Try again.')),
+                                    );
                                   }
                                 },
                                 child: Padding(

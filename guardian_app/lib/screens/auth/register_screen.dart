@@ -17,6 +17,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _loading = false;
   String? _error;
 
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _emailCtrl.dispose();
+    _phoneCtrl.dispose();
+    _passwordCtrl.dispose();
+    super.dispose();
+  }
+
   Future<void> _submit() async {
     setState(() { _loading = true; _error = null; });
     try {
@@ -28,6 +37,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       }
     } on ApiException catch (e) {
       setState(() => _error = e.message);
+    } catch (_) {
+      setState(() => _error = 'Could not reach server. Check your connection and try again.');
     } finally {
       if (mounted) setState(() => _loading = false);
     }

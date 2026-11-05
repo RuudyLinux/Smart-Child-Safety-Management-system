@@ -54,6 +54,7 @@ class CgAvatar extends StatelessWidget {
     );
 
     if (photoUrl != null && photoUrl!.isNotEmpty) {
+      final cachePx = (size * MediaQuery.devicePixelRatioOf(context)).round();
       content = ClipRRect(
         borderRadius: BorderRadius.circular(radius),
         child: Stack(
@@ -66,6 +67,8 @@ class CgAvatar extends StatelessWidget {
               width: size,
               height: size,
               fit: BoxFit.cover,
+              cacheWidth: cachePx,
+              cacheHeight: cachePx,
               loadingBuilder: (context, child, progress) => progress == null ? child : const SizedBox.shrink(),
               errorBuilder: (context, error, stack) => const SizedBox.shrink(),
             ),
