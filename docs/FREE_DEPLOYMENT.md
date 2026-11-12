@@ -8,6 +8,7 @@ Cost: ₹0. Nothing here needs a paid plan, a card, or a domain.
 | Admin Web | Render web service `childguard-admin` (free, Ohio) | server-rendered, so it cannot be a GitHub Pages site |
 | Database | Neon PostgreSQL 18 (free), project `sweet-bird-96372858`, default branch | Ohio (`us-east-2`), so the API runs in Render Ohio |
 | Guardian app (web) | GitHub Pages, built by `.github/workflows/guardian-web-pages.yml` | `https://ruudylinux.github.io/Smart-Child-Safety-Management-system/` |
+| Face service | the school's PC, public only through a Tailscale Funnel, key-protected | see limits |
 | Email | Resend (sandbox) | see limits |
 | Guardian app (Android) | not published | needs Firebase config and a distribution decision |
 
@@ -21,9 +22,11 @@ production unless someone presses *Manual Deploy* (Render dashboard) or calls th
   This workspace also runs two other projects, so heavy use of all four can suspend them until next month.
 - **Neon free plan:** 1 GB storage, 100 compute-hours a month, sleeps after 5 minutes idle, 5 GB egress, 6 hours of
   restore history, no IP allow list. Health checks use `/api/health/live` (no database) so they do not wake it.
-- **Face service is not deployed.** Render's free tier cannot run it (needs about 700 MB and a private network). Face
-  registration, live check and pickup face matching return an error; sign-in, students, guardians, RFID scans,
-  journeys, attendance and reports work.
+- **Face service runs on the school's own PC, not on Render.** Render's free tier (0.1 CPU, 512 MB) cannot run it, so
+  the API reaches it through a Tailscale Funnel (`docs/FACE_SERVICE_ON_THIS_PC.md`; `FaceService__BaseUrl` and
+  `FaceService__ApiKey` on the API). While that PC is off, asleep or offline, face registration, live check and pickup
+  face matching return an error; sign-in, students, guardians, RFID scans, journeys, attendance and reports keep
+  working. Verified end to end: live API -> tunnel -> face service, a face image analysed with HTTP 200.
 - **Email is sandboxed:** with Resend's test sender (`onboarding@resend.dev`), every message is redirected to the
   Resend account owner (`Email__Resend__TestRecipient`). Guardians will not receive their login codes until a domain
   is verified in Resend and `Email__From` is set to an address on it.
