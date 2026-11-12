@@ -1,5 +1,6 @@
 using ChildGuard.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
 
 namespace ChildGuard.Infrastructure.Persistence;
 
@@ -37,11 +38,50 @@ public class ChildGuardDbContext : DbContext
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ChildGuardDbContext).Assembly);
         MarkInstantsAsUtc(modelBuilder);
+        // The MySQL model (and its migration snapshot) is the reference. Everything PostgreSQL does
+        // differently is applied here, only for Npgsql, so the MySQL snapshot never changes.
+        if (Database.IsNpgsql()) ApplyPostgresMappings(modelBuilder);
         base.OnModelCreating(modelBuilder);
     }
 
     /// <summary>
-    /// Instants are stored in UTC, but MySQL hands DateTime values back with
+    /// PostgreSQL differences, kept next to each other so the contract is visible:
+    ///  * LONGTEXT/LONGBLOB column types become text/bytea.
+    ///  * Student.DateOfBirth stays a plain (zone-less) timestamp: it is a calendar value, and a
+    ///    timestamptz column would reject its Unspecified kind.
+    ///  * MySQL compares and sorts text case-insensitively (utf8mb4_unicode_ci); PostgreSQL does not.
+    ///    Columns that are looked up by equality, are unique, or order a list use citext so logins,
+    ///    uniqueness and list order behave the same on both engines.
+    /// </summary>
+    private static void ApplyPostgresMappings(ModelBuilder modelBuilder)
+    {
+        foreach (var property in modelBuilder.Model.GetEntityTypes().SelectMany(e => e.GetProperties()))
+        {
+            switch ((property[RelationalAnnotationNames.ColumnType] as string)?.ToUpperInvariant())
+            {
+                case "LONGTEXT": property.SetColumnType("text"); break;
+                case "LONGBLOB": property.SetColumnType("bytea"); break;
+            }
+        }
+
+        modelBuilder.Entity<Student>().Property(x => x.DateOfBirth).HasColumnType("timestamp without time zone");
+
+        modelBuilder.HasPostgresExtension("citext");
+        modelBuilder.Entity<Admin>().Property(x => x.Email).HasColumnType("citext");
+        modelBuilder.Entity<Guardian>().Property(x => x.Email).HasColumnType("citext");
+        modelBuilder.Entity<Guardian>().Property(x => x.Phone).HasColumnType("citext");
+        modelBuilder.Entity<Guardian>().Property(x => x.FullName).HasColumnType("citext");
+        modelBuilder.Entity<Student>().Property(x => x.FullName).HasColumnType("citext");
+        modelBuilder.Entity<Driver>().Property(x => x.FullName).HasColumnType("citext");
+        modelBuilder.Entity<Route>().Property(x => x.RouteName).HasColumnType("citext");
+        modelBuilder.Entity<Bus>().Property(x => x.BusNumber).HasColumnType("citext");
+        modelBuilder.Entity<RfidCard>().Property(x => x.CardUid).HasColumnType("citext");
+        modelBuilder.Entity<RfidDevice>().Property(x => x.DeviceLabel).HasColumnType("citext");
+    }
+
+    /// <summary>
+    /// Instants are stored in UTC (a write with Kind=Unspecified is taken to already be UTC, which
+    /// Npgsql requires for timestamptz), but MySQL hands DateTime values back with
     /// Kind=Unspecified. Serialized like that they carry no "Z", and every client
     /// (browser, Flutter) reads them as local time. Re-stamp them as UTC on read.
     /// Calendar dates are not instants and are left alone.
@@ -49,10 +89,12 @@ public class ChildGuardDbContext : DbContext
     private static void MarkInstantsAsUtc(ModelBuilder modelBuilder)
     {
         var utc = new Microsoft.EntityFrameworkCore.Storage.ValueConversion.ValueConverter<DateTime, DateTime>(
-            v => v.Kind == DateTimeKind.Local ? v.ToUniversalTime() : v,
+            v => v.Kind == DateTimeKind.Local ? v.ToUniversalTime() : DateTime.SpecifyKind(v, DateTimeKind.Utc),
             v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
         var utcNullable = new Microsoft.EntityFrameworkCore.Storage.ValueConversion.ValueConverter<DateTime?, DateTime?>(
-            v => v.HasValue && v.Value.Kind == DateTimeKind.Local ? v.Value.ToUniversalTime() : v,
+            v => v.HasValue
+                ? (v.Value.Kind == DateTimeKind.Local ? v.Value.ToUniversalTime() : DateTime.SpecifyKind(v.Value, DateTimeKind.Utc))
+                : v,
             v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : v);
 
         foreach (var entity in modelBuilder.Model.GetEntityTypes())

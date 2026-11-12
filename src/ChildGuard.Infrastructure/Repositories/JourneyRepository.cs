@@ -38,11 +38,15 @@ public class JourneyRepository : IJourneyRepository
         return result;
     }
 
-    // Row lock on the parent Students row: InnoDB holds it until commit, so a second
+    // Row lock on the parent Students row: held until commit (InnoDB / PostgreSQL), so a second
     // scan/approval for the same student waits here instead of racing validation.
     private Task LockStudentRowAsync(int studentId, CancellationToken ct) =>
-        _db.Database.ExecuteSqlInterpolatedAsync(
-            $"SELECT StudentId FROM Students WHERE StudentId = {studentId} FOR UPDATE", ct);
+        _db.Database.IsNpgsql()
+            // PostgreSQL folds unquoted names to lower case, so the mixed-case names must be quoted.
+            ? _db.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT \"StudentId\" FROM \"Students\" WHERE \"StudentId\" = {studentId} FOR UPDATE", ct)
+            : _db.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT StudentId FROM Students WHERE StudentId = {studentId} FOR UPDATE", ct);
 
     public Task<JourneyEvent?> GetByScanIdAsync(int rfidDeviceId, string scanId, CancellationToken ct = default) =>
         _db.JourneyEvents.FirstOrDefaultAsync(e => e.RfidDeviceId == rfidDeviceId && e.ScanId == scanId, ct);

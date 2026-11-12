@@ -104,7 +104,7 @@ public class VerificationRepository : IVerificationRepository
             throw new ConcurrencyConflictException(
                 "This verification was just updated by someone else. Reload and try again.");
         }
-        catch (DbUpdateException ex) when (ex.InnerException is MySqlConnector.MySqlException { ErrorCode: MySqlConnector.MySqlErrorCode.DuplicateKeyEntry })
+        catch (DbUpdateException ex) when (ChildGuard.Infrastructure.Persistence.DbErrors.IsUniqueViolation(ex))
         {
             // A unique index refused the write: a live capture submitted twice, or a face registered twice at once.
             throw new ConcurrencyConflictException("That was just recorded by someone else. Start again.");

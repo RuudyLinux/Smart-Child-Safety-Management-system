@@ -20,7 +20,16 @@ public class StudentRepository : IStudentRepository
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
-            query = query.Where(s => s.FullName.Contains(search));
+        {
+            // MySQL's collation makes Contains case-insensitive; PostgreSQL needs ILIKE to match.
+            if (_db.Database.IsNpgsql())
+            {
+                var pattern = "%" + search.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_") + "%";
+                query = query.Where(s => EF.Functions.ILike(s.FullName, pattern, "\\"));
+            }
+            else
+                query = query.Where(s => s.FullName.Contains(search));
+        }
 
         return await query.OrderBy(s => s.FullName).ToListAsync(ct);
     }

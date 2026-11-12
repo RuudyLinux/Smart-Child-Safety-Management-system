@@ -27,9 +27,11 @@ public static class AttendanceTimeProjection
         var clock = scope.ServiceProvider.GetRequiredService<SchoolClock>();
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<SchoolClock>>();
 
-        var candidates = await db.AttendanceRecords
-            .FromSqlRaw("SELECT * FROM AttendanceRecords WHERE `Date` = DATE(RecordedAtUtc) AND `Time` = TIME(RecordedAtUtc)")
-            .ToListAsync(ct);
+        // Same predicate on both engines: the row still equals the UTC projection of its instant.
+        var sql = db.Database.IsNpgsql()
+            ? "SELECT * FROM \"AttendanceRecords\" WHERE \"Date\" = (\"RecordedAtUtc\" AT TIME ZONE 'UTC')::date AND \"Time\" = (\"RecordedAtUtc\" AT TIME ZONE 'UTC')::time"
+            : "SELECT * FROM AttendanceRecords WHERE `Date` = DATE(RecordedAtUtc) AND `Time` = TIME(RecordedAtUtc)";
+        var candidates = await db.AttendanceRecords.FromSqlRaw(sql).ToListAsync(ct);
 
         var changed = 0;
         foreach (var row in candidates)
