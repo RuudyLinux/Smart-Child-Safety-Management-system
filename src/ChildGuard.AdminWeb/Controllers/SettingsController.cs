@@ -50,6 +50,26 @@ public class SettingsController : BaseAdminController
         return RedirectToAction(nameof(Index));
     }
 
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> AddDevice(string deviceLabel, CancellationToken ct)
+    {
+        var result = await Api.PostAsync<RfidDeviceDto>("/api/rfid/devices", new CreateRfidDeviceRequest(deviceLabel), ct);
+        TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded
+            ? $"Scanner {deviceLabel.Trim()} added. Issue it a key if it connects on its own; the pickup desk can use it right away."
+            : result.Error;
+        return RedirectToAction(nameof(Index));
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RenameDevice(int id, string deviceLabel, CancellationToken ct)
+    {
+        var result = await Api.PutAsync<object?>($"/api/rfid/devices/{id}", new UpdateRfidDeviceRequest(deviceLabel), ct);
+        TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded ? $"Scanner renamed to {deviceLabel.Trim()}." : result.Error;
+        return RedirectToAction(nameof(Index));
+    }
+
     private async Task LoadAsync(CancellationToken ct)
     {
         SetPage("Settings", "System");

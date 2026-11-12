@@ -75,6 +75,104 @@ public class VerificationController : BaseAdminController
     public async Task<IActionResult> Scan([FromBody] RfidScanRequest request, CancellationToken ct)
     {
         var result = await Api.PostAsync<RfidScanResultDto>("/api/rfid/scan", request, ct);
+        if (!result.Succeeded) return StatusCode(result.StatusCode, new { message = result.Error });
+
+        var scan = result.Value!;
+        var photoUrl = await StudentPhotoUrlAsync(scan.StudentId, ct);
+
+        return Json(new
+        {
+            scan.StudentIdentified,
+            scan.StudentId,
+            scan.StudentName,
+            scan.MaskedCardUid,
+            scan.EventRecorded,
+            scan.RecordedEventType,
+            scan.Message,
+            scan.AlreadyRecorded,
+            StudentPhotoUrl = photoUrl
+        });
+    }
+
+    /// <summary>
+    /// Pickup checkpoint: identify the student only. Nothing is recorded here; the
+    /// departure is written by the handover approval once the guardian is verified.
+    /// </summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Identify([FromBody] RfidIdentifyRequest request, CancellationToken ct)
+    {
+        var result = await Api.PostAsync<RfidIdentifyResultDto>("/api/rfid/identify", request, ct);
+        if (!result.Succeeded) return StatusCode(result.StatusCode, new { message = result.Error });
+
+        var found = result.Value!;
+        return Json(new
+        {
+            found.StudentIdentified,
+            found.StudentId,
+            found.StudentName,
+            found.MaskedCardUid,
+            EventRecorded = false,
+            found.Message,
+            StudentPhotoUrl = await StudentPhotoUrlAsync(found.StudentId, ct)
+        });
+    }
+
+    // Offer a photo URL only when there is a photo: requesting a missing one
+    // costs a 404 (and a console error) on every scan.
+    private async Task<string?> StudentPhotoUrlAsync(int? studentId, CancellationToken ct)
+    {
+        if (studentId is not int id) return null;
+        var student = await Api.GetAsync<StudentDetailDto>($"/api/students/{id}", ct);
+        return student.Succeeded && student.Value!.HasPhoto
+            ? Url.Action(nameof(StudentsController.Photo), "Students", new { id })
+            : null;
+    }
+
+    /// <summary>Layer 1 check for one image (webcam capture or gallery file), shown before anything is submitted.</summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [RequestSizeLimit(3 * 1024 * 1024)]
+    public async Task<IActionResult> AnalyzeImage([FromBody] AnalyzeImageRequest request, CancellationToken ct)
+    {
+        var result = await Api.PostAsync<ImageAnalysisResultDto>("/api/verification/analyze-image", request, ct);
+        return result.Succeeded ? Json(result.Value) : StatusCode(result.StatusCode, new { message = result.Error });
+    }
+
+    // ---- Layered verification (all judged by the API; these only carry bytes and show the verdict) ----
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> StartSession([FromBody] StartVerificationSessionRequest request, CancellationToken ct)
+    {
+        var result = await Api.PostAsync<VerificationSessionDto>("/api/verification/sessions", request, ct);
+        return result.Succeeded ? Json(result.Value) : StatusCode(result.StatusCode, new { message = result.Error });
+    }
+
+    /// <summary>Quality, identity and authorisation for a gallery image (or a still). Never establishes liveness.</summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [RequestSizeLimit(3 * 1024 * 1024)]
+    public async Task<IActionResult> SessionIdentify(int id, [FromBody] SessionIdentifyRequest request, CancellationToken ct)
+    {
+        var result = await Api.PostAsync<VerificationAttemptResultDto>($"/api/verification/sessions/{id}/identify", request, ct);
+        return result.Succeeded ? Json(result.Value) : StatusCode(result.StatusCode, new { message = result.Error });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SessionChallenge(int id, CancellationToken ct)
+    {
+        var result = await Api.PostAsync<LiveChallengeDto>($"/api/verification/sessions/{id}/challenge", new { }, ct);
+        return result.Succeeded ? Json(result.Value) : StatusCode(result.StatusCode, new { message = result.Error });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [RequestSizeLimit(5 * 1024 * 1024)]
+    public async Task<IActionResult> SessionLiveVerify(int id, [FromBody] LiveVerifyRequest request, CancellationToken ct)
+    {
+        var result = await Api.PostAsync<VerificationAttemptResultDto>($"/api/verification/sessions/{id}/live-verify", request, ct);
         return result.Succeeded ? Json(result.Value) : StatusCode(result.StatusCode, new { message = result.Error });
     }
 

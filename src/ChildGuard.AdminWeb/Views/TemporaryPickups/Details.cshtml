@@ -1,0 +1,155 @@
+@model TemporaryPickupDetailDto
+@{
+    var p = Model.Pickup;
+    ViewData["Title"] = $"Temporary pickup · {p.FullName}";
+    var canDecide = p.State == TemporaryPickupState.PendingApproval;
+    var canRevoke = p.State is TemporaryPickupState.Scheduled or TemporaryPickupState.Active;
+}
+
+<div class="cg-page-head">
+    <div class="cg-page-head__text">
+        <h1 class="cg-page-head__title">@p.FullName</h1>
+        <p class="cg-page-head__sub">
+            @p.Relationship, collecting <a href="/Students/Details/@p.StudentId">@p.StudentName</a>
+            · requested by <a href="/Guardians/Details/@p.RequestedByGuardianId">@p.RequestedByName</a>
+        </p>
+    </div>
+    <div class="cg-page-head__actions">
+        <partial name="_StateBadge" model="p.State" />
+        @if (canDecide)
+        {
+            <form asp-action="Approve" asp-route-id="@p.Id" method="post" data-cg-busy>
+                @Html.AntiForgeryToken()
+                <button type="submit" class="cg-btn cg-btn--success"><span class="cg-btn__label">Approve</span></button>
+            </form>
+            <button type="button" class="cg-btn cg-btn--danger-soft" data-cg-modal-open="rejectModal">Reject</button>
+        }
+        @if (canRevoke)
+        {
+            <button type="button" class="cg-btn cg-btn--danger-soft" data-cg-modal-open="revokeModal">Revoke</button>
+            <a class="cg-btn cg-btn--primary" href="/TemporaryPickups/Desk">Open desk</a>
+        }
+    </div>
+</div>
+
+@if (p.State == TemporaryPickupState.PendingApproval)
+{
+    <div class="cg-alert cg-alert--warning" role="status">
+        <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "alert-circle")</span>
+        <div class="cg-alert__body">
+            <div class="cg-alert__title">Check before approving</div>
+            Confirm the requesting guardian is expected to arrange this, and that the photo shows one clear face. At the desk the person must present the QR code and pass a face check against this photo.
+        </div>
+    </div>
+}
+
+<div class="cg-grid cg-grid--split">
+    <div>
+        <section class="cg-card">
+            <div class="cg-card__head"><h2 class="cg-card__title">Request</h2></div>
+            <div class="cg-card__body">
+                <dl class="cg-deflist">
+                    <dt>Person</dt><dd>@p.FullName</dd>
+                    <dt>Relationship</dt><dd>@p.Relationship</dd>
+                    <dt>Contact</dt><dd>@p.Phone</dd>
+                    <dt>ID hint</dt><dd>@(p.IdentityNote ?? "—")</dd>
+                    <dt>Student</dt><dd>@p.StudentName@(string.IsNullOrEmpty(p.StudentGrade) ? "" : $" ({p.StudentGrade})")</dd>
+                    <dt>From</dt><dd>@p.ValidFromUtc.ToSchoolTime().ToString("ddd d MMM yyyy, HH:mm")</dd>
+                    <dt>Until</dt><dd>@p.ValidUntilUtc.ToSchoolTime().ToString("ddd d MMM yyyy, HH:mm") <span class="cg-muted">(@((p.ValidUntilUtc - p.ValidFromUtc).TotalHours.ToString("0.#")) hours)</span></dd>
+                    <dt>Requested</dt><dd>@p.CreatedAt.ToSchoolTime().ToString("d MMM yyyy, HH:mm")</dd>
+                    @if (!string.IsNullOrEmpty(p.Notes)) { <dt>Note</dt><dd>@p.Notes</dd> }
+                    @if (p.DecidedAt is { } decided)
+                    {
+                        <dt>Decision</dt>
+                        <dd>@(p.DecidedByName ?? "Admin") · @decided.ToSchoolTime().ToString("d MMM, HH:mm")@(string.IsNullOrEmpty(p.DecisionNote) ? "" : " — " + p.DecisionNote)</dd>
+                    }
+                    @if (p.CompletedAt is { } done) { <dt>Collected</dt><dd>@done.ToSchoolTime().ToString("d MMM yyyy, HH:mm")</dd> }
+                </dl>
+            </div>
+        </section>
+
+        <section class="cg-card">
+            <div class="cg-card__head">
+                <div>
+                    <h2 class="cg-card__title">Audit trail</h2>
+                    <div class="cg-card__sub">Every step, including refused scans and failed face checks</div>
+                </div>
+            </div>
+            <div class="cg-card__body">
+                <ol class="cg-timeline">
+                    @foreach (var a in Model.Audit)
+                    {
+                        var tone = a.Action switch
+                        {
+                            "Approved" or "HandedOver" => "success",
+                            "FaceMismatch" or "QrRejected" or "HandoverRefused" or "Rejected" or "Revoked" => "danger",
+                            "Cancelled" => "muted",
+                            _ => ""
+                        };
+                        <li class="cg-timeline__item">
+                            <span class="cg-timeline__marker @(tone == "" ? "" : "cg-timeline__marker--" + tone)"></span>
+                            <div class="cg-timeline__head">
+                                <span class="cg-timeline__title">@a.Action</span>
+                                <span class="cg-timeline__time">@a.OccurredAt.ToSchoolTime().ToString("d MMM, HH:mm:ss")</span>
+                            </div>
+                            <div class="cg-timeline__body">@a.ActorRole@(a.ActorId is null ? "" : " #" + a.ActorId)@(string.IsNullOrEmpty(a.Detail) ? "" : " · " + a.Detail)</div>
+                        </li>
+                    }
+                </ol>
+            </div>
+        </section>
+    </div>
+
+    <aside>
+        <section class="cg-card">
+            <div class="cg-card__head"><h2 class="cg-card__title">Photo on file</h2></div>
+            <div class="cg-card__body">
+                @if (p.HasPhoto)
+                {
+                    <img src="/TemporaryPickups/Photo/@p.Id" alt="Photo of @p.FullName" style="width:100%;border-radius:14px;border:1px solid var(--cg-border)" />
+                }
+                else
+                {
+                    <p class="cg-muted">No photo.</p>
+                }
+            </div>
+        </section>
+    </aside>
+</div>
+
+<div class="cg-modal" id="rejectModal" hidden role="dialog" aria-modal="true" aria-labelledby="rejectTitle">
+    <div class="cg-modal__panel">
+        <div class="cg-modal__head"><h2 class="cg-modal__title" id="rejectTitle">Reject this request</h2>
+            <button type="button" class="cg-iconbtn" data-cg-modal-close aria-label="Close">@await Html.PartialAsync("_Icon", "x")</button></div>
+        <form asp-action="Reject" asp-route-id="@p.Id" method="post" data-cg-busy>
+            @Html.AntiForgeryToken()
+            <div class="cg-modal__body">
+                <label class="cg-label" for="rejectReason">Reason (shown to the guardian)</label>
+                <textarea class="cg-textarea" id="rejectReason" name="reason" required maxlength="500" rows="3"></textarea>
+            </div>
+            <div class="cg-modal__foot">
+                <button type="button" class="cg-btn cg-btn--secondary" data-cg-modal-close>Cancel</button>
+                <button type="submit" class="cg-btn cg-btn--danger"><span class="cg-btn__label">Reject request</span></button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="cg-modal" id="revokeModal" hidden role="dialog" aria-modal="true" aria-labelledby="revokeTitle">
+    <div class="cg-modal__panel">
+        <div class="cg-modal__head"><h2 class="cg-modal__title" id="revokeTitle">Revoke this pickup</h2>
+            <button type="button" class="cg-iconbtn" data-cg-modal-close aria-label="Close">@await Html.PartialAsync("_Icon", "x")</button></div>
+        <form asp-action="Revoke" asp-route-id="@p.Id" method="post" data-cg-busy>
+            @Html.AntiForgeryToken()
+            <div class="cg-modal__body">
+                <p class="cg-muted">Any QR code already shared stops working immediately and every linked guardian is notified.</p>
+                <label class="cg-label" for="revokeReason">Reason</label>
+                <textarea class="cg-textarea" id="revokeReason" name="reason" required maxlength="500" rows="3"></textarea>
+            </div>
+            <div class="cg-modal__foot">
+                <button type="button" class="cg-btn cg-btn--secondary" data-cg-modal-close>Cancel</button>
+                <button type="submit" class="cg-btn cg-btn--danger"><span class="cg-btn__label">Revoke pickup</span></button>
+            </div>
+        </form>
+    </div>
+</div>

@@ -20,12 +20,36 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light" />
     <meta name="csrf-token" content="@Antiforgery.GetAndStoreTokens(Context).RequestToken" />
-    <meta name="theme-color" content="#0F172A" />
+    <meta name="theme-color" content="#F7F9FC" />
+    @* Motion is opt-in: on only when the OS allows it and no automation drives the
+       page, so tests and assistive setups always get the settled layout. Runs before
+       first paint so nothing flashes. *@
+    <script>
+        (function (d) {
+            var still = navigator.webdriver || (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+            d.documentElement.classList.add(still ? 'cg-static' : 'cg-motion');
+            if (still) {
+                // No cross-page transition either: navigations land instantly.
+                // A skipped transition rejects its promises (WebKit reports them as uncaught),
+                // so they are observed before skipping.
+                var noop = function () { };
+                var skip = function (e) {
+                    var vt = e.viewTransition;
+                    if (!vt) return;
+                    [vt.ready, vt.finished, vt.updateCallbackDone].forEach(function (p) { if (p && p.catch) p.catch(noop); });
+                    vt.skipTransition();
+                };
+                window.addEventListener('pageswap', skip);
+                window.addEventListener('pagereveal', skip);
+            }
+        })(document);
+    </script>
     <title>@pageTitle — ChildGuard</title>
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="icon" href="~/favicon.svg" type="image/svg+xml" />
 </head>
 <body>
+<div class="cg-progress" aria-hidden="true"></div>
 @if (authenticated)
 {
     <div class="cg-app">
@@ -40,7 +64,7 @@
                 </span>
             </a>
 
-            <nav>
+            <nav class="cg-sidebar__nav" aria-label="Main navigation">
                 <ul class="cg-nav">
                     <li class="cg-nav__section">Overview</li>
                     <li class="cg-nav__item">
@@ -82,6 +106,12 @@
                             @await Html.PartialAsync("_Icon", "pickup")<span class="cg-nav__label">Pickup &amp; Drop-off</span>
                         </a>
                         <span class="cg-nav__tip">Pickup &amp; Drop-off</span>
+                    </li>
+                    <li class="cg-nav__item">
+                        <a class="@NavClass("TemporaryPickups")" href="/TemporaryPickups">
+                            @await Html.PartialAsync("_Icon", "guardians")<span class="cg-nav__label">Temporary Pickups</span>
+                        </a>
+                        <span class="cg-nav__tip">Temporary Pickups</span>
                     </li>
                     <li class="cg-nav__item">
                         <a class="@(Is("Verification") && action == "History" ? "cg-nav__link is-active" : "cg-nav__link")" href="/Verification/History">
@@ -142,7 +172,7 @@
         <div class="cg-main">
             <header class="cg-topbar">
                 <div class="cg-topbar__lead">
-                    <button type="button" class="cg-iconbtn" data-cg-sidebar-toggle aria-label="Toggle navigation">
+                    <button type="button" class="cg-iconbtn" data-cg-sidebar-toggle aria-label="Toggle navigation" aria-expanded="false">
                         @await Html.PartialAsync("_Icon", "menu")
                     </button>
                     <div class="cg-topbar__titles">
@@ -173,9 +203,9 @@
                         <button type="button" class="cg-iconbtn" data-cg-dropdown aria-haspopup="true"
                                 aria-expanded="false" aria-label="Safety alerts">
                             @await Html.PartialAsync("_Icon", "bell")
-                            <span class="cg-iconbtn__dot cg-iconbtn__dot--count" data-cg-alert-count hidden></span>
+                            <span class="cg-iconbtn__dot cg-iconbtn__dot--count" data-cg-alert-count aria-hidden="true" hidden></span>
                         </button>
-                        <div class="cg-dropdown__menu" style="width:320px" role="menu">
+                        <div class="cg-dropdown__menu cg-dropdown__menu--wide" role="menu">
                             <div class="cg-dropdown__head">
                                 <strong>Safety alerts</strong>
                                 <div class="cg-text-sm cg-muted" data-cg-alert-summary>Checking current conditions…</div>
@@ -189,9 +219,9 @@
                     </div>
 
                     <div class="cg-dropdown">
-                        <button type="button" class="cg-btn cg-btn--primary cg-btn--sm" data-cg-dropdown
-                                aria-haspopup="true" aria-expanded="false">
-                            @await Html.PartialAsync("_Icon", "plus")<span>Quick action</span>
+                        <button type="button" class="cg-btn cg-btn--primary cg-btn--sm cg-topbar__qa" data-cg-dropdown
+                                aria-haspopup="true" aria-expanded="false" aria-label="Quick action">
+                            @await Html.PartialAsync("_Icon", "plus")<span class="cg-topbar__qa-label">Quick action</span>
                         </button>
                         <div class="cg-dropdown__menu" role="menu">
                             <a class="cg-dropdown__item" href="/Students/Create">@await Html.PartialAsync("_Icon", "students") Add student</a>
@@ -203,9 +233,11 @@
                     </div>
 
                     <div class="cg-dropdown">
-                        <button type="button" class="cg-iconbtn" data-cg-dropdown aria-haspopup="true"
-                                aria-expanded="false" aria-label="Account menu" style="width:auto;padding:0 6px;gap:8px">
-                            @await Html.PartialAsync("_Avatar", new AvatarModel(null, adminName, "sm"))
+                        <button type="button" class="cg-iconbtn cg-iconbtn--account" data-cg-dropdown aria-haspopup="true"
+                                aria-expanded="false" aria-label="Account menu">
+                            @* Initials via CSS: as DOM text they would count as this button's
+                               visible label and contradict its name "Account menu". *@
+                            <span class="cg-avatar cg-avatar--sm" aria-hidden="true" data-initials="@SafetyUi.Initials(adminName)"></span>
                             @await Html.PartialAsync("_Icon", "chevron-down")
                         </button>
                         <div class="cg-dropdown__menu" role="menu">
@@ -240,6 +272,7 @@
           {"title":"Attendance","url":"/Attendance","section":"Safety Operations","keywords":"present absent late register"},
           {"title":"Journey Tracking","url":"/Journey","section":"Safety Operations","keywords":"bus boarding arrival departure checkpoint"},
           {"title":"Pickup and Drop-off","url":"/Verification","section":"Safety Operations","keywords":"handover face rfid desk"},
+          {"title":"Temporary Pickups","url":"/TemporaryPickups","section":"Safety Operations","keywords":"temporary guest qr approve revoke handover"},
           {"title":"Verification Log","url":"/Verification/History","section":"Safety Operations","keywords":"history audit match"},
           {"title":"Transportation","url":"/Transportation","section":"Transport","keywords":"bus driver route assignment"},
           {"title":"RFID","url":"/Rfid","section":"Transport","keywords":"cards scanner uid"},

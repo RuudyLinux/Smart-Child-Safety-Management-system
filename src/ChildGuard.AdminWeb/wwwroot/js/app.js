@@ -17,6 +17,23 @@
   function readPref(key) { try { return window.localStorage.getItem(key); } catch (e) { return null; } }
   function writePref(key, value) { try { window.localStorage.setItem(key, value); } catch (e) { /* ignore */ } }
 
+  // ------------------------------------------------------ Session expiry
+  // The server answers a background request with 401 once the admin's session has
+  // ended (its API token expired or was revoked). Send the browser to sign-in rather
+  // than leaving the page showing empty or stale data.
+  if (window.fetch && !/^\/Account\//i.test(location.pathname)) {
+    var nativeFetch = window.fetch.bind(window);
+    window.fetch = function () {
+      return nativeFetch.apply(null, arguments).then(function (response) {
+        var sameOrigin = !response.url || response.url.indexOf(location.origin + '/') === 0;
+        if (response.status === 401 && sameOrigin) {
+          location.href = '/Account/Login?expired=true';
+        }
+        return response;
+      });
+    };
+  }
+
   // ---------------------------------------------------------------- Sidebar
   function initSidebar() {
     var app = $('.cg-app');
@@ -26,31 +43,69 @@
 
     if (readPref(STORE_COLLAPSED) === '1') app.classList.add('cg-app--collapsed');
 
-    on($('[data-cg-sidebar-toggle]'), 'click', function () {
+    var toggle = $('[data-cg-sidebar-toggle]');
+    var syncExpanded = function () {
+      if (!toggle) return;
+      var open = isMobile() ? app.classList.contains('cg-app--drawer') : !app.classList.contains('cg-app--collapsed');
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    };
+    var closeDrawer = function (restoreFocus) {
+      if (!app.classList.contains('cg-app--drawer')) return;
+      app.classList.remove('cg-app--drawer');
+      syncExpanded();
+      if (restoreFocus && toggle) toggle.focus();
+    };
+    syncExpanded();
+
+    on(toggle, 'click', function () {
       if (isMobile()) {
-        app.classList.toggle('cg-app--drawer');
+        var opened = app.classList.toggle('cg-app--drawer');
+        // Move focus into the drawer so keyboard users land in the menu they opened.
+        if (opened) { var current = $('.cg-nav__link.is-active') || $('.cg-nav__link'); if (current) setTimeout(function () { current.focus(); }, 50); }
       } else {
         var collapsed = app.classList.toggle('cg-app--collapsed');
         writePref(STORE_COLLAPSED, collapsed ? '1' : '0');
       }
+      syncExpanded();
     });
 
-    on($('.cg-scrim'), 'click', function () { app.classList.remove('cg-app--drawer'); });
+    on($('.cg-scrim'), 'click', function () { closeDrawer(false); });
 
     // A tap on a nav link inside the drawer should close it, not leave it hanging open.
     $$('.cg-nav__link').forEach(function (link) {
-      on(link, 'click', function () { if (isMobile()) app.classList.remove('cg-app--drawer'); });
+      on(link, 'click', function () { if (isMobile()) closeDrawer(false); });
     });
 
     on(document, 'keydown', function (e) {
-      if (e.key === 'Escape') app.classList.remove('cg-app--drawer');
+      if (e.key === 'Escape') closeDrawer(true);
+    });
+
+    // Crossing the mobile breakpoint with the drawer open would leave the scrim up.
+    on(window, 'resize', function () { if (!isMobile()) closeDrawer(false); syncExpanded(); });
+
+    // Collapsed-rail tooltips are position: fixed (the scrolling nav would clip them),
+    // so place each one at its item's vertical centre when it is about to show.
+    var placeTip = function (item) {
+      var link = $('.cg-nav__link', item);
+      if (!link) return;
+      var r = link.getBoundingClientRect();
+      item.style.setProperty('--cg-tip-top', (r.top + r.height / 2) + 'px');
+    };
+    $$('.cg-nav__item').forEach(function (item) {
+      on(item, 'mouseenter', function () { placeTip(item); });
+      on(item, 'focusin', function () { placeTip(item); });
     });
   }
 
   // -------------------------------------------------------------- Dropdowns
   function initDropdowns() {
     function closeAll(except) {
-      $$('.cg-dropdown.is-open').forEach(function (d) { if (d !== except) d.classList.remove('is-open'); });
+      $$('.cg-dropdown.is-open').forEach(function (d) {
+        if (d === except) return;
+        d.classList.remove('is-open');
+        var t = $('[data-cg-dropdown]', d);
+        if (t) t.setAttribute('aria-expanded', 'false');
+      });
     }
 
     $$('[data-cg-dropdown]').forEach(function (trigger) {
@@ -66,7 +121,13 @@
     });
 
     on(document, 'click', function () { closeAll(null); });
-    on(document, 'keydown', function (e) { if (e.key === 'Escape') closeAll(null); });
+    on(document, 'keydown', function (e) {
+      if (e.key !== 'Escape') return;
+      var open = $('.cg-dropdown.is-open');
+      closeAll(null);
+      // Return focus to the trigger if it was inside the menu, so Escape does not drop it.
+      if (open && open.contains(document.activeElement)) { var t = $('[data-cg-dropdown]', open); if (t) t.focus(); }
+    });
     $$('.cg-dropdown__menu').forEach(function (menu) {
       on(menu, 'click', function (e) { e.stopPropagation(); });
     });
@@ -181,19 +242,39 @@
 
   // ----------------------------------------------------------------- Modals
   function initModals() {
+    var FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    var opener = null;
+
     function open(id) {
       var modal = document.getElementById(id);
       if (!modal) return;
+      opener = document.activeElement;
       modal.hidden = false;
       document.body.style.overflow = 'hidden';
-      var focusable = modal.querySelector('input, select, textarea, button');
+      // Prefer the first form field over the header's close button.
+      var focusable = modal.querySelector('input:not([type="hidden"]), select, textarea') || modal.querySelector(FOCUSABLE);
       if (focusable) focusable.focus();
     }
     function close(modal) {
-      if (!modal) return;
+      if (!modal || modal.hidden) return;
       modal.hidden = true;
       document.body.style.overflow = '';
+      if (opener && document.contains(opener)) opener.focus();
+      opener = null;
     }
+
+    // Keep Tab inside an open modal; otherwise focus walks into the page behind it.
+    on(document, 'keydown', function (e) {
+      if (e.key !== 'Tab') return;
+      var modal = $$('.cg-modal').filter(function (m) { return !m.hidden; })[0];
+      if (!modal) return;
+      var items = $$(FOCUSABLE, modal).filter(function (el) { return el.offsetParent !== null; });
+      if (!items.length) return;
+      var first = items[0], last = items[items.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      else if (!modal.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+    });
 
     $$('[data-cg-modal-open]').forEach(function (btn) {
       on(btn, 'click', function (e) {
@@ -222,7 +303,12 @@
         e.preventDefault();
         if (window.confirm(form.getAttribute('data-cg-confirm'))) {
           form.dataset.cgConfirmed = '1';
-          form.submit();
+          // requestSubmit fires the submit event again (busy state, validation);
+          // submit() would bypass both. Deferred: browsers ignore requestSubmit
+          // while this form's submit event is still being dispatched.
+          setTimeout(function () {
+            if (form.requestSubmit) form.requestSubmit(); else form.submit();
+          }, 0);
         }
       });
     });
@@ -245,14 +331,30 @@
   // ------------------------------------------------- Submit loading states
   function initSubmitStates() {
     $$('form[data-cg-busy]').forEach(function (form) {
-      on(form, 'submit', function () {
-        var btn = form.querySelector('button[type="submit"], .cg-btn--primary');
-        if (!btn || btn.classList.contains('is-loading')) return;
-        btn.classList.add('is-loading');
-        var spinner = document.createElement('span');
-        spinner.className = 'cg-btn__spinner';
-        btn.insertBefore(spinner, btn.firstChild);
+      on(form, 'submit', function (e) {
+        // Decide after every submit handler has run: a declined confirmation cancels
+        // the event, and a button left "loading" then could never be pressed again.
+        setTimeout(function () {
+          if (e.defaultPrevented) return;
+          var btn = form.querySelector('button[type="submit"], .cg-btn--primary');
+          if (!btn || btn.classList.contains('is-loading')) return;
+          btn.classList.add('is-loading');
+          var spinner = document.createElement('span');
+          spinner.className = 'cg-btn__spinner';
+          btn.insertBefore(spinner, btn.firstChild);
+        }, 0);
       });
+    });
+
+    // Back/forward cache restores the page exactly as it was left, spinner included.
+    on(window, 'pageshow', function (e) {
+      if (!e.persisted) return;
+      $$('.cg-btn.is-loading').forEach(function (btn) {
+        btn.classList.remove('is-loading');
+        var spinner = btn.querySelector('.cg-btn__spinner');
+        if (spinner) spinner.remove();
+      });
+      $$('form[data-cg-confirm]').forEach(function (form) { delete form.dataset.cgConfirmed; });
     });
   }
 
@@ -377,12 +479,86 @@
       var maxBytes = parseInt(zone.getAttribute('data-cg-max-bytes') || '4194304', 10);
       var allowed = ['image/jpeg', 'image/png', 'image/webp'];
 
+      // Camera capture (optional panel in the same form).
+      var camOpenRow = $('[data-cg-camera-open-row]', form);
+      var camOpenBtn = $('[data-cg-camera-open]', form);
+      var camPanel = $('[data-cg-camera]', form);
+      var camBox = $('[data-cg-camera-box]', form);
+      var camCaptureBtn = $('[data-cg-camera-capture]', form);
+      var camCloseBtn = $('[data-cg-camera-close]', form);
+      // Browsers expose the camera only on HTTPS or localhost; elsewhere the option stays hidden.
+      var canUseCamera = !!(camPanel && navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+      var stream = null;
+
+      function stopCamera() {
+        if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; }
+        if (camPanel) camPanel.hidden = true;
+        if (camBox) camBox.innerHTML = '';
+        if (camCaptureBtn) camCaptureBtn.disabled = true;
+      }
+
+      function cameraHint(text) {
+        if (!camBox) return;
+        camBox.innerHTML = '';
+        var hint = document.createElement('div');
+        hint.className = 'cg-camera__hint';
+        hint.textContent = text;
+        camBox.appendChild(hint);
+      }
+
+      function openCamera() {
+        if (errorEl) { errorEl.textContent = ''; errorEl.hidden = true; }
+        zone.hidden = true;
+        if (camOpenRow) camOpenRow.hidden = true;
+        camPanel.hidden = false;
+        cameraHint('Waiting for camera permission… allow it in the browser prompt.');
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 960 } } })
+          .then(function (s) {
+            if (camPanel.hidden) { s.getTracks().forEach(function (t) { t.stop(); }); return; } // closed while asking
+            stream = s;
+            var video = document.createElement('video');
+            video.autoplay = true; video.playsInline = true; video.muted = true;
+            // Capture is enabled only once a frame exists; before that the video has no size
+            // and a click would silently capture nothing.
+            on(video, 'loadeddata', function () { if (stream === s) camCaptureBtn.disabled = false; });
+            video.srcObject = s;
+            camBox.innerHTML = '';
+            camBox.appendChild(video);
+          })
+          .catch(function (e) {
+            var name = e && e.name;
+            cameraHint(name === 'NotFoundError' || name === 'OverconstrainedError'
+              ? 'No camera was found on this computer. Connect one, or upload a photo instead.'
+              : name === 'NotReadableError'
+                ? 'The camera is in use by another application. Close it, then try again.'
+                : 'Camera permission was refused. Allow the camera for this site in the browser settings.');
+          });
+      }
+
+      function capture() {
+        var video = camBox && camBox.querySelector('video');
+        if (!video || !video.videoWidth) return;
+        var canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+        camCaptureBtn.disabled = true;
+        canvas.toBlob(function (blob) {
+          stopCamera();
+          if (!blob) { reset(); fail('The camera image could not be captured. Try again.'); return; }
+          var stamp = new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '');
+          accept(new File([blob], 'camera-' + stamp + '.jpg', { type: 'image/jpeg', lastModified: Date.now() }));
+        }, 'image/jpeg', 0.9);
+      }
+
       function reset() {
+        stopCamera();
         input.value = '';
         if (preview) preview.hidden = true;
         if (submitBtn) submitBtn.disabled = true;
         if (errorEl) { errorEl.textContent = ''; errorEl.hidden = true; }
         zone.hidden = false;
+        if (camOpenRow) camOpenRow.hidden = !canUseCamera;
       }
 
       function fail(message) {
@@ -390,32 +566,89 @@
         else { toasts.show(message, 'danger'); }
         input.value = '';
         if (submitBtn) submitBtn.disabled = true;
+        // A rejected camera capture leaves nothing on screen to retry from; bring the choices back.
+        if (zone.hidden && (!preview || preview.hidden) && (!camPanel || camPanel.hidden)) {
+          zone.hidden = false;
+          if (camOpenRow) camOpenRow.hidden = !canUseCamera;
+        }
       }
 
-      function accept(file) {
+      // Phone photos (often 2–8 MB) are resized here before upload: the database stores
+      // one row per photo and many MySQL servers refuse rows over 1 MB. A profile
+      // picture never needs more than this, and pages load faster for it.
+      var MAX_SIDE = 1024, RESIZE_OVER = 600 * 1024, MAX_SOURCE = 20 * 1024 * 1024;
+
+      function optimise(file) {
+        return new Promise(function (resolve) {
+          if (!window.createImageBitmap || !window.DataTransfer) return resolve(file);
+          createImageBitmap(file).then(function (bitmap) {
+            var scale = Math.min(1, MAX_SIDE / Math.max(bitmap.width, bitmap.height));
+            if (scale === 1 && file.size <= RESIZE_OVER) { bitmap.close && bitmap.close(); return resolve(file); }
+            var canvas = document.createElement('canvas');
+            canvas.width = Math.round(bitmap.width * scale);
+            canvas.height = Math.round(bitmap.height * scale);
+            var ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#fff'; // JPEG has no transparency
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+            bitmap.close && bitmap.close();
+            canvas.toBlob(function (blob) {
+              if (!blob || blob.size >= file.size) return resolve(file);
+              var name = file.name.replace(/\.[^.]+$/, '') + '.jpg';
+              resolve(new File([blob], name, { type: 'image/jpeg', lastModified: Date.now() }));
+            }, 'image/jpeg', 0.85);
+          }).catch(function () { resolve(file); });
+        });
+      }
+
+      function accept(original) {
         if (errorEl) { errorEl.textContent = ''; errorEl.hidden = true; }
-        if (allowed.indexOf(file.type) === -1) {
+        if (allowed.indexOf(original.type) === -1) {
           fail('Unsupported format. Choose a JPEG, PNG or WebP image.');
           return;
         }
-        if (file.size > maxBytes) {
-          fail('That image is ' + formatBytes(file.size) + '. The maximum is ' + formatBytes(maxBytes) + '.');
+        if (original.size > MAX_SOURCE) {
+          fail('That image is ' + formatBytes(original.size) + '. Choose one under ' + formatBytes(MAX_SOURCE) + '.');
           return;
         }
+        if (submitBtn) submitBtn.disabled = true;
+        optimise(original).then(function (file) {
+          if (file.size > maxBytes) {
+            fail('That image is ' + formatBytes(file.size) + '. The maximum is ' + formatBytes(maxBytes) + '.');
+            return;
+          }
+          // The form submits whatever the input holds: the resized photo, or a dropped file.
+          if (!input.files || input.files[0] !== file) {
+            var dt = new DataTransfer();
+            dt.items.add(file);
+            input.files = dt.files;
+          }
+          show(file, original);
+        });
+      }
+
+      function show(file, original) {
         if (previewImg) {
           var reader = new FileReader();
           reader.onload = function (e) { previewImg.src = e.target.result; };
           reader.readAsDataURL(file);
         }
-        if (nameEl) nameEl.textContent = file.name;
-        if (sizeEl) sizeEl.textContent = formatBytes(file.size) + ' · ' + file.type.replace('image/', '').toUpperCase();
+        if (nameEl) nameEl.textContent = original.name;
+        if (sizeEl) sizeEl.textContent = formatBytes(file.size) + ' · ' + file.type.replace('image/', '').toUpperCase() +
+          (file !== original ? ' · resized from ' + formatBytes(original.size) : '');
         if (preview) preview.hidden = false;
         zone.hidden = true;
+        if (camOpenRow) camOpenRow.hidden = true;
         if (submitBtn) submitBtn.disabled = false;
       }
 
       on(input, 'change', function () { if (input.files && input.files[0]) accept(input.files[0]); });
       on(cancelBtn, 'click', reset);
+      on(camOpenBtn, 'click', function () { if (canUseCamera) openCamera(); });
+      on(camCaptureBtn, 'click', capture);
+      on(camCloseBtn, 'click', reset);
+      on(form, 'submit', stopCamera);
+      on(window, 'pagehide', stopCamera);
 
       ['dragenter', 'dragover'].forEach(function (ev) {
         on(zone, ev, function (e) { e.preventDefault(); zone.classList.add('is-dragover'); });
@@ -426,7 +659,6 @@
       on(zone, 'drop', function (e) {
         var dt = e.dataTransfer;
         if (!dt || !dt.files || !dt.files.length) return;
-        input.files = dt.files;
         accept(dt.files[0]);
       });
 
@@ -534,6 +766,40 @@
     return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
   }
 
+  // --------------------------------------------- Scrollable table regions
+  // A table wider than its card scrolls sideways. Keyboard users must be able to
+  // reach that scroll (WCAG 2.1.1), so an overflowing wrapper becomes a labelled,
+  // focusable region; it goes back to plain markup when it fits again.
+  function initScrollRegions() {
+    var wraps = $$('.cg-table-wrap');
+    if (!wraps.length) return;
+
+    function label(wrap) {
+      var card = wrap.closest('.cg-card');
+      var title = card && card.querySelector('.cg-card__title');
+      return (title && title.textContent.trim()) || 'Table';
+    }
+
+    function sync(wrap) {
+      var overflows = wrap.scrollWidth > wrap.clientWidth + 1;
+      if (overflows && !wrap.hasAttribute('tabindex')) {
+        wrap.setAttribute('tabindex', '0');
+        wrap.setAttribute('role', 'region');
+        wrap.setAttribute('aria-label', label(wrap) + ' (scrolls sideways)');
+      } else if (!overflows && wrap.getAttribute('role') === 'region') {
+        wrap.removeAttribute('tabindex');
+        wrap.removeAttribute('role');
+        wrap.removeAttribute('aria-label');
+      }
+    }
+
+    wraps.forEach(sync);
+    if ('ResizeObserver' in window) {
+      var ro = new ResizeObserver(function (entries) { entries.forEach(function (e) { sync(e.target); }); });
+      wraps.forEach(function (w) { ro.observe(w); });
+    }
+  }
+
   // ------------------------------------------------------- Avatar fallback
   // A broken image must never leave a torn icon on a child's record; the
   // initials underneath are revealed instead.
@@ -543,7 +809,139 @@
     });
   }
 
+  // ------------------------------------------------------------- Motion
+  // Purely presentational. Every value on the page is the server's value; the
+  // count-up only animates towards it, and is skipped when html.cg-motion is
+  // absent (reduced motion, or automation such as the E2E suite).
+  var motionOn = document.documentElement.classList.contains('cg-motion');
+
+  function initCountUps() {
+    if (!motionOn || !('IntersectionObserver' in window)) return;
+    var targets = $$('.cg-kpi__value, .cg-hero__stat-value, .cg-donut__center-value, .cg-kpi__breakdown-value');
+    var numberRe = /^(\d{1,3}(?:,\d{3})*|\d+)(\.\d+)?$/;
+
+    function firstNumberNode(el) {
+      for (var i = 0; i < el.childNodes.length; i++) {
+        var node = el.childNodes[i];
+        if (node.nodeType === 3) {
+          var raw = node.nodeValue.trim().split(/\s+/)[0] || '';
+          if (numberRe.test(raw)) return { node: node, raw: raw };
+          if (node.nodeValue.trim()) return null; // leading text that is not a number
+        }
+      }
+      return null;
+    }
+
+    function run(el) {
+      var found = firstNumberNode(el);
+      if (!found) return;
+      var original = found.node.nodeValue;
+      var decimals = (found.raw.split('.')[1] || '').length;
+      var end = parseFloat(found.raw.replace(/,/g, ''));
+      if (!isFinite(end) || end === 0) return;
+      // Reserve the final width so neighbours never shift while it counts.
+      el.style.minWidth = el.getBoundingClientRect().width + 'px';
+      var start = performance.now();
+      var duration = Math.min(1100, 500 + end * 4);
+      function frame(now) {
+        var p = Math.min(1, (now - start) / duration);
+        var eased = 1 - Math.pow(1 - p, 3);
+        var value = (end * eased).toFixed(decimals);
+        if (found.raw.indexOf(',') !== -1) value = Number(value).toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+        found.node.nodeValue = original.replace(found.raw, value);
+        if (p < 1) requestAnimationFrame(frame);
+        else { found.node.nodeValue = original; el.style.minWidth = ''; }
+      }
+      requestAnimationFrame(frame);
+    }
+
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting) return;
+        io.unobserve(entry.target);
+        run(entry.target);
+      });
+    }, { threshold: 0.4 });
+    targets.forEach(function (el) { io.observe(el); });
+  }
+
+  // Soft light that follows the pointer across KPI cards.
+  function initPointerSheen() {
+    if (!motionOn || !window.matchMedia('(hover: hover)').matches) return;
+    $$('.cg-kpi').forEach(function (card) {
+      on(card, 'pointermove', function (e) {
+        var r = card.getBoundingClientRect();
+        card.style.setProperty('--mx', (e.clientX - r.left) + 'px');
+        card.style.setProperty('--my', (e.clientY - r.top) + 'px');
+      });
+    });
+  }
+
+  // A brand line at the top while the next page loads, so a click always answers.
+  function initNavProgress() {
+    var root = document.documentElement;
+    on(document, 'click', function (e) {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      var a = e.target.closest && e.target.closest('a[href]');
+      if (!a || a.target === '_blank' || a.hasAttribute('download')) return;
+      var url;
+      try { url = new URL(a.href, location.href); } catch (err) { return; }
+      if (url.origin !== location.origin) return;
+      if (url.pathname === location.pathname && url.search === location.search) return; // hash or same page
+      if (/export|download/i.test(url.pathname)) return; // file responses never unload the page
+      start();
+    });
+    on(document, 'submit', function (e) {
+      if (!e.defaultPrevented && !(e.target && e.target.hasAttribute('data-cg-no-progress'))) start();
+    });
+    var safety;
+    function start() {
+      root.classList.add('cg-navigating');
+      clearTimeout(safety);
+      safety = setTimeout(function () { root.classList.remove('cg-navigating'); }, 8000);
+    }
+    // Back/forward cache restores a page mid-"navigating"; clear it.
+    on(window, 'pageshow', function () { root.classList.remove('cg-navigating'); });
+  }
+
+  // Prefetch internal pages on hover intent so the next click renders at once.
+  // Account routes (sign-out is a GET) and file exports are never prefetched.
+  function initPrefetch() {
+    if (!motionOn || !HTMLScriptElement.supports || !HTMLScriptElement.supports('speculationrules')) return;
+    if (!document.querySelector('.cg-app')) return;
+    // Safari refuses prefetch over plain HTTP and logs an error per link; production is HTTPS.
+    if (location.protocol !== 'https:') return;
+    var rules = document.createElement('script');
+    rules.type = 'speculationrules';
+    rules.textContent = JSON.stringify({
+      prefetch: [{
+        where: { and: [
+          { href_matches: '/*' },
+          { not: { href_matches: '/Account/*' } },
+          { not: { href_matches: '/Reports/Export*' } },
+          { not: { href_matches: '/Diagnostics*' } },
+          { not: { selector_matches: '[download], [data-cg-no-prefetch]' } }
+        ] },
+        eagerness: 'moderate'
+      }]
+    });
+    document.head.appendChild(rules);
+  }
+
+  // Apply [autofocus] ourselves as soon as the page is ready. WebKit can run its own
+  // autofocus late and pull focus back from a field the user already moved to, so
+  // what they type lands in the wrong box. Once a field has focus, the browser skips it.
+  function initAutofocus() {
+    var target = document.querySelector('[autofocus]');
+    if (target && (!document.activeElement || document.activeElement === document.body)) target.focus();
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
+    initAutofocus();
+    initCountUps();
+    initPointerSheen();
+    initNavProgress();
+    initPrefetch();
     initSidebar();
     initDropdowns();
     initTabs();
@@ -557,6 +955,7 @@
     initGlobalSearch();
     initRelativeTimes();
     initAvatarFallbacks();
+    initScrollRegions();
   });
 
   window.CgToast = toasts;

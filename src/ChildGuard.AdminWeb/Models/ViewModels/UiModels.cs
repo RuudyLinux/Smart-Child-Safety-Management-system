@@ -32,14 +32,6 @@ public record PhotoManagerModel(
     string Title,
     string Description);
 
-/// <summary>A page's heading, subtitle and breadcrumb trail, rendered by the layout.</summary>
-public class PageHeader
-{
-    public string Title { get; set; } = string.Empty;
-    public string? Subtitle { get; set; }
-    public List<(string Label, string? Url)> Breadcrumbs { get; } = new();
-}
-
 /// <summary>
 /// The single mapping from a safety status to how it is presented. Status is
 /// always shown as a label plus a colour (and usually an icon), so meaning never
@@ -87,10 +79,10 @@ public static class SafetyUi
     /// <summary>Hex used for the small dot on an avatar, where no text fits.</summary>
     public static string DotColor(StudentSafetyStatus status) => status switch
     {
-        StudentSafetyStatus.AtSchool or StudentSafetyStatus.DroppedOffHome => "#16A34A",
-        StudentSafetyStatus.OnBusToSchool => "#0EA5E9",
-        StudentSafetyStatus.LeftSchool => "#F59E0B",
-        _ => "#94A3B8"
+        StudentSafetyStatus.AtSchool or StudentSafetyStatus.DroppedOffHome => "#16A36A",
+        StudentSafetyStatus.OnBusToSchool => "#2B8FC9",
+        StudentSafetyStatus.LeftSchool => "#E99A32",
+        _ => "#8A97AB"
     };
 
     public static string EventLabel(JourneyEventType? type) => type switch

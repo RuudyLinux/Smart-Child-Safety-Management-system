@@ -97,7 +97,7 @@
         <span class="cg-tab__count">@Model.Students.Count</span>
     </button>
     <button class="cg-tab" data-cg-tab="photo" role="tab" aria-selected="false">
-        @await Html.PartialAsync("_Icon", "image") Photo
+        @await Html.PartialAsync("_Icon", "image") Photo &amp; Face ID
     </button>
     <button class="cg-tab" data-cg-tab="verifications" role="tab" aria-selected="false">
         @await Html.PartialAsync("_Icon", "verification") Verification history
@@ -187,24 +187,75 @@
         "Guardian photo",
         "Shown to staff at the pickup desk beside the live face-verification result."))
 
-    <div class="cg-alert cg-alert--info">
-        <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "info")</span>
-        <div class="cg-alert__body">
-            <div class="cg-alert__title">A photo is not the same as face registration</div>
+    @* Face ID: what the pickup desk compares against. Separate from the reference photo
+       above. Registered here in person, or by the guardian in the app; either replaces the
+       stored face. Only a numeric representation is stored, never the captured image. *@
+    <section class="cg-card" data-cg-face-enrol
+             data-register-url="@Url.Action("RegisterFace", "Guardians", new { id = Model.GuardianId })"
+             data-references-url="@Url.Action("FaceReferences", "Guardians", new { id = Model.GuardianId })"
+             data-add-url="@Url.Action("AddFaceReference", "Guardians", new { id = Model.GuardianId })"
+             data-remove-url="@Url.Action("RemoveFaceReference", "Guardians", new { id = Model.GuardianId, referenceId = 0 })"
+             data-registered="@(Model.FaceRegistered ? "true" : "false")">
+        <div class="cg-card__head">
             <div>
-                This photo is a reference image staff can look at. Face <em>verification</em> uses a
-                secure numeric representation the guardian registers from their own app —
+                <h2 class="cg-card__title">Face ID for pickup verification</h2>
+                <div class="cg-card__sub">The pickup desk compares a live capture with this. Only a numeric representation of the face is stored; the captured image is discarded.</div>
+            </div>
+            @if (Model.FaceRegistered)
+            {
+                <span class="cg-badge cg-badge--success"><span class="cg-badge__dot"></span>Registered</span>
+            }
+            else
+            {
+                <span class="cg-badge cg-badge--warning"><span class="cg-badge__dot"></span>Not registered</span>
+            }
+        </div>
+        <div class="cg-card__body">
+            <p style="margin-top:0">
                 @if (Model.FaceRegistered)
                 {
-                    <text>which @Model.FullName has already done.</text>
+                    <text>@Model.FullName can be verified at the pickup desk. Add a few more reference photos in different light or from slightly different angles so verification copes with changes. "Replace primary face" swaps the first photo instead, e.g. after a big change in appearance.</text>
                 }
                 else
                 {
-                    <text>which @Model.FullName has not done yet, so they cannot be verified at the desk.</text>
+                    <text>@Model.FullName cannot be face-verified at the pickup desk yet. Register their face here while they are in front of you, or ask them to do it in the ChildGuard app.</text>
                 }
+            </p>
+
+            <ul class="cg-face-enrol__tips cg-hint" style="margin:0 0 14px;padding-left:18px">
+                <li>Light from the front, not behind the person</li>
+                <li>Face straight at the camera, filling most of the frame</li>
+                <li>Only the guardian in view; no mask, cap or sunglasses</li>
+                <li>Neutral expression, eyes open</li>
+                <li>Use the camera in person, or choose / drop a photo. The image is checked first and only a suitable one can be registered.</li>
+            </ul>
+
+            <h3 class="cg-card__title" style="font-size:14px;margin:0 0 8px">Registered reference photos</h3>
+            <div data-cg-face-references style="margin-bottom:18px"><span class="cg-muted">Loading…</span></div>
+
+            <div data-cg-face-capture
+                 data-analyze-url="@Url.Action("AnalyzeImage", "Verification")"
+                 data-purpose="registration"></div>
+
+            <div class="cg-field" style="margin-top:12px;max-width:420px" data-cg-face-label-field hidden>
+                <label class="cg-label" for="faceLabel">Label (optional)</label>
+                <input id="faceLabel" class="cg-input" maxlength="60" data-cg-face-label placeholder="e.g. Outdoor, side light" />
+            </div>
+
+            <div data-cg-face-result style="margin-top:12px"></div>
+
+            <div class="cg-btn-group" style="margin-top:12px">
+                <button type="button" class="cg-btn cg-btn--primary" data-cg-face-add hidden disabled>
+                    @await Html.PartialAsync("_Icon", "check")
+                    <span class="cg-btn__label">Add as reference photo</span>
+                </button>
+                <button type="button" class="@(Model.FaceRegistered ? "cg-btn cg-btn--secondary" : "cg-btn cg-btn--primary")" data-cg-face-submit disabled>
+                    @await Html.PartialAsync("_Icon", "check")
+                    <span class="cg-btn__label">@(Model.FaceRegistered ? "Replace primary face" : "Register face")</span>
+                </button>
             </div>
         </div>
-    </div>
+    </section>
 </div>
 
 @* ----------------------------------------------------- Verification history *@
@@ -229,7 +280,7 @@
             <div class="cg-table-wrap">
                 <table class="cg-table">
                     <thead>
-                        <tr><th>Student</th><th>When</th><th>Match score</th><th>Result</th><th>Handover</th></tr>
+                        <tr><th>Student</th><th>When</th><th>Match score</th><th>Result</th><th>Checks</th><th>Handover</th></tr>
                     </thead>
                     <tbody>
                     @foreach (var v in Model.RecentVerifications)
@@ -250,6 +301,7 @@
                                     <span class="cg-badge cg-badge--danger"><span class="cg-badge__dot"></span>No match</span>
                                 }
                             </td>
+                            <td><partial name="_VerificationChecks" model="v" /></td>
                             <td>
                                 @if (v.PickupApproved)
                                 {
@@ -347,3 +399,8 @@
         </section>
     </div>
 </div>
+
+@section Scripts {
+    <script src="~/js/face-capture.js" asp-append-version="true"></script>
+    <script src="~/js/face-enrol.js" asp-append-version="true"></script>
+}

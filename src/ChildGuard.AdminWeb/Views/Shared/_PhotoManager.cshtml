@@ -51,7 +51,30 @@
                         <div class="cg-dropzone__title">
                             @(Model.HasPhoto ? "Drag a replacement photo here" : "Drag a photo here, or browse")
                         </div>
-                        <div class="cg-dropzone__hint">JPEG, PNG or WebP · up to 4 MB</div>
+                        <div class="cg-dropzone__hint">JPEG, PNG or WebP · large photos are resized automatically</div>
+                    </div>
+
+                    @* Camera capture. Hidden until app.js confirms the browser can reach a camera
+                       (HTTPS or localhost only); the frame goes through the same preview and Save
+                       step as a chosen file, so nothing is uploaded until Save. *@
+                    <div class="cg-photo-camera-open" data-cg-camera-open-row hidden>
+                        <span class="cg-muted cg-text-sm">or</span>
+                        <button type="button" class="cg-btn cg-btn--secondary cg-btn--sm" data-cg-camera-open>
+                            @await Html.PartialAsync("_Icon", "camera") Take photo with camera
+                        </button>
+                    </div>
+
+                    <div data-cg-camera hidden>
+                        <div class="cg-camera cg-photo-camera" data-cg-camera-box>
+                            <div class="cg-camera__hint" data-cg-camera-hint>Waiting for camera permission… allow it in the browser prompt.</div>
+                        </div>
+                        <div class="cg-btn-group" style="margin-top:10px">
+                            <button type="button" class="cg-btn cg-btn--primary" data-cg-camera-capture disabled>
+                                @await Html.PartialAsync("_Icon", "camera")
+                                <span class="cg-btn__label">Capture</span>
+                            </button>
+                            <button type="button" class="cg-btn cg-btn--ghost" data-cg-camera-close>Close camera</button>
+                        </div>
                     </div>
 
                     <div data-cg-preview hidden>

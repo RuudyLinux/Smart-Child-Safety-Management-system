@@ -38,6 +38,13 @@
       } else {
         countEl.hidden = true;
       }
+      // The badge is aria-hidden; the count is spoken through the button's name instead.
+      var bell = countEl.closest('button');
+      if (bell) {
+        bell.setAttribute('aria-label', alerts.length
+          ? 'Safety alerts, ' + alerts.length + ' open' + (critical > 0 ? ', ' + critical + ' critical' : '')
+          : 'Safety alerts');
+      }
     }
 
     if (summaryEl) {

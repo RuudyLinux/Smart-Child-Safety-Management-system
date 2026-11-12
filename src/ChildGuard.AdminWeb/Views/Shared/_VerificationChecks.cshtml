@@ -1,0 +1,30 @@
+@model GuardianVerificationHistoryDto
+@* The independent results of each verification layer for one attempt. Records made before layers existed, or by the
+   original face-verify path, have none and are shown as legacy: they carry no live-person check. *@
+@if (Model.Layers is not { } l)
+{
+    <span class="cg-badge cg-badge--neutral" title="Recorded before live-person checks existed, or by the original verification path. No liveness check was performed.">Legacy · no liveness</span>
+}
+else
+{
+    string Cls(bool ok, bool warn = false) => ok ? "success" : warn ? "warning" : "danger";
+    var identity = l.Identity;
+    var auth = l.Authorisation;
+    var live = l.Liveness;
+    var detail = $"Source: {(l.Source == CaptureSource.Gallery ? "Gallery image" : "Live camera")}. " +
+                 $"Image quality: {l.Quality}. Face detection: {l.FaceDetection}. " +
+                 $"Identity: {identity}. Authorisation: {auth}. Liveness: {live}" +
+                 (l.LivenessScore is { } s ? $" (anti-spoofing {s:0.00})" : "") + "." +
+                 (string.IsNullOrWhiteSpace(l.ReasonCodes) ? "" : $" Reasons: {l.ReasonCodes}.");
+    <span class="cg-vchecks" title="@detail">
+        <span class="cg-badge cg-badge--@Cls(identity == IdentityResult.Match, identity == IdentityResult.Inconclusive)">
+            ID @(identity switch { IdentityResult.Match => "match", IdentityResult.Inconclusive => "unsure", _ => "no match" })
+        </span>
+        <span class="cg-badge cg-badge--@Cls(auth == AuthorisationResult.Authorised, auth == AuthorisationResult.NotEvaluated)">
+            @(auth switch { AuthorisationResult.Authorised => "Authorised", AuthorisationResult.Unauthorised => "Not authorised", _ => "Auth n/a" })
+        </span>
+        <span class="cg-badge cg-badge--@Cls(live == LivenessResult.Pass, live == LivenessResult.NotPerformed)">
+            Live @(live switch { LivenessResult.Pass => "pass", LivenessResult.Fail => "FAIL", _ => "not done" })
+        </span>
+    </span>
+}

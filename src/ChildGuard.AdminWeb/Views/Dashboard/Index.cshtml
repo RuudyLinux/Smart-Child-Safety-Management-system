@@ -44,14 +44,14 @@
 <section class="cg-hero">
     <div class="cg-hero__inner">
         <div>
-            <div class="cg-hero__greeting">@greeting, @adminFirstName</div>
+            <h1 class="cg-hero__greeting">@greeting, @adminFirstName</h1>
             <p class="cg-hero__sub">
                 @SchoolTime.Now.ToString("dddd, d MMMM yyyy") — here is your school's safety overview.
             </p>
             <div class="cg-hero__meta">
                 <div>
                     <div class="cg-hero__stat-label">On roll</div>
-                    <div class="cg-hero__stat-value">@Model.TotalStudents students</div>
+                    <div class="cg-hero__stat-value">@Model.TotalStudents student@(Model.TotalStudents == 1 ? "" : "s")</div>
                 </div>
                 <div>
                     <div class="cg-hero__stat-label">At school now</div>
@@ -265,8 +265,8 @@
                          aria-label="Attendance for the last @trend.Count days">
                         <defs>
                             <linearGradient id="cgAreaFill" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%" stop-color="#2563EB" stop-opacity="0.20" />
-                                <stop offset="100%" stop-color="#2563EB" stop-opacity="0.01" />
+                                <stop offset="0%" stop-color="#3978D5" stop-opacity="0.26" />
+                                <stop offset="100%" stop-color="#8B7FE8" stop-opacity="0.02" />
                             </linearGradient>
                         </defs>
 
@@ -277,7 +277,7 @@
                         }
 
                         <path class="cg-chart__area" d="@area.ToString()" />
-                        <polyline class="cg-chart__line" points="@linePoints" />
+                        <polyline class="cg-chart__line" points="@linePoints" pathLength="1" />
 
                         @for (var i = 0; i < trend.Count; i++)
                         {
@@ -300,7 +300,7 @@
 
                     <div class="cg-chart-legend">
                         <span class="cg-chart-legend__item">
-                            <span class="cg-chart-legend__swatch" style="background:#2563EB"></span>
+                            <span class="cg-chart-legend__swatch" style="background:var(--cg-primary)"></span>
                             Students checked in
                         </span>
                         <span class="cg-chart-legend__item cg-muted">
@@ -326,11 +326,11 @@
                 @{
                     var journeySegments = new (string Label, int Value, string Color)[]
                     {
-                        ("At school", journey.AtSchool, "#16A34A"),
-                        ("On the bus", journey.OnBusToSchool, "#0EA5E9"),
-                        ("Left school", journey.LeftSchool, "#F59E0B"),
-                        ("Dropped off", journey.DroppedOffHome, "#2563EB"),
-                        ("No activity", journey.NoActivityToday, "#CBD5E1")
+                        ("At school", journey.AtSchool, "#16A36A"),
+                        ("On the bus", journey.OnBusToSchool, "#2B8FC9"),
+                        ("Left school", journey.LeftSchool, "#E99A32"),
+                        ("Dropped off", journey.DroppedOffHome, "#8B7FE8"),
+                        ("No activity", journey.NoActivityToday, "#CDD6E4")
                     };
                     var journeyTotal = journeySegments.Sum(s => s.Value);
                 }
@@ -373,7 +373,7 @@
                             </svg>
                             <div class="cg-donut__center">
                                 <div class="cg-donut__center-value">@journeyTotal</div>
-                                <div class="cg-donut__center-label">students</div>
+                                <div class="cg-donut__center-label">student@(journeyTotal == 1 ? "" : "s")</div>
                             </div>
                         </div>
 

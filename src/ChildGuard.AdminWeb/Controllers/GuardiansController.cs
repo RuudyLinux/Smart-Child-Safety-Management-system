@@ -103,7 +103,7 @@ public class GuardiansController : BaseAdminController
         TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded
             ? "Password issued. The guardian must change it at their next sign-in."
             : result.Error;
-        return RedirectToAction(nameof(Details), new { id });
+        return RedirectToAction(nameof(Details), null, new { id }, "account");
     }
 
     // ---- Profile photo ----
@@ -127,7 +127,7 @@ public class GuardiansController : BaseAdminController
         if (file is null || file.Length == 0)
         {
             TempData["Error"] = "Select an image to upload.";
-            return RedirectToAction(nameof(Details), new { id });
+            return RedirectToAction(nameof(Details), null, new { id }, "photo");
         }
 
         await using var stream = file.OpenReadStream();
@@ -137,7 +137,50 @@ public class GuardiansController : BaseAdminController
         TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded
             ? "Guardian photo saved."
             : result.Error;
-        return RedirectToAction(nameof(Details), new { id });
+        return RedirectToAction(nameof(Details), null, new { id }, "photo");
+    }
+
+    /// <summary>
+    /// Face ID registration from the guardian page's camera (in person, at school).
+    /// Called by face-enrol.js; on success the page reloads and shows the toast.
+    /// </summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [RequestSizeLimit(PhotoRequestLimit * 2)] // base64 JSON is ~4/3 of the image size
+    public async Task<IActionResult> RegisterFace(int id, [FromBody] RegisterFaceRequest request, CancellationToken ct)
+    {
+        var result = await Api.PostAsync<object?>($"/api/guardians/{id}/face-registration", request, ct);
+        if (!result.Succeeded) return StatusCode(result.StatusCode, new { message = result.Error });
+        TempData["Success"] = "Face registered. This guardian can now be verified at the pickup desk.";
+        return Json(new { registered = true });
+    }
+
+    /// <summary>The guardian's reference faces (metadata only), for the Face ID card.</summary>
+    [HttpGet]
+    public async Task<IActionResult> FaceReferences(int id, CancellationToken ct)
+    {
+        var result = await Api.GetAsync<GuardianFaceReferencesDto>($"/api/guardians/{id}/face-references", ct);
+        return result.Succeeded ? Json(result.Value) : StatusCode(result.StatusCode, new { message = result.Error });
+    }
+
+    /// <summary>Adds one more reference face from the guardian page (camera or gallery). Called by face-enrol.js.</summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [RequestSizeLimit(PhotoRequestLimit * 2)]
+    public async Task<IActionResult> AddFaceReference(int id, [FromBody] AddFaceReferenceRequest request, CancellationToken ct)
+    {
+        var result = await Api.PostAsync<AddFaceReferenceResultDto>($"/api/guardians/{id}/face-references", request, ct);
+        if (!result.Succeeded) return StatusCode(result.StatusCode, new { message = result.Error });
+        if (result.Value!.Added) TempData["Success"] = result.Value.Message;
+        return Json(result.Value);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RemoveFaceReference(int id, int referenceId, CancellationToken ct)
+    {
+        var result = await Api.DeleteAsync<object?>($"/api/guardians/{id}/face-references/{referenceId}", ct);
+        return result.Succeeded ? Json(new { removed = true }) : StatusCode(result.StatusCode, new { message = result.Error });
     }
 
     [HttpPost]
@@ -148,6 +191,6 @@ public class GuardiansController : BaseAdminController
         TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded
             ? "Guardian photo removed."
             : result.Error;
-        return RedirectToAction(nameof(Details), new { id });
+        return RedirectToAction(nameof(Details), null, new { id }, "photo");
     }
 }

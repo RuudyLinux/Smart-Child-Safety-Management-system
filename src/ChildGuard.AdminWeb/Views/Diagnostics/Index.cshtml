@@ -10,56 +10,80 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>ChildGuard — API Diagnostics</title>
     <link rel="stylesheet" href="~/css/site.css" />
+    <link rel="icon" href="~/favicon.svg" type="image/svg+xml" />
     <style>
-        body { padding: 24px; }
-        .dg-row { display: grid; grid-template-columns: 130px 1fr 90px; gap: 12px; align-items: start;
-                  padding: 10px 0; border-bottom: 1px solid var(--cg-border); font-size: 14px; }
+        .dg-page { max-width: 880px; margin: 0 auto; padding: var(--cg-gutter); }
+        .dg-row { display: grid; grid-template-columns: 130px minmax(0, 1fr) 90px; gap: 12px; align-items: start;
+                  padding: 10px 0; border-bottom: 1px solid var(--cg-border); font-size: 13.5px; }
         .dg-row:last-child { border-bottom: none; }
         .dg-name { font-weight: 600; }
-        .dg-detail { color: var(--cg-text-muted); word-break: break-word; font-family: Consolas, Menlo, monospace; font-size: 12.5px; }
+        .dg-detail { color: var(--cg-muted); word-break: break-word; font-family: var(--cg-mono); font-size: 12.5px; }
         .dg-state { text-align: right; }
-        .dg-pending { color: var(--cg-text-muted); }
+        .dg-pending { color: var(--cg-muted); }
+        @@media (max-width: 560px) {
+            .dg-row { grid-template-columns: minmax(0, 1fr) auto; }
+            .dg-detail { grid-column: 1 / -1; grid-row: 2; }
+        }
     </style>
 </head>
 <body>
-    <h2 style="margin-top:0;">ChildGuard — API Diagnostics</h2>
-    <p class="cg-muted">
-        Every check below runs in <strong>this browser</strong> against the API, so a pass
-        means a browser on this origin can really reach that endpoint — CORS included.
-        This page needs no login, so it still answers when the API is down.
-    </p>
-
-    <div class="cg-card">
-        <div class="cg-form-group">
-            <label for="apiBase">API base URL</label>
-            <input class="cg-input" id="apiBase" value="@apiBaseUrl" />
-            <small class="cg-muted">This page's origin: <code id="pageOrigin"></code></small>
+<main class="dg-page">
+    <div class="cg-page-head">
+        <div class="cg-page-head__text">
+            <h1 class="cg-page-head__title">API Diagnostics</h1>
+            <p class="cg-page-head__sub">
+                Every check below runs in <strong>this browser</strong> against the API, so a pass
+                means a browser on this origin can really reach that endpoint, CORS included.
+                This page needs no login, so it still answers when the API is down.
+            </p>
         </div>
-        <button class="cg-btn cg-btn--primary" id="runAll" type="button">Run all checks</button>
+        <div class="cg-page-head__actions">
+            <a class="cg-btn cg-btn--secondary" href="/Dashboard">Back to dashboard</a>
+        </div>
     </div>
 
-    <div class="cg-card">
-        <h3 class="cg-card__title">Connectivity</h3>
-        <div id="connectivity"></div>
-    </div>
+    <section class="cg-card">
+        <div class="cg-card__body cg-form">
+            <div class="cg-field">
+                <label class="cg-label" for="apiBase">API base URL</label>
+                <input class="cg-input" id="apiBase" value="@apiBaseUrl" />
+                <span class="cg-hint">This page's origin: <code id="pageOrigin"></code></span>
+            </div>
+            <div><button class="cg-btn cg-btn--primary" id="runAll" type="button">Run all checks</button></div>
+        </div>
+    </section>
 
-    <div class="cg-card">
-        <h3 class="cg-card__title">Guardian login flow</h3>
-        <p class="cg-muted">
-            Optional. Fill these in to exercise the real login path. Nothing is stored, and
-            no OTP is shown here — read it from the API console.
-        </p>
-        <div class="cg-form-group">
-            <label for="contactNumber">Contact number</label>
-            <input class="cg-input" id="contactNumber" placeholder="9820011111" />
+    <section class="cg-card">
+        <div class="cg-card__head"><h2 class="cg-card__title">Connectivity</h2></div>
+        <div class="cg-card__body cg-card__body--tight" id="connectivity"></div>
+    </section>
+
+    <section class="cg-card">
+        <div class="cg-card__head">
+            <div>
+                <h2 class="cg-card__title">Guardian login flow</h2>
+                <div class="cg-card__sub">
+                    Optional. Fill these in to exercise the real login path. Nothing is stored, and
+                    no OTP is shown here. Read it from the API console.
+                </div>
+            </div>
         </div>
-        <div class="cg-form-group">
-            <label for="password">Password</label>
-            <input class="cg-input" id="password" type="password" />
+        <div class="cg-card__body cg-form">
+            <div class="cg-form-row">
+                <div class="cg-field">
+                    <label class="cg-label" for="contactNumber">Contact number</label>
+                    <input class="cg-input" id="contactNumber" placeholder="9820011111" autocomplete="off" />
+                </div>
+                <div class="cg-field">
+                    <label class="cg-label" for="password">Password</label>
+                    <input class="cg-input" id="password" type="password" autocomplete="off" />
+                </div>
+            </div>
+            <div><button class="cg-btn cg-btn--primary" id="runLogin" type="button">Test guardian login</button></div>
+            <div id="login"></div>
         </div>
-        <button class="cg-btn cg-btn--primary" id="runLogin" type="button">Test guardian login</button>
-        <div id="login" style="margin-top:12px;"></div>
-    </div>
+    </section>
+</main>
 
 <script>
 (function () {

@@ -8,7 +8,7 @@
     <div class="cg-page-head__text">
         <h1 class="cg-page-head__title">Pickup &amp; Drop-off desk</h1>
         <p class="cg-page-head__sub">
-            Scan the student's card, then verify the collecting guardian before confirming the handover.
+            Scan the student's card, then verify the collecting guardian (identity, authorisation and a live-person check) before confirming the handover.
         </p>
     </div>
     <div class="cg-page-head__actions">
@@ -41,14 +41,14 @@
     <div class="cg-step" id="step-guardian" role="listitem">
         <span class="cg-step__num">3</span>
         <span class="cg-step__text">
-            <span class="cg-step__label">Guardian selected</span>
+            <span class="cg-step__label">Guardian identified</span>
             <span class="cg-step__state" data-state>Not started</span>
         </span>
     </div>
     <div class="cg-step" id="step-face" role="listitem">
         <span class="cg-step__num">4</span>
         <span class="cg-step__text">
-            <span class="cg-step__label">Face verified</span>
+            <span class="cg-step__label">Live person verified</span>
             <span class="cg-step__state" data-state>Not started</span>
         </span>
     </div>
@@ -111,7 +111,6 @@
                                     <option value="BusBoarding">Bus boarding — drop-off</option>
                                     <option value="SchoolArrival" selected>School arrival — drop-off</option>
                                     <option value="SchoolDeparture">School departure — pickup</option>
-                                    <option value="BusDropoff">Bus drop-off — pickup</option>
                                 </select>
                             </div>
                         </div>
@@ -165,54 +164,58 @@
             <div class="cg-card__head">
                 <div>
                     <h2 class="cg-card__title">Guardian verification</h2>
-                    <div class="cg-card__sub">Only guardians authorised for this student are listed</div>
+                    <div class="cg-card__sub">Image quality, identity, authorisation and a live-person check. You decide the handover.</div>
                 </div>
                 <span id="guardianAuthBadge" class="cg-badge cg-badge--neutral">
                     <span class="cg-badge__dot"></span>Pending scan
                 </span>
             </div>
             <div class="cg-card__body">
-                <div class="cg-field" style="margin-bottom:14px">
-                    <label class="cg-label" for="guardianSelect">Collecting guardian</label>
-                    <select id="guardianSelect" class="cg-select" disabled>
-                        <option value="">Read a student's card first…</option>
-                    </select>
+                <div id="guardianList" class="cg-vlist" hidden></div>
+
+                <div id="methodBar" class="cg-btn-group" style="margin:14px 0" hidden>
+                    <button type="button" class="cg-btn cg-btn--primary" id="methodLive">
+                        @await Html.PartialAsync("_Icon", "camera") Live camera check
+                    </button>
+                    <button type="button" class="cg-btn cg-btn--secondary" id="methodGallery">
+                        @await Html.PartialAsync("_Icon", "image") Capture or upload a photo
+                    </button>
                 </div>
 
-                <div id="guardianPreview" hidden style="margin-bottom:16px">
-                    <div class="cg-row" style="gap:12px;align-items:flex-start">
-                        <span class="cg-avatar cg-avatar--lg cg-avatar--guardian cg-avatar--square" id="guardianAvatar">?</span>
-                        <div style="min-width:0">
-                            <div class="cg-strong" id="guardianName"></div>
-                            <div class="cg-text-sm cg-muted" id="guardianRelationship"></div>
-                            <div style="margin-top:6px" id="guardianFaceBadge"></div>
+                <div id="livePanel" hidden>
+                    <div class="cg-camera cg-vcam" id="cameraBox">
+                        <div class="cg-camera__hint">
+                            @await Html.PartialAsync("_Icon", "camera")
+                            <div style="margin-top:8px">Camera not started</div>
                         </div>
                     </div>
-                    <p class="cg-hint" style="margin-top:8px">
-                        This is the photo on file, for staff reference. Verification compares the live
-                        capture against the guardian's registered face representation.
+                    <div class="cg-vprompt" id="livePrompt" aria-live="assertive" hidden></div>
+                    <div class="cg-fc__progress" id="liveProgress" hidden><div class="cg-fc__bar" id="liveBar"></div></div>
+                    <div class="cg-btn-group" style="justify-content:center;margin-top:14px">
+                        <button id="startCameraBtn" type="button" class="cg-btn cg-btn--secondary">
+                            @await Html.PartialAsync("_Icon", "camera") Start camera
+                        </button>
+                        <button id="beginLiveBtn" type="button" class="cg-btn cg-btn--primary" disabled>
+                            @await Html.PartialAsync("_Icon", "scan")
+                            <span class="cg-btn__label">Begin live check</span>
+                        </button>
+                    </div>
+                    <p class="cg-hint" style="text-align:center">
+                        The guardian looks straight at the camera for a couple of seconds.
+                        The preview is mirrored, like a mirror.
                     </p>
                 </div>
 
-                <div class="cg-camera" id="cameraBox">
-                    <div class="cg-camera__hint">
-                        @await Html.PartialAsync("_Icon", "camera")
-                        <div style="margin-top:8px">Camera not started</div>
-                    </div>
-                </div>
-                <canvas id="captureCanvas" hidden></canvas>
-
-                <div class="cg-btn-group" style="justify-content:center;margin-top:14px">
-                    <button id="startCameraBtn" class="cg-btn cg-btn--secondary">
-                        @await Html.PartialAsync("_Icon", "camera") Start camera
-                    </button>
-                    <button id="captureBtn" class="cg-btn cg-btn--primary" disabled>
-                        @await Html.PartialAsync("_Icon", "scan")
-                        <span class="cg-btn__label">Capture &amp; verify</span>
-                    </button>
+                <div id="galleryPanel" hidden>
+                    <p class="cg-hint">
+                        A photo (captured or uploaded) shows who someone is, not that they are here. After a match a live camera check is
+                        still required before the pickup can be approved.
+                    </p>
+                    <div id="galleryHost"></div>
+                    <p class="cg-hint" id="galleryHint">Take a photo with the camera or choose a file. It is checked and matched automatically.</p>
                 </div>
 
-                <div id="faceResult" aria-live="polite" style="margin-top:16px"></div>
+                <div id="layerResults" aria-live="polite" style="margin-top:16px"></div>
 
                 <div class="cg-btn-group" style="justify-content:center;margin-top:8px">
                     <button id="approveBtn" class="cg-btn cg-btn--success" disabled>
@@ -222,6 +225,7 @@
                     <button id="rejectBtn" class="cg-btn cg-btn--danger" disabled>
                         @await Html.PartialAsync("_Icon", "x") Reject
                     </button>
+                    <button id="cancelBtn" type="button" class="cg-btn cg-btn--ghost">Cancel</button>
                 </div>
 
                 <div id="decisionResult" aria-live="polite" style="margin-top:14px"></div>
@@ -252,7 +256,7 @@
         <div class="cg-table-wrap">
             <table class="cg-table">
                 <thead>
-                    <tr><th>Student</th><th>Guardian</th><th>When</th><th>Score</th><th>Result</th><th>Handover</th></tr>
+                    <tr><th>Student</th><th>Guardian</th><th>When</th><th>Score</th><th>Result</th><th>Checks</th><th>Handover</th></tr>
                 </thead>
                 <tbody>
                 @foreach (var v in recent)
@@ -274,6 +278,7 @@
                                 <span class="cg-badge cg-badge--danger"><span class="cg-badge__dot"></span>No match</span>
                             }
                         </td>
+                        <td><partial name="_VerificationChecks" model="v" /></td>
                         <td>
                             <partial name="_PickupStateBadge" model="v" />
                         </td>
@@ -286,5 +291,6 @@
 </section>
 
 @section Scripts {
+    <script src="~/js/face-capture.js" asp-append-version="true"></script>
     <script src="~/js/verification.js" asp-append-version="true"></script>
 }

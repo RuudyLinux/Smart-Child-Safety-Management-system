@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllersWithViews()
+builder.Services.AddControllersWithViews(options => options.Filters.Add<ApiSessionExpiredFilter>())
     .AddJsonOptions(options =>
         options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
 builder.Services.AddHttpContextAccessor();
@@ -32,6 +32,14 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.Cookie.Name = "ChildGuardAdminAuth";
         options.Cookie.HttpOnly = true;
         options.Cookie.SameSite = SameSiteMode.Lax;
+        // fetch() calls cannot follow a redirect to an HTML sign-in page; answer them
+        // 401 so the page script sends the browser to sign-in instead.
+        options.Events.OnRedirectToLogin = context =>
+        {
+            if (ApiSessionExpiredFilter.WantsHtml(context.Request)) context.Response.Redirect(context.RedirectUri);
+            else context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            return Task.CompletedTask;
+        };
     });
 
 builder.Services.AddAuthorization();

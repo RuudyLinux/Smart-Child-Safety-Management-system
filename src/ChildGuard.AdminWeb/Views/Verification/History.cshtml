@@ -13,7 +13,7 @@
     <div class="cg-page-head__text">
         <h1 class="cg-page-head__title">Verification log</h1>
         <p class="cg-page-head__sub">
-            Every pickup verification attempt, its match score and the handover decision that followed.
+            Every pickup verification attempt, its match score, which checks passed (identity, authorisation, live person) and the handover decision that followed.
         </p>
     </div>
     <div class="cg-page-head__actions">
@@ -123,6 +123,7 @@
                         <th>Guardian</th>
                         <th><span class="cg-th-sort" data-cg-sort="score">Match score @await Html.PartialAsync("_Icon", "arrow-down")</span></th>
                         <th>Result</th>
+                        <th>Checks</th>
                         <th>Handover</th>
                     </tr>
                 </thead>
@@ -152,6 +153,7 @@
                                 <span class="cg-badge cg-badge--danger"><span class="cg-badge__dot"></span>No match</span>
                             }
                         </td>
+                        <td><partial name="_VerificationChecks" model="v" /></td>
                         <td>
                             <partial name="_PickupStateBadge" model="v" />
                         </td>

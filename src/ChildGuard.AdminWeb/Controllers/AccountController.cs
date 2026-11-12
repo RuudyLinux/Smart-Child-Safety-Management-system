@@ -15,9 +15,10 @@ public class AccountController : Controller
     public AccountController(ApiClient api) => _api = api;
 
     [HttpGet]
-    public IActionResult Login()
+    public IActionResult Login(bool expired = false)
     {
         if (User.Identity?.IsAuthenticated == true) return RedirectToAction("Index", "Dashboard");
+        if (expired) TempData["Info"] = "Your session expired. Please sign in again.";
         return View(new LoginViewModel());
     }
 
@@ -50,7 +51,14 @@ public class AccountController : Controller
             new ClaimsPrincipal(identity),
             // "Keep me signed in" is the only thing that makes the cookie survive a
             // browser restart; without it the session ends when the browser closes.
-            new AuthenticationProperties { IsPersistent = model.RememberMe });
+            // The cookie never outlives the API token it carries: a sliding cookie
+            // holding an expired token rendered every page empty.
+            new AuthenticationProperties
+            {
+                IsPersistent = model.RememberMe,
+                ExpiresUtc = new DateTimeOffset(DateTime.SpecifyKind(result.Value.ExpiresAtUtc, DateTimeKind.Utc)),
+                AllowRefresh = false
+            });
 
         return RedirectToAction("Index", "Dashboard");
     }

@@ -111,7 +111,7 @@ public class StudentsController : BaseAdminController
         var result = await Api.PostAsync<object?>($"/api/students/{id}/guardians",
             new AssignGuardianRequest(guardianId, relationship, isAuthorizedForPickup), ct);
         TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded ? "Guardian linked to this student." : result.Error;
-        return RedirectToAction(nameof(Details), new { id });
+        return RedirectToAction(nameof(Details), null, new { id }, "guardians");
     }
 
     [HttpPost]
@@ -121,7 +121,7 @@ public class StudentsController : BaseAdminController
         var result = await Api.PutAsync<object?>($"/api/students/{id}/guardians/{guardianId}",
             new UpdateStudentGuardianRequest(relationship, isAuthorizedForPickup), ct);
         TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded ? "Guardian link updated." : result.Error;
-        return RedirectToAction(nameof(Details), new { id });
+        return RedirectToAction(nameof(Details), null, new { id }, "guardians");
     }
 
     [HttpPost]
@@ -132,7 +132,7 @@ public class StudentsController : BaseAdminController
         TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded
             ? "Guardian unlinked. The guardian account itself was not deleted."
             : result.Error;
-        return RedirectToAction(nameof(Details), new { id });
+        return RedirectToAction(nameof(Details), null, new { id }, "guardians");
     }
 
     // ---- Profile photo ----
@@ -154,7 +154,7 @@ public class StudentsController : BaseAdminController
         if (file is null || file.Length == 0)
         {
             TempData["Error"] = "Select an image to upload.";
-            return RedirectToAction(nameof(Details), new { id });
+            return RedirectToAction(nameof(Details), null, new { id }, "photo");
         }
 
         await using var stream = file.OpenReadStream();
@@ -162,7 +162,7 @@ public class StudentsController : BaseAdminController
             $"/api/students/{id}/photo", stream, file.FileName, file.ContentType, ct);
 
         TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded ? "Student photo saved." : result.Error;
-        return RedirectToAction(nameof(Details), new { id });
+        return RedirectToAction(nameof(Details), null, new { id }, "photo");
     }
 
     [HttpPost]
@@ -171,6 +171,6 @@ public class StudentsController : BaseAdminController
     {
         var result = await Api.DeleteAsync<object?>($"/api/students/{id}/photo", ct);
         TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded ? "Student photo removed." : result.Error;
-        return RedirectToAction(nameof(Details), new { id });
+        return RedirectToAction(nameof(Details), null, new { id }, "photo");
     }
 }

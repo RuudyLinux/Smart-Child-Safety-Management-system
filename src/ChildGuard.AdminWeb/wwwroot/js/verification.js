@@ -1,21 +1,34 @@
 /* ==========================================================================
    Pickup & Drop-off desk.
    A thin client over the VerificationController proxy endpoints: it reflects
-   what the API returns and never decides an outcome itself. Every failure is
-   reported with what failed, why, and what the operator should do next.
+   what the API returns and never decides an outcome itself. Image quality, who
+   the person is, whether they may collect this student and whether a live person
+   was present are all judged on the server; this page shows each result on its
+   own and offers "Approve" only for a result the server marked verified. Every
+   failure is reported with what failed, why, and what the operator should do next.
    ========================================================================== */
 (function () {
   'use strict';
 
   /** Checkpoints that hand a child to a person, and therefore need guardian verification. */
-  var PICKUP_CHECKPOINTS = ['SchoolDeparture', 'BusDropoff'];
+  var PICKUP_CHECKPOINTS = ['SchoolDeparture'];
+
+  /** Webcam frames for one live check (the server accepts 6 to 16 and the challenge sets the pace). */
+  var FRAME_WIDTH = 640;
+  var FRAME_QUALITY = 0.8;
 
   var state = {
     studentId: null,
     studentName: null,
-    guardianId: null,
+    sessionId: null,
     verificationId: null,
     stream: null,
+    frameReady: false,     // the camera has produced a picture
+    live: false,           // a live check is running
+    lastPhotoAnalysis: null, // the photo analysis already sent for identification
+    method: null,          // 'live' | 'gallery'
+    gallery: null,         // the shared capture widget for photo upload
+    hasFaces: false,       // at least one authorised guardian has a registered face
     busy: false
   };
 
@@ -42,6 +55,20 @@
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
   }
+
+  function postJson(url, body) {
+    return fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken() },
+      body: body == null ? '{}' : JSON.stringify(body)
+    }).then(function (resp) {
+      return resp.json().catch(function () { return {}; }).then(function (data) {
+        return { ok: resp.ok, status: resp.status, data: data };
+      });
+    });
+  }
+
+  function sleep(ms) { return new Promise(function (resolve) { setTimeout(resolve, ms); }); }
 
   // ------------------------------------------------------------------ Steps
   function setStep(id, kind, stateText) {
@@ -70,7 +97,7 @@
       '<span class="cg-alert__icon">' + icon(glyph) + '</span>' +
       '<div class="cg-alert__body">' +
         '<div class="cg-alert__title">' + escapeHtml(title) + '</div>' +
-        '<div>' + escapeHtml(body) + '</div>' +
+        (body ? '<div>' + escapeHtml(body) + '</div>' : '') +
         (action ? '<div style="margin-top:6px"><strong>Next:</strong> ' + escapeHtml(action) + '</div>' : '') +
       '</div></div>';
   }
@@ -88,7 +115,7 @@
     var hint = $('checkpointHint');
     if (hint) {
       hint.textContent = pickup
-        ? 'Pickup checkpoint: the scan identifies the student, then an authorised guardian must pass face verification before the handover is recorded.'
+        ? 'Pickup checkpoint: the scan identifies the student, then the collecting guardian must pass identity, authorisation and a live-person check before the handover can be approved.'
         : 'Drop-off checkpoint: the scan identifies the student and records the event. No guardian verification is needed.';
     }
     resetSteps(pickup);
@@ -127,6 +154,8 @@
       state.stream.getTracks().forEach(function (t) { t.stop(); });
       state.stream = null;
     }
+    state.frameReady = false;
+    refreshLiveButtons();
     var box = $('cameraBox');
     if (box) {
       box.innerHTML = '<div class="cg-camera__hint">' + icon('info') +
@@ -134,12 +163,27 @@
     }
   }
 
+  function refreshLiveButtons() {
+    var begin = $('beginLiveBtn');
+    if (begin) begin.disabled = !(state.stream && state.frameReady && state.sessionId && state.hasFaces && !state.live);
+    var start = $('startCameraBtn');
+    if (start) start.disabled = state.live;
+  }
+
+  function setDecisionButtons(canApprove, canReject) {
+    $('approveBtn').disabled = !canApprove;
+    $('rejectBtn').disabled = !canReject;
+  }
+
   /** Clears everything from the previous handover so a new scan can never inherit a stale green step. */
   function resetForNewScan(keepCardUid) {
     state.studentId = null;
     state.studentName = null;
-    state.guardianId = null;
+    state.sessionId = null;
     state.verificationId = null;
+    state.method = null;
+    state.live = false;
+    state.hasFaces = false;
 
     resetSteps(isPickupCheckpoint());
 
@@ -149,18 +193,19 @@
     $('studentStatusBadge').className = 'cg-badge cg-badge--neutral';
     $('studentStatusBadge').textContent = '';
 
-    var select = $('guardianSelect');
-    select.innerHTML = '<option value="">Read a student\'s card first…</option>';
-    select.disabled = true;
-
-    $('guardianPreview').hidden = true;
+    $('guardianList').hidden = true;
+    $('guardianList').innerHTML = '';
+    $('methodBar').hidden = true;
+    $('livePanel').hidden = true;
+    $('galleryPanel').hidden = true;
+    $('livePrompt').hidden = true;
+    $('liveProgress').hidden = true;
     $('guardianAuthBadge').className = 'cg-badge cg-badge--neutral';
     $('guardianAuthBadge').innerHTML = '<span class="cg-badge__dot"></span>Pending scan';
-    $('faceResult').innerHTML = '';
+    $('layerResults').innerHTML = '';
     $('decisionResult').innerHTML = '';
-    $('approveBtn').disabled = true;
-    $('rejectBtn').disabled = true;
-    $('captureBtn').disabled = true;
+    setDecisionButtons(false, false);
+    if (state.gallery) state.gallery.reset();
 
     stopCamera();
 
@@ -211,15 +256,16 @@
     setBusy(true, 'Reading…');
     setStep('step-student', 'active', 'Reading card…');
 
-    var payload = {
-      cardUid: cardUid,
-      rfidDeviceId: parseInt($('deviceSelect').value, 10),
-      checkpoint: $('checkpointSelect').value
-    };
+    // At a pickup checkpoint the card only identifies the student: the departure is
+    // recorded by the handover approval, after the guardian is verified (BUG-001).
+    var pickup = isPickupCheckpoint();
+    var payload = pickup
+      ? { cardUid: cardUid, rfidDeviceId: parseInt($('deviceSelect').value, 10) }
+      : { cardUid: cardUid, rfidDeviceId: parseInt($('deviceSelect').value, 10), checkpoint: $('checkpointSelect').value };
 
     var data;
     try {
-      var resp = await fetch('/Verification/Scan', {
+      var resp = await fetch(pickup ? '/Verification/Identify' : '/Verification/Scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken() },
         body: JSON.stringify(payload)
@@ -269,9 +315,14 @@
     setStep('step-student', 'done', data.studentName);
     $('studentName').textContent = data.studentName;
     $('studentRfid').textContent = data.maskedCardUid || '';
-    setAvatar($('studentAvatar'), data.studentName, '/Students/Photo/' + data.studentId);
+    setAvatar($('studentAvatar'), data.studentName, data.studentPhotoUrl || null);
 
-    if (data.eventRecorded) {
+    if (pickup) {
+      $('studentStatusBadge').className = 'cg-badge cg-badge--primary';
+      $('studentStatusBadge').innerHTML = '<span class="cg-badge__dot"></span>Identified';
+      $('studentMessage').innerHTML = banner('info', 'Student identified',
+        'Nothing is recorded yet. The departure is recorded when the handover is approved.');
+    } else if (data.eventRecorded) {
       $('studentStatusBadge').className = 'cg-badge cg-badge--success';
       $('studentStatusBadge').innerHTML = '<span class="cg-badge__dot"></span>Checkpoint recorded';
       $('studentMessage').innerHTML = banner('success', 'Checkpoint recorded', data.message);
@@ -286,101 +337,176 @@
     }
 
     if (isPickupCheckpoint()) {
-      await loadGuardians(data.studentId);
+      await startSession(data.studentId);
     }
   }
 
-  // -------------------------------------------------------------- Guardians
-  async function loadGuardians(studentId) {
+  // ----------------------------------------------------------------- Session
+  async function startSession(studentId) {
     setStep('step-guardian', 'active', 'Loading…');
-    var select = $('guardianSelect');
     var badge = $('guardianAuthBadge');
-
-    var guardians;
+    var r;
+    var photos = {};
     try {
-      var resp = await fetch('/Verification/StudentGuardians?studentId=' + encodeURIComponent(studentId));
-      guardians = await resp.json();
-      if (!resp.ok) throw new Error('load failed');
+      r = await postJson('/Verification/StartSession', { studentId: studentId });
+      var list = await fetch('/Verification/StudentGuardians?studentId=' + encodeURIComponent(studentId));
+      if (list.ok) (await list.json()).forEach(function (g) { photos[g.guardianId] = g.photoUrl; });
     } catch (e) {
       setStep('step-guardian', 'failed', 'Could not load');
       badge.className = 'cg-badge cg-badge--danger';
-      badge.innerHTML = '<span class="cg-badge__dot"></span>Could not load guardians';
+      badge.innerHTML = '<span class="cg-badge__dot"></span>Could not start';
+      return;
+    }
+    if (!r.ok) {
+      setStep('step-guardian', 'failed', 'Could not start');
+      badge.className = 'cg-badge cg-badge--danger';
+      badge.innerHTML = '<span class="cg-badge__dot"></span>Could not start';
+      $('layerResults').innerHTML = banner('danger', 'The verification could not be started',
+        (r.data && r.data.message) || 'The server refused.', 'Read the card again.');
       return;
     }
 
+    var guardians = r.data.guardians || [];
+    state.sessionId = r.data.sessionId;
+    state.hasFaces = guardians.some(function (g) { return g.faceRegistered; });
+
+    var listEl = $('guardianList');
+    listEl.hidden = false;
     if (!guardians.length) {
+      listEl.innerHTML = '';
       setStep('step-guardian', 'failed', 'None authorised');
-      select.innerHTML = '<option value="">No authorised guardian</option>';
-      select.disabled = true;
       badge.className = 'cg-badge cg-badge--danger';
       badge.innerHTML = '<span class="cg-badge__dot"></span>No authorised guardian';
-      $('faceResult').innerHTML = banner('danger', 'Nobody may collect this student',
+      $('layerResults').innerHTML = banner('danger', 'Nobody may collect this student',
         'No guardian linked to ' + (state.studentName || 'this student') + ' is authorised for pickup.',
         'Authorise a guardian on the student\'s profile before releasing them.');
       return;
     }
 
-    select.innerHTML = guardians.map(function (g) {
-      return '<option value="' + g.guardianId + '" data-name="' + escapeHtml(g.fullName) +
-        '" data-relationship="' + escapeHtml(g.relationship || '') +
-        '" data-face="' + (g.faceRegistered ? '1' : '0') +
-        '" data-photo="' + escapeHtml(g.photoUrl || '') + '">' +
-        escapeHtml(g.fullName) + (g.relationship ? ' — ' + escapeHtml(g.relationship) : '') + '</option>';
-    }).join('');
-    select.disabled = false;
+    listEl.innerHTML = '<div class="cg-label" style="margin-bottom:8px">Authorised to collect ' + escapeHtml(state.studentName || '') + '</div>' +
+      guardians.map(function (g) {
+        return '<div class="cg-row cg-vguardian">' +
+          '<span class="cg-avatar cg-avatar--guardian cg-avatar--square" data-g="' + g.guardianId + '">' + escapeHtml(initials(g.fullName)) + '</span>' +
+          '<div style="min-width:0"><div class="cg-strong">' + escapeHtml(g.fullName) + '</div>' +
+          '<div class="cg-text-sm cg-muted">' + escapeHtml(g.relationship || 'Relationship not recorded') + '</div></div>' +
+          (g.faceRegistered
+            ? '<span class="cg-badge cg-badge--success"><span class="cg-badge__dot"></span>' + g.referenceCount + ' face photo' + (g.referenceCount === 1 ? '' : 's') + '</span>'
+            : '<span class="cg-badge cg-badge--warning"><span class="cg-badge__dot"></span>No face registered</span>') +
+          '</div>';
+      }).join('');
+    guardians.forEach(function (g) {
+      var el = listEl.querySelector('[data-g="' + g.guardianId + '"]');
+      if (el && photos[g.guardianId]) setAvatar(el, g.fullName, photos[g.guardianId]);
+    });
 
     badge.className = 'cg-badge cg-badge--success';
     badge.innerHTML = '<span class="cg-badge__dot"></span>' + guardians.length + ' authorised';
-    onGuardianChange();
-  }
-
-  function onGuardianChange() {
-    var select = $('guardianSelect');
-    var option = select.selectedOptions[0];
-    if (!option || !option.value) {
-      $('guardianPreview').hidden = true;
-      state.guardianId = null;
-      $('captureBtn').disabled = true;
-      return;
-    }
-
-    state.guardianId = parseInt(option.value, 10);
-    var faceRegistered = option.getAttribute('data-face') === '1';
-
-    $('guardianPreview').hidden = false;
-    $('guardianName').textContent = option.getAttribute('data-name');
-    $('guardianRelationship').textContent = option.getAttribute('data-relationship') || 'Relationship not recorded';
-    setAvatar($('guardianAvatar'), option.getAttribute('data-name'), option.getAttribute('data-photo'));
-
-    $('guardianFaceBadge').innerHTML = faceRegistered
-      ? '<span class="cg-badge cg-badge--success"><span class="cg-badge__dot"></span>Face registered</span>'
-      : '<span class="cg-badge cg-badge--warning"><span class="cg-badge__dot"></span>No face registered</span>';
-
-    setStep('step-guardian', 'done', option.getAttribute('data-name'));
+    setStep('step-guardian', 'active', 'Waiting for the guardian');
     setStep('step-face', null, 'Not started');
 
-    if (!faceRegistered) {
-      $('faceResult').innerHTML = banner('warning', 'This guardian cannot be face-verified',
-        'They have not registered a face in the ChildGuard app yet.',
-        'Ask them to register their face in the app, or verify their identity another way before releasing the student.');
-    } else {
-      $('faceResult').innerHTML = '';
+    if (!state.hasFaces) {
+      $('layerResults').innerHTML = banner('warning', 'No face is registered for these guardians',
+        'There is nothing to compare a capture with.',
+        'Register a face on a guardian\'s page (Photo & Face ID tab), or verify identity another way before releasing the student.');
+      return;
     }
-
-    $('captureBtn').disabled = !state.stream;
-    $('approveBtn').disabled = true;
-    $('rejectBtn').disabled = true;
-    state.verificationId = null;
+    $('methodBar').hidden = false;
+    selectMethod('live');
   }
 
-  // ----------------------------------------------------------------- Camera
+  function selectMethod(method) {
+    state.method = method;
+    $('livePanel').hidden = method !== 'live';
+    $('galleryPanel').hidden = method !== 'gallery';
+    $('methodLive').className = 'cg-btn ' + (method === 'live' ? 'cg-btn--primary' : 'cg-btn--secondary');
+    $('methodGallery').className = 'cg-btn ' + (method === 'gallery' ? 'cg-btn--primary' : 'cg-btn--secondary');
+    if (method === 'gallery' && !state.gallery) {
+      state.gallery = window.CgFaceCapture.create($('galleryHost'), {
+        analyzeUrl: '/Verification/AnalyzeImage',
+        purpose: 'verification',
+        onChange: function (api) {
+          // As soon as the server has accepted the image, identify the guardian: no extra button.
+          var analysis = api.getAnalysis();
+          if (api.isReady() && analysis !== state.lastPhotoAnalysis) {
+            state.lastPhotoAnalysis = analysis;
+            identifyPhoto();
+          }
+          if (!api.getImage()) state.lastPhotoAnalysis = null;
+        }
+      });
+    }
+    if (method !== 'live') stopCamera();
+  }
+
+  /** The session ended (expired, replaced or too many attempts): say so and offer a fresh start. */
+  function sessionEnded(message) {
+    state.sessionId = null;
+    state.live = false;
+    $('livePrompt').hidden = true;
+    $('liveProgress').hidden = true;
+    refreshLiveButtons();
+    $('layerResults').innerHTML = banner('warning', 'This verification has ended', message,
+      'Start again to verify the guardian.') +
+      '<div style="margin-top:8px"><button type="button" class="cg-btn cg-btn--secondary" id="restartSessionBtn">Start again</button></div>';
+    var restart = $('restartSessionBtn');
+    if (restart) restart.addEventListener('click', function () {
+      $('layerResults').innerHTML = '';
+      if (state.studentId) startSession(state.studentId);
+    });
+  }
+
+  function isSessionGone(data) {
+    var m = (data && data.message) || '';
+    return /session/i.test(m) && /(no longer open|expired)/i.test(m);
+  }
+
+  // ------------------------------------------------------------------ Gallery
+  async function identifyPhoto() {
+    if (!state.sessionId || !state.gallery || !state.gallery.isReady()) return;
+    setDecisionButtons(false, false);
+    $('layerResults').innerHTML = banner('info', 'Checking', 'Identifying the guardian from the photo…');
+    var r;
+    try {
+      r = await postJson('/Verification/SessionIdentify/' + state.sessionId,
+        { source: state.gallery.getSource() || 'Gallery', imageBase64: state.gallery.getImage() });
+    } catch (e) {
+      $('layerResults').innerHTML = banner('danger', 'Could not reach the server', 'Nothing was recorded.', 'Check the connection and try again.');
+      return;
+    }
+    if (!r.ok) {
+      if (isSessionGone(r.data)) { sessionEnded(r.data.message); return; }
+      $('layerResults').innerHTML = banner('warning', 'The photo could not be checked',
+        (r.data && r.data.message) || 'The face service did not respond.', 'Try again, or use the live camera check.');
+      return;
+    }
+    renderAttempt(r.data);
+    // A photo never completes a pickup: move straight on to the live check.
+    if (r.data.outcome === 'LiveVerificationRequired') selectMethod('live');
+  }
+
+  // ------------------------------------------------------------------ Camera
   async function startCamera() {
     var box = $('cameraBox');
+    function hint(glyph, text) {
+      box.innerHTML = '<div class="cg-camera__hint">' + icon(glyph) +
+        '<div style="margin-top:8px">' + escapeHtml(text) + '</div></div>';
+    }
+    // Browsers expose the camera only on HTTPS (or localhost).
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      hint('alert', 'The camera is only available when the console is opened over HTTPS.');
+      return;
+    }
+    // getUserMedia waits silently while the browser asks for permission; say so.
+    hint('info', 'Waiting for camera permission… allow it in the browser prompt.');
     try {
-      state.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+      state.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } } });
     } catch (e) {
-      box.innerHTML = '<div class="cg-camera__hint">' + icon('alert') +
-        '<div style="margin-top:8px">Camera unavailable — check the browser\'s camera permission.</div></div>';
+      var name = e && e.name;
+      hint('alert', name === 'NotFoundError' || name === 'OverconstrainedError'
+        ? 'No camera was found on this computer. Connect one, then press Start camera again.'
+        : name === 'NotReadableError'
+          ? 'The camera is in use by another application. Close it, then press Start camera again.'
+          : 'Camera permission was refused. Allow the camera for this site in the browser settings.');
       return;
     }
 
@@ -388,83 +514,236 @@
     video.autoplay = true;
     video.playsInline = true;
     video.muted = true;
+    state.frameReady = false;
+    var stream = state.stream;
+    video.addEventListener('loadeddata', function () {
+      if (state.stream === stream) { state.frameReady = true; refreshLiveButtons(); }
+    });
     video.srcObject = state.stream;
     box.innerHTML = '';
     box.appendChild(video);
-
-    $('captureBtn').disabled = !state.guardianId;
+    refreshLiveButtons();
   }
 
-  async function captureAndVerify() {
-    if (!state.stream || !state.studentId || !state.guardianId) return;
-
-    var video = $('cameraBox').querySelector('video');
-    if (!video) return;
-
-    var canvas = $('captureCanvas');
-    canvas.width = video.videoWidth || 640;
-    canvas.height = video.videoHeight || 480;
+  function grabFrame(video, startedAt) {
+    var scale = Math.min(1, FRAME_WIDTH / video.videoWidth);
+    var canvas = document.createElement('canvas');
+    canvas.width = Math.round(video.videoWidth * scale);
+    canvas.height = Math.round(video.videoHeight * scale);
     canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-    var imageBase64 = canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
+    return {
+      imageBase64: canvas.toDataURL('image/jpeg', FRAME_QUALITY).split(',')[1],
+      tMs: Math.round(performance.now() - startedAt)
+    };
+  }
 
-    setStep('step-face', 'active', 'Verifying…');
-    $('captureBtn').disabled = true;
-    $('faceResult').innerHTML = banner('info', 'Verifying', 'Comparing the capture with the registered face…');
+  // -------------------------------------------------------------- Live check
+  /** The prompts for one challenge: look straight, then each requested turn with a return to centre. */
+  function planPrompts(steps) {
+    if (!steps.length) return [{ text: 'Look straight at the camera and hold still', ms: 2600 }];
+    var plan = [{ text: 'Look straight at the camera', ms: 1500 }];
+    steps.forEach(function (step, i) {
+      var left = step === 'turn_left';
+      plan.push({ text: 'Slowly turn your head to YOUR ' + (left ? 'LEFT  ←' : 'RIGHT  →'), ms: 2200 });
+      plan.push({ text: i === steps.length - 1 ? 'Face the camera again' : 'Now face the camera again', ms: i === steps.length - 1 ? 700 : 900 });
+    });
+    return plan;
+  }
 
-    var data;
+  async function runLiveCheck() {
+    if (!state.sessionId || !state.stream || !state.frameReady || state.live) return;
+    var video = $('cameraBox').querySelector('video');
+    if (!video || !video.videoWidth) return;
+
+    state.live = true;
+    refreshLiveButtons();
+    setDecisionButtons(false, false);
+    $('layerResults').innerHTML = '';
+    setStep('step-face', 'active', 'Live check…');
+
+    var prompt = $('livePrompt');
+    var bar = $('liveBar');
+    var progress = $('liveProgress');
+    function finish() { prompt.hidden = true; progress.hidden = true; state.live = false; refreshLiveButtons(); }
+
+    // 1. The server issues a random single-use challenge for this session.
+    var ch;
     try {
-      var resp = await fetch('/Verification/FaceVerify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken() },
-        body: JSON.stringify({ studentId: state.studentId, guardianId: state.guardianId, imageBase64: imageBase64 })
-      });
-      data = await resp.json();
-      if (!resp.ok) {
-        setStep('step-face', 'failed', 'Service error');
-        $('faceResult').innerHTML = banner('danger', 'Verification could not run',
-          data && data.message ? data.message : 'The face service did not respond.',
-          'Try again. If it keeps failing, verify identity another way and record the handover manually.');
-        $('captureBtn').disabled = false;
-        return;
-      }
+      ch = await postJson('/Verification/SessionChallenge/' + state.sessionId, {});
     } catch (e) {
+      finish();
+      $('layerResults').innerHTML = banner('danger', 'Could not reach the server', 'The live check did not start.', 'Check the connection and try again.');
+      return;
+    }
+    if (!ch.ok) {
+      finish();
+      if (isSessionGone(ch.data)) { sessionEnded(ch.data.message); return; }
+      setStep('step-face', 'failed', 'Not started');
+      $('layerResults').innerHTML = banner('danger', 'The live check could not start',
+        (ch.data && ch.data.message) || 'The server refused.', 'Try again.');
+      return;
+    }
+    var challenge = ch.data;
+
+    // 2. Follow the prompts while taking frames at an even pace.
+    var plan = planPrompts(challenge.steps);
+    var total = plan.reduce(function (sum, p) { return sum + p.ms; }, 0);
+    var interval = Math.max(350, Math.ceil(total / (challenge.maxFrames - 1)));
+    var frames = [];
+    var startedAt = performance.now();
+    prompt.hidden = false;
+    progress.hidden = false;
+    bar.style.width = '0%';
+
+    var phaseEnd = 0;
+    for (var p = 0; p < plan.length; p++) {
+      prompt.textContent = plan[p].text;
+      phaseEnd += plan[p].ms;
+      while (performance.now() - startedAt < phaseEnd && frames.length < challenge.maxFrames) {
+        if (!state.stream || !state.live) { finish(); return; } // the camera was closed or the check was cancelled
+        if (frames.length * interval <= performance.now() - startedAt) frames.push(grabFrame(video, startedAt));
+        bar.style.width = Math.min(100, ((performance.now() - startedAt) / total) * 100) + '%';
+        await sleep(40);
+      }
+    }
+    prompt.textContent = 'Analysing…';
+    bar.style.width = '100%';
+
+    if (frames.length < challenge.minFrames) {
+      finish();
+      setStep('step-face', 'failed', 'Not checked');
+      $('layerResults').innerHTML = banner('warning', 'The camera did not deliver enough frames',
+        'Only ' + frames.length + ' frames were captured.', 'Check the camera, then try again.');
+      return;
+    }
+
+    // 3. The server judges the burst against the challenge it issued.
+    var r;
+    try {
+      r = await postJson('/Verification/SessionLiveVerify/' + state.sessionId,
+        { challengeToken: challenge.challengeToken, frames: frames.map(function (f) { return { imageBase64: f.imageBase64, tMs: f.tMs }; }) });
+    } catch (e) {
+      finish();
       setStep('step-face', 'failed', 'No response');
-      $('faceResult').innerHTML = banner('danger', 'Could not reach the server',
-        'Nothing was recorded.', 'Check the connection and capture again.');
-      $('captureBtn').disabled = false;
+      $('layerResults').innerHTML = banner('danger', 'Could not reach the server', 'Nothing was recorded.', 'Check the connection and try again.');
       return;
     }
-
-    $('captureBtn').disabled = false;
-    state.verificationId = data.verificationId;
-
-    if (!data.guardianAuthorized) {
-      setStep('step-face', 'failed', 'Not authorised');
-      $('faceResult').innerHTML = banner('danger', 'Guardian is not authorised',
-        data.message, 'Do not release the student. Authorise this guardian on the student\'s profile first.');
+    finish();
+    if (!r.ok) {
+      if (isSessionGone(r.data)) { sessionEnded(r.data.message); return; }
+      setStep('step-face', 'failed', 'Not checked');
+      $('layerResults').innerHTML = banner('warning', 'The live check could not be completed',
+        (r.data && r.data.message) || 'The face service did not respond.', 'Start the live check again.');
       return;
     }
+    renderAttempt(r.data);
+  }
 
-    if (!data.faceMatched) {
-      setStep('step-face', 'failed', 'No match');
-      $('faceResult').innerHTML = banner('danger', 'Face did not match',
-        data.message + ' Match score ' + Number(data.matchScore).toFixed(2) + '.',
-        'Do not release the student. Confirm identity in person, then capture again or reject the handover.');
-      $('rejectBtn').disabled = false;
-      return;
+  // ------------------------------------------------------------ Result panel
+  var LAYER = {
+    quality: { Pass: ['success', 'Pass'], Fail: ['danger', 'Fail'] },
+    detection: { Pass: ['success', 'Pass'], Fail: ['danger', 'Fail'] },
+    identity: { Match: ['success', 'Match'], NoMatch: ['danger', 'No match'], Inconclusive: ['warning', 'Inconclusive'] },
+    authorisation: { Authorised: ['success', 'Authorised'], Unauthorised: ['danger', 'Unauthorised'], NotEvaluated: ['neutral', 'Not evaluated'] },
+    liveness: { Pass: ['success', 'Pass'], Fail: ['danger', 'Fail'], NotPerformed: ['warning', 'Not performed'] }
+  };
+
+  function layerRow(label, kind, value, text) {
+    var pair = (LAYER[kind] || {})[value] || ['neutral', value == null ? 'Not evaluated' : String(value)];
+    return '<li class="cg-vrow"><span class="cg-badge cg-badge--' + pair[0] + '"><span class="cg-badge__dot"></span>' +
+      escapeHtml(pair[1]) + '</span><span class="cg-fc__check-text"><strong>' + escapeHtml(label) + '</strong> ' +
+      '<span class="cg-muted">' + escapeHtml(text || '') + '</span></span></li>';
+  }
+
+  function renderAttempt(r) {
+    var g = r.guardian;
+    var identityText =
+      r.identity === 'Match' ? (g ? g.fullName + (g.relationship ? ' (' + g.relationship + ')' : '') : '') +
+          (r.score != null ? ' · score ' + Number(r.score).toFixed(2) + ' vs threshold ' + Number(r.threshold).toFixed(2) +
+          (r.confidenceBand ? ' (' + r.confidenceBand.toLowerCase() + ')' : '') : '') +
+          (r.referenceLabel ? ' · matched: ' + r.referenceLabel : '')
+      : r.identity === 'Inconclusive' ? 'Two guardians matched almost equally.'
+      : r.identity === 'NoMatch' ? 'No authorised guardian for this student matches.' +
+          (r.score != null ? ' Best score ' + Number(r.score).toFixed(2) + ' vs threshold ' + Number(r.threshold).toFixed(2) + '.' : '')
+      : 'Not evaluated: the image was not usable.';
+
+    var failure = (r.issues || []).join(' ');
+    var qualityText = r.quality === 'Pass' ? 'Image quality acceptable.' : (failure || 'The image is not good enough.');
+    var detectionText = r.faceDetection === 'Pass' ? 'Face detected successfully.' : 'No single clear face was found.';
+    var authText = r.authorisation === 'Authorised' ? 'Authorised to collect this student.'
+      : r.authorisation === 'Unauthorised' ? 'Guardian not authorised for this student.' : '';
+    var liveText = r.liveness === 'Pass' ? 'A live person was present.'
+      : r.liveness === 'NotPerformed' ? (r.verified ? 'Live check not required for this pickup.' : 'Liveness verification required.')
+      : (failure || 'The live-person check did not pass.');
+
+    var rows = '<ul class="cg-vrows">' +
+      layerRow('Image quality', 'quality', r.quality, qualityText) +
+      layerRow('Face detection', 'detection', r.faceDetection, detectionText) +
+      layerRow('Identity', 'identity', r.identity, identityText) +
+      layerRow('Authorisation', 'authorisation', r.authorisation, authText) +
+      layerRow('Liveness', 'liveness', r.liveness, liveText) +
+      '</ul>';
+
+    var kind, title;
+    var spoof = (r.reasonCodes || []).some(function (c) {
+      return ['PASSIVE_SPOOF_SUSPECTED', 'FACE_CHANGED', 'REPLAYED_FRAME', 'DUPLICATE_FRAMES'].indexOf(c) !== -1;
+    });
+    var next;
+    if (r.verified) {
+      kind = 'success'; title = 'All mandatory checks passed';
+      var deadline = r.expiresAt
+        ? ' Decide before ' + new Date(r.expiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ', or verify again.' : '';
+      next = 'Review the result above, then approve or reject the handover.' + deadline;
+    } else if (r.outcome === 'LiveVerificationRequired') {
+      kind = 'warning'; title = 'Liveness verification required'; next = 'Use the live camera check. A photo cannot show the guardian is here.';
+    } else if (r.outcome === 'RetryCapture') {
+      kind = 'warning'; title = 'The image is not suitable'; next = 'Retake the capture, or choose another photo.';
+    } else if (r.outcome === 'ReviewRequired') {
+      kind = 'warning'; title = 'Identity could not be settled'; next = 'Retry, or verify the guardian another way. This result cannot be approved.';
+    } else if (r.outcome === 'Unauthorised') {
+      kind = 'danger'; title = 'Guardian not authorised for this student'; next = 'Do not release the student. Authorise the guardian on the student\'s profile first.';
+    } else if (r.outcome === 'LivenessFailed') {
+      kind = 'danger'; title = spoof ? 'Possible spoofing detected' : 'The live-person check did not pass';
+      next = 'Do not release the student on this result. Try the live check again; if it keeps failing, verify the guardian another way or reject.';
+    } else {
+      kind = 'danger'; title = 'No matching guardian'; next = 'Do not release the student.';
     }
+    var tail = !r.verified && r.liveness !== 'NotPerformed' && r.attemptsRemaining != null
+      ? ' ' + r.attemptsRemaining + ' attempt' + (r.attemptsRemaining === 1 ? '' : 's') + ' left.' : '';
 
-    setStep('step-face', 'done', 'Match ' + Number(data.matchScore).toFixed(2));
-    setStep('step-decision', 'active', 'Awaiting decision');
-    // The backend refuses approval after expiresAt; say so up front.
-    var deadline = data.expiresAt
-      ? ' Approve before ' + new Date(data.expiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ', or verify again.'
-      : '';
-    $('faceResult').innerHTML = banner('success', 'Face verified',
-      data.message + ' Match score ' + Number(data.matchScore).toFixed(2) + '.',
-      'Confirm the handover to record the student leaving with this guardian.' + deadline);
-    $('approveBtn').disabled = false;
-    $('rejectBtn').disabled = false;
+    // The rows already list why an image or live check failed; repeating it in the banner would say it twice.
+    var bannerBody = (r.outcome === 'RetryCapture' || r.outcome === 'LivenessFailed') ? '' : r.message;
+    $('layerResults').innerHTML = rows + banner(kind, title, bannerBody, next + tail);
+
+    // Steps and decision buttons follow the server's verdict only.
+    state.verificationId = r.verificationId || null;
+    var identified = r.identity === 'Match' && r.authorisation === 'Authorised';
+    setStep('step-guardian', identified ? 'done' : (r.identity ? 'failed' : 'active'), identified && g ? g.fullName : (r.identity ? 'Not confirmed' : 'Waiting'));
+    if (r.verified) {
+      setStep('step-face', 'done', 'Live person confirmed');
+      setStep('step-decision', 'active', 'Awaiting decision');
+    } else if (r.liveness === 'Fail') {
+      setStep('step-face', 'failed', 'Liveness failed');
+    } else if (identified) {
+      setStep('step-face', 'active', 'Live check needed');
+    }
+    setDecisionButtons(!!(r.verified && r.verificationId), !!r.verificationId);
+  }
+
+  /** Abandon the current verification: stop any capture, clear the results, start a fresh session. Nothing is approved or rejected. */
+  function cancelVerification() {
+    state.live = false;            // stops a running live capture at its next step
+    state.verificationId = null;
+    stopCamera();
+    $('livePrompt').hidden = true;
+    $('liveProgress').hidden = true;
+    $('layerResults').innerHTML = '';
+    $('decisionResult').innerHTML = '';
+    setDecisionButtons(false, false);
+    if (state.gallery) state.gallery.reset();
+    setStep('step-face', null, 'Not started');
+    setStep('step-decision', null, 'Not started');
+    if (state.studentId) startSession(state.studentId);
   }
 
   // --------------------------------------------------------------- Decision
@@ -476,8 +755,7 @@
       ? { verificationId: state.verificationId }
       : { verificationId: state.verificationId, reason: 'Rejected at the pickup desk.' };
 
-    $('approveBtn').disabled = true;
-    $('rejectBtn').disabled = true;
+    setDecisionButtons(false, false);
 
     var data;
     try {
@@ -492,19 +770,21 @@
         $('decisionResult').innerHTML = banner('danger', 'The decision was refused',
           data && data.message ? data.message : 'The API rejected the decision.',
           'Read the reason above, correct it, and try again.');
-        $('approveBtn').disabled = !approve;
-        $('rejectBtn').disabled = false;
+        setDecisionButtons(!approve ? false : true, true);
         return;
       }
     } catch (e) {
       setStep('step-decision', 'failed', 'No response');
       $('decisionResult').innerHTML = banner('danger', 'Could not reach the server',
         'The decision was not recorded.', 'Check the connection and try again.');
-      $('approveBtn').disabled = false;
-      $('rejectBtn').disabled = false;
+      setDecisionButtons(true, true);
       return;
     }
 
+    stopCamera();
+    $('methodBar').hidden = true;
+    $('livePanel').hidden = true;
+    $('galleryPanel').hidden = true;
     if (approve) {
       setStep('step-decision', 'done', 'Approved');
       setStep('step-done', 'done', 'Handover complete');
@@ -550,11 +830,13 @@
     var newScan = $('newScanBtn');
     if (newScan) newScan.addEventListener('click', function () { resetForNewScan(false); });
 
-    $('guardianSelect').addEventListener('change', onGuardianChange);
+    $('methodLive').addEventListener('click', function () { selectMethod('live'); });
+    $('methodGallery').addEventListener('click', function () { selectMethod('gallery'); });
     $('startCameraBtn').addEventListener('click', startCamera);
-    $('captureBtn').addEventListener('click', captureAndVerify);
+    $('beginLiveBtn').addEventListener('click', runLiveCheck);
     $('approveBtn').addEventListener('click', function () { decide(true); });
     $('rejectBtn').addEventListener('click', function () { decide(false); });
+    $('cancelBtn').addEventListener('click', cancelVerification);
 
     // Leaving the page must not leave the camera running.
     window.addEventListener('pagehide', stopCamera);
