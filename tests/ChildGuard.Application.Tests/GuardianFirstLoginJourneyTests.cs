@@ -43,6 +43,10 @@ public class GuardianFirstLoginJourneyTests
         }
     }
 
+    // The starting password is random per guardian; read the one that was emailed
+    // back from the fake hasher, which stores "hashed:" + plaintext.
+    private static string InitialPassword(Harness h) => h.Guardians.Guardians[0].PasswordHash["hashed:".Length..];
+
     // 1 + 3 + 4 + 5 + 6 + 7: the whole journey, from admin creation to dashboard.
     [Fact]
     public async Task CreatedGuardian_CompletesFirstLoginAndThenSignsInNormally()
@@ -52,10 +56,11 @@ public class GuardianFirstLoginJourneyTests
             new CreateGuardianRequest("Priya Patel", "priya.patel@example.test", ContactNumber));
         Assert.True(created.Succeeded);
         Assert.True(created.Value!.CredentialEmailSent);
+        var initial = InitialPassword(h);
 
         // First login with the emailed initial password.
         var challenge = await h.Auth.LoginGuardianAsync(
-            new GuardianLoginRequest(ContactNumber, GuardianCredentialDefaults.InitialPassword));
+            new GuardianLoginRequest(ContactNumber, initial));
         Assert.True(challenge.Succeeded);
         Assert.Equal(GuardianAuthStage.OtpRequired, challenge.Value!.Stage);
 
@@ -73,7 +78,7 @@ public class GuardianFirstLoginJourneyTests
 
         // The initial password is dead.
         var withInitial = await h.Auth.LoginGuardianAsync(
-            new GuardianLoginRequest(ContactNumber, GuardianCredentialDefaults.InitialPassword));
+            new GuardianLoginRequest(ContactNumber, initial));
         Assert.False(withInitial.Succeeded);
 
         // The new password plus OTP reaches the dashboard.
@@ -97,7 +102,7 @@ public class GuardianFirstLoginJourneyTests
         for (var attempt = 0; attempt < 3; attempt++)
         {
             var challenge = await h.Auth.LoginGuardianAsync(
-                new GuardianLoginRequest(ContactNumber, GuardianCredentialDefaults.InitialPassword));
+                new GuardianLoginRequest(ContactNumber, InitialPassword(h)));
             var verified = await h.Auth.VerifyGuardianOtpAsync(
                 new VerifyGuardianOtpRequest(challenge.Value!.ChallengeToken, h.OtpSender.LastCode!));
             Assert.Null(verified.Value!.Session);
@@ -139,14 +144,14 @@ public class GuardianFirstLoginJourneyTests
             new CreateGuardianRequest("Priya Patel", "priya.patel@example.test", ContactNumber));
 
         var expiredChallenge = await h.Auth.LoginGuardianAsync(
-            new GuardianLoginRequest(ContactNumber, GuardianCredentialDefaults.InitialPassword));
+            new GuardianLoginRequest(ContactNumber, InitialPassword(h)));
         var expiredCode = h.OtpSender.LastCode!;
         h.Clock.Advance(TimeSpan.FromMinutes(h.Options.ExpiryMinutes + 1));
         Assert.False((await h.Auth.VerifyGuardianOtpAsync(
             new VerifyGuardianOtpRequest(expiredChallenge.Value!.ChallengeToken, expiredCode))).Succeeded);
 
         var challenge = await h.Auth.LoginGuardianAsync(
-            new GuardianLoginRequest(ContactNumber, GuardianCredentialDefaults.InitialPassword));
+            new GuardianLoginRequest(ContactNumber, InitialPassword(h)));
         var code = h.OtpSender.LastCode!;
         Assert.True((await h.Auth.VerifyGuardianOtpAsync(
             new VerifyGuardianOtpRequest(challenge.Value!.ChallengeToken, code))).Succeeded);

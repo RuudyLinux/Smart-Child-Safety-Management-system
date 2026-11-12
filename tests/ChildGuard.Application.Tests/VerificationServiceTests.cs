@@ -19,6 +19,9 @@ public class VerificationServiceTests
         public FakeNotificationRepository Notifications { get; } = new();
         public FakePushNotificationSender Push { get; } = new();
         public FakeFaceServiceClient FaceClient { get; } = new();
+        public FakeFaceAuditLog Audit { get; } = new();
+        public NullEmbeddingProtector Protector { get; } = new();
+        public GuardianFaceReferenceService References { get; private set; } = default!;
         public SchoolClock Clock { get; }
         public MutableTimeProvider Time { get; }
         public VerificationService Service { get; }
@@ -29,8 +32,10 @@ public class VerificationServiceTests
         public Harness()
         {
             (Clock, Time) = TestClock.Create();
+            References = new GuardianFaceReferenceService(Verifications, Guardians, FaceClient, Protector, Audit,
+                new BiometricsOptions(), Time);
             Service = new VerificationService(Verifications, Students, Guardians, Journey, Notifications, Push, FaceClient,
-                new JourneyValidationService(), Clock, new VerificationOptions());
+                new JourneyValidationService(), Clock, new VerificationOptions(), Protector, References);
             Students.Students.Add(Student);
             Guardians.Guardians.Add(Guardian);
             Students.Links.Add(new StudentGuardian { StudentId = 1, GuardianId = 1, IsAuthorizedForPickup = true });

@@ -1,0 +1,17 @@
+{
+  "name": "childguard-e2e",
+  "private": true,
+  "description": "Playwright end-to-end suite for ChildGuard Admin Web and API, run against an isolated test stack.",
+  "scripts": {
+    "test": "playwright test",
+    "test:chromium": "playwright test --project=setup --project=chromium",
+    "test:browsers": "playwright test --project=setup --project=firefox --project=webkit",
+    "test:responsive": "playwright test --project=setup --project=responsive",
+    "report": "playwright show-report",
+    "summary": "node support/summary.js"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
+    "@playwright/test": "^1.65.0"
+  }
+}

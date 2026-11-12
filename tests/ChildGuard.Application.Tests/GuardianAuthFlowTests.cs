@@ -194,6 +194,47 @@ public class GuardianAuthFlowTests
         Assert.True((await h.VerifyAsync(challenge.ChallengeToken, secondCode)).Succeeded);
     }
 
+    // Email delivery failures are surfaced to the guardian, never swallowed.
+    [Fact]
+    public async Task Login_WhenEmailDeliveryFails_ReturnsDeliveryMessage_AndLeavesNoUsableChallenge()
+    {
+        var h = new Harness();
+        h.AddGuardian(passwordResetRequired: false);
+        h.OtpSender.FailWith = "provider said no (secret detail)";
+
+        var result = await h.LoginAsync(DefaultPassword);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(AuthService.OtpDeliveryFailedMessage, result.Error);
+        Assert.DoesNotContain("secret detail", result.Error);
+        Assert.All(h.Guardians.Challenges, c => Assert.True(c.IsConsumed));
+    }
+
+    [Fact]
+    public async Task ResendOtp_WhenEmailDeliveryFails_RestoresPreviousCodeAndCounters()
+    {
+        var h = new Harness();
+        h.AddGuardian(passwordResetRequired: false);
+        var challenge = (await h.LoginAsync(DefaultPassword)).Value!;
+        var firstCode = h.OtpSender.LastCode!;
+        var stored = h.Guardians.Challenges.Single();
+        var (hash, expires, resends, sentAt) = (stored.CodeHash, stored.ExpiresAtUtc, stored.ResendCount, stored.LastSentAtUtc);
+
+        h.Clock.Advance(TimeSpan.FromSeconds(h.Options.ResendIntervalSeconds));
+        h.OtpSender.FailWith = "down";
+        var resend = await h.Service.ResendGuardianOtpAsync(new ResendGuardianOtpRequest(challenge.ChallengeToken));
+
+        Assert.False(resend.Succeeded);
+        Assert.Equal(AuthService.OtpDeliveryFailedMessage, resend.Error);
+        Assert.Equal(hash, stored.CodeHash);
+        Assert.Equal(expires, stored.ExpiresAtUtc);
+        Assert.Equal(resends, stored.ResendCount);
+        Assert.Equal(sentAt, stored.LastSentAtUtc);
+
+        h.OtpSender.FailWith = null;
+        Assert.True((await h.VerifyAsync(challenge.ChallengeToken, firstCode)).Succeeded);
+    }
+
     [Fact]
     public async Task ResendOtp_BeforeIntervalElapses_IsRejected()
     {

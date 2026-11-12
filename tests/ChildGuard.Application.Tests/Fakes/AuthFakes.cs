@@ -67,6 +67,28 @@ internal sealed class FakeGuardianRepository : IGuardianRepository
         return Task.CompletedTask;
     }
 
+    public List<GuardianTrustedDevice> TrustedDevices { get; } = new();
+
+    public Task AddTrustedDeviceAsync(GuardianTrustedDevice device, CancellationToken ct = default)
+    {
+        device.Id = TrustedDevices.Count + 1;
+        TrustedDevices.Add(device);
+        return Task.CompletedTask;
+    }
+
+    public Task<GuardianTrustedDevice?> GetActiveTrustedDeviceAsync(int guardianId, string tokenHash, DateTime nowUtc, CancellationToken ct = default) =>
+        Task.FromResult(TrustedDevices.FirstOrDefault(d => d.GuardianId == guardianId && d.TokenHash == tokenHash && d.IsActive(nowUtc)));
+
+    public Task<List<GuardianTrustedDevice>> GetActiveTrustedDevicesAsync(int guardianId, DateTime nowUtc, CancellationToken ct = default) =>
+        Task.FromResult(TrustedDevices.Where(d => d.GuardianId == guardianId && d.IsActive(nowUtc)).ToList());
+
+    public Task<int> RevokeTrustedDevicesAsync(int guardianId, DateTime nowUtc, int? deviceId = null, CancellationToken ct = default)
+    {
+        var hit = TrustedDevices.Where(d => d.GuardianId == guardianId && d.RevokedAt is null && (deviceId is null || d.Id == deviceId)).ToList();
+        foreach (var d in hit) d.RevokedAt = nowUtc;
+        return Task.FromResult(hit.Count);
+    }
+
     public Task SaveChangesAsync(CancellationToken ct = default)
     {
         SaveCount++;
@@ -123,10 +145,14 @@ internal sealed class FakeOtpSender : IOtpSender
     public List<(string ContactNumber, string Code)> Sent { get; } = new();
     public string? LastCode => Sent.Count == 0 ? null : Sent[^1].Code;
 
-    public Task SendLoginOtpAsync(Guardian guardian, string code, TimeSpan validFor, CancellationToken ct = default)
+    /// <summary>When set, every send fails with this message and nothing is recorded as sent.</summary>
+    public string? FailWith { get; set; }
+
+    public Task<Result> SendLoginOtpAsync(Guardian guardian, string code, TimeSpan validFor, CancellationToken ct = default)
     {
+        if (FailWith is not null) return Task.FromResult(Result.Failure(FailWith));
         Sent.Add((guardian.Phone!, code));
-        return Task.CompletedTask;
+        return Task.FromResult(Result.Success());
     }
 }
 

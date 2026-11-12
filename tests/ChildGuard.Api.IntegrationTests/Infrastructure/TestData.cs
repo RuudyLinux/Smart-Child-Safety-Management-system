@@ -13,8 +13,8 @@ public static class TestData
 {
     private static int _seq;
 
-    /// <summary>An active student with an active card and one pickup-authorised guardian with face data.</summary>
-    public static async Task<Child> NewChildAsync(this ApiFactory api)
+    /// <summary>An active student with an active card and one pickup-authorised guardian (with face data unless withFace is false).</summary>
+    public static async Task<Child> NewChildAsync(this ApiFactory api, bool withFace = true)
     {
         var n = Interlocked.Increment(ref _seq);
         await using var db = api.NewDb();
@@ -27,8 +27,9 @@ public static class TestData
         };
         var card = new RfidCard { CardUid = $"IT{Guid.NewGuid():N}"[..16].ToUpperInvariant(), Student = student, AssignedAt = DateTime.UtcNow };
         db.AddRange(student, guardian, card,
-            new StudentGuardian { Student = student, Guardian = guardian, IsAuthorizedForPickup = true, Relationship = "Parent" },
-            new GuardianFaceData { Guardian = guardian, EmbeddingJson = "[0.1,0.2,0.3]", Model = "test-model", IsActive = true });
+            new StudentGuardian { Student = student, Guardian = guardian, IsAuthorizedForPickup = true, Relationship = "Parent" });
+        if (withFace)
+            db.Add(new GuardianFaceData { Guardian = guardian, EmbeddingJson = "[0.1,0.2,0.3]", Model = "test-model", IsActive = true });
         await db.SaveChangesAsync();
         return new Child(student.StudentId, card.CardUid, guardian.GuardianId, device.RfidDeviceId);
     }

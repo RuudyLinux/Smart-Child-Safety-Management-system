@@ -86,4 +86,86 @@ internal sealed class FakeFaceServiceClient : IFaceServiceClient
 
     public Task<Result<FaceMatchResult>> VerifyFaceAsync(string storedEmbeddingJson, string imageBase64, CancellationToken ct = default) =>
         Task.FromResult(Result<FaceMatchResult>.Success(new FaceMatchResult(NextMatch, NextScore)));
+
+    public Result<ImageAnalysis> NextAnalysis { get; set; } = Result<ImageAnalysis>.Success(CleanAnalysis);
+    public string? LastPurpose { get; private set; }
+
+    public static ImageAnalysis CleanAnalysis { get; } = new(
+        "verification", 1, [], [], [], new ImageAnalysisMetrics(300, 150, 40, 200, 0, 0.99));
+
+    public Task<Result<ImageAnalysis>> AnalyzeImageAsync(string imageBase64, string purpose, CancellationToken ct = default)
+    {
+        LastPurpose = purpose;
+        return Task.FromResult(NextAnalysis);
+    }
+
+    /// <summary>Every call made to IdentifyAsync: the candidates it was given.</summary>
+    public List<IReadOnlyList<IdentifyCandidate>> IdentifyCalls { get; } = new();
+    public double IdentifyThreshold { get; set; } = 0.40;
+    public Dictionary<int, double> ScoreByGuardian { get; } = new();
+    public Result<FaceIdentification>? NextIdentification { get; set; }
+
+    public Task<Result<FaceIdentification>> IdentifyAsync(string imageBase64, IReadOnlyList<IdentifyCandidate> candidates, CancellationToken ct = default)
+    {
+        IdentifyCalls.Add(candidates);
+        if (NextIdentification is not null) return Task.FromResult(NextIdentification);
+
+        var results = candidates.Select(c => new GuardianIdentification(
+            c.GuardianId, ScoreByGuardian.GetValueOrDefault(c.GuardianId, NextScore), c.References.Count > 0 ? c.References[0].ReferenceId : null,
+            c.References.Select(r => new ReferenceScore(r.ReferenceId, ScoreByGuardian.GetValueOrDefault(c.GuardianId, NextScore))).ToList(), [])).ToList();
+        return Task.FromResult(Result<FaceIdentification>.Success(new FaceIdentification(IdentifyThreshold, "test-model", results)));
+    }
+
+
+    /// <summary>A liveness analysis that passes every signal for the first candidate; tests tweak it with <c>with</c>.</summary>
+    public static LivenessAnalysis PassingLiveness(IReadOnlyList<string> steps, IReadOnlyList<IdentifyCandidate>? candidates, double score = 0.93, int? guardianId = null)
+    {
+        var identification = candidates is null ? null : new FaceIdentification(0.40, "test-model",
+            candidates.Select(c => new GuardianIdentification(c.GuardianId,
+                c.GuardianId == (guardianId ?? candidates[0].GuardianId) ? score : 0.05,
+                c.References.Count > 0 ? c.References[0].ReferenceId : null,
+                c.References.Select(r => new ReferenceScore(r.ReferenceId, score)).ToList(), [])).ToList());
+        return new LivenessAnalysis(
+            10, 1.0, 2,
+            steps.Select((s, i) => new LivenessStepResult(s, true, 4 + i * 3, s == "turn_left" ? 0.35 : -0.35)).ToList(),
+            true, new PassiveSignals(true, 5, [0.97, 0.98, 0.96, 0.97, 0.98], 1.0, 0.972, 0.96),
+            new ContinuitySignals(2, 0.7, true), 0.0, [], identification,
+            new ImageAnalysis("verification", 1, [], [], [], new ImageAnalysisMetrics(300, 150, 40, 200, 0, 0.99)));
+    }
+
+    public Func<IReadOnlyList<string>, IReadOnlyList<IdentifyCandidate>?, LivenessAnalysis>? LivenessFactory { get; set; }
+    public Result<LivenessAnalysis>? NextLivenessFailure { get; set; }
+    public List<(IReadOnlyList<string> Steps, IReadOnlyList<LiveFrameInput> Frames, IReadOnlyList<IdentifyCandidate>? Candidates)> LivenessCalls { get; } = new();
+
+    public Task<Result<LivenessAnalysis>> AnalyzeLivenessAsync(
+        IReadOnlyList<string> steps, IReadOnlyList<LiveFrameInput> frames, IReadOnlyList<IdentifyCandidate>? candidates, CancellationToken ct = default)
+    {
+        LivenessCalls.Add((steps, frames, candidates));
+        if (NextLivenessFailure is not null) return Task.FromResult(NextLivenessFailure);
+        return Task.FromResult(Result<LivenessAnalysis>.Success(
+            LivenessFactory?.Invoke(steps, candidates) ?? PassingLiveness(steps, candidates, NextScore)));
+    }
+
+    public int? NextDuplicateOf { get; set; }
+    public double? NextBestExistingScore { get; set; } = 0.5;
+    public List<IReadOnlyList<ReferenceEmbedding>> RegisterReferenceCalls { get; } = new();
+    public Result<ReferenceRegistration>? NextRegistration { get; set; }
+
+    public Task<Result<ReferenceRegistration>> RegisterReferenceAsync(string imageBase64, IReadOnlyList<ReferenceEmbedding> existing, CancellationToken ct = default)
+    {
+        RegisterReferenceCalls.Add(existing);
+        return Task.FromResult(NextRegistration ?? Result<ReferenceRegistration>.Success(
+            new ReferenceRegistration("[0.5,0.5]", "test-model", NextDuplicateOf, NextBestExistingScore, 0.40)));
+    }
+}
+
+internal sealed class FakeFaceAuditLog : IFaceAuditLog
+{
+    public List<FaceAuditEntry> Entries { get; } = new();
+
+    public Task WriteAsync(FaceAuditEntry entry, CancellationToken ct = default)
+    {
+        Entries.Add(entry);
+        return Task.CompletedTask;
+    }
 }

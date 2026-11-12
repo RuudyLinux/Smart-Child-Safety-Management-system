@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using ChildGuard.Application.Common;
 using ChildGuard.Application.DTOs;
 using ChildGuard.Application.Interfaces;
+using ChildGuard.Domain.Entities;
 using ChildGuard.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -59,6 +60,9 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
     public FakeFaceServiceClient Face { get; } = new();
 
+    /// <summary>Captures every login code the API "sends", so a test can complete the OTP step like a guardian would.</summary>
+    public CapturingOtpSender Otp { get; } = new();
+
     /// <summary>Configuration overrides; subclasses can tighten e.g. rate limits.</summary>
     protected virtual IDictionary<string, string> Settings => new Dictionary<string, string>
     {
@@ -76,6 +80,11 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         ["RateLimiting__AuthPerMinute"] = "100000",
         ["RateLimiting__OtpPerMinute"] = "100000",
         ["RateLimiting__RfidScanPerMinute"] = "100000",
+        ["RateLimiting__FaceAnalyzePerMinute"] = "100000",
+        ["RateLimiting__LiveVerifyPerMinute"] = "100000",
+        ["Verification__RequireLiveness"] = "false",
+        // Process-wide env vars outlive a factory, so unencrypted is stated explicitly each time.
+        ["Biometrics__EncryptionKey"] = "",
     };
 
     public async Task InitializeAsync()
@@ -125,6 +134,8 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             services.AddSingleton<TimeProvider>(Time);
             services.RemoveAll<IFaceServiceClient>();
             services.AddSingleton<IFaceServiceClient>(Face);
+            services.RemoveAll<IOtpSender>();
+            services.AddSingleton<IOtpSender>(Otp);
         });
     }
 
@@ -188,6 +199,20 @@ public sealed class TestTimeProvider : TimeProvider
 }
 
 /// <summary>Stands in for the Python face service: deterministic match / no-match.</summary>
+public sealed class CapturingOtpSender : IOtpSender
+{
+    public List<(int GuardianId, string Code)> Sent { get; } = new();
+    public string? FailWith { get; set; }
+    public string LastCode => Sent[^1].Code;
+
+    public Task<Result> SendLoginOtpAsync(Guardian guardian, string code, TimeSpan validFor, CancellationToken ct = default)
+    {
+        if (FailWith is not null) return Task.FromResult(Result.Failure(FailWith));
+        lock (Sent) Sent.Add((guardian.GuardianId, code));
+        return Task.FromResult(Result.Success());
+    }
+}
+
 public sealed class FakeFaceServiceClient : IFaceServiceClient
 {
     public bool NextMatch { get; set; } = true;
@@ -195,8 +220,72 @@ public sealed class FakeFaceServiceClient : IFaceServiceClient
     public Task<Result<FaceEmbeddingResult>> RegisterFaceAsync(string imageBase64, CancellationToken ct = default) =>
         Task.FromResult(Result<FaceEmbeddingResult>.Success(new FaceEmbeddingResult("[0.1,0.2,0.3]", "test-model")));
 
-    public Task<Result<FaceMatchResult>> VerifyFaceAsync(string storedEmbeddingJson, string imageBase64, CancellationToken ct = default) =>
-        Task.FromResult(Result<FaceMatchResult>.Success(new FaceMatchResult(NextMatch, NextMatch ? 0.93 : 0.21)));
+    /// <summary>The stored embedding the API last handed over for a single-face comparison (what the service would see).</summary>
+    public string? LastStoredEmbedding { get; private set; }
+
+    public Task<Result<FaceMatchResult>> VerifyFaceAsync(string storedEmbeddingJson, string imageBase64, CancellationToken ct = default)
+    {
+        LastStoredEmbedding = storedEmbeddingJson;
+        return Task.FromResult(Result<FaceMatchResult>.Success(new FaceMatchResult(NextMatch, NextMatch ? 0.93 : 0.21)));
+    }
+
+    public Result<ImageAnalysis> NextAnalysis { get; set; } = Result<ImageAnalysis>.Success(Clean);
+
+    public static ImageAnalysis Clean { get; } = new(
+        "verification", 1, [], [], [], new ImageAnalysisMetrics(300, 150, 40, 200, 0, 0.99));
+
+    public Task<Result<ImageAnalysis>> AnalyzeImageAsync(string imageBase64, string purpose, CancellationToken ct = default) =>
+        Task.FromResult(NextAnalysis);
+
+
+    /// <summary>A liveness analysis that passes every signal for the first candidate; tests tweak it with <c>with</c>.</summary>
+    public static LivenessAnalysis PassingLiveness(IReadOnlyList<string> steps, IReadOnlyList<IdentifyCandidate>? candidates, double score = 0.93, int? guardianId = null)
+    {
+        var identification = candidates is null ? null : new FaceIdentification(0.40, "test-model",
+            candidates.Select(c => new GuardianIdentification(c.GuardianId,
+                c.GuardianId == (guardianId ?? candidates[0].GuardianId) ? score : 0.05,
+                c.References.Count > 0 ? c.References[0].ReferenceId : null,
+                c.References.Select(r => new ReferenceScore(r.ReferenceId, score)).ToList(), [])).ToList());
+        return new LivenessAnalysis(
+            10, 1.0, 2,
+            steps.Select((s, i) => new LivenessStepResult(s, true, 4 + i * 3, s == "turn_left" ? 0.35 : -0.35)).ToList(),
+            true, new PassiveSignals(true, 5, [0.97, 0.98, 0.96, 0.97, 0.98], 1.0, 0.972, 0.96),
+            new ContinuitySignals(2, 0.7, true), 0.0, [], identification,
+            new ImageAnalysis("verification", 1, [], [], [], new ImageAnalysisMetrics(300, 150, 40, 200, 0, 0.99)));
+    }
+
+    public Func<IReadOnlyList<string>, IReadOnlyList<IdentifyCandidate>?, LivenessAnalysis>? LivenessFactory { get; set; }
+    public Result<LivenessAnalysis>? NextLivenessFailure { get; set; }
+    public List<IReadOnlyList<LiveFrameInput>> LivenessFrames { get; } = new();
+    public List<IReadOnlyList<string>> LivenessSteps { get; } = new();
+    public Dictionary<int, double> ScoreByGuardian { get; } = new();
+
+    public Task<Result<LivenessAnalysis>> AnalyzeLivenessAsync(
+        IReadOnlyList<string> steps, IReadOnlyList<LiveFrameInput> frames, IReadOnlyList<IdentifyCandidate>? candidates, CancellationToken ct = default)
+    {
+        LivenessFrames.Add(frames);
+        LivenessSteps.Add(steps);
+        if (NextLivenessFailure is not null) return Task.FromResult(NextLivenessFailure);
+        return Task.FromResult(Result<LivenessAnalysis>.Success(
+            LivenessFactory?.Invoke(steps, candidates) ?? PassingLiveness(steps, candidates, NextIdentifyScore)));
+    }
+
+    public double NextIdentifyScore { get; set; } = 0.93;
+    public int? NextDuplicateOf { get; set; }
+    public double? NextBestExistingScore { get; set; } = 0.5;
+    public List<IReadOnlyList<IdentifyCandidate>> IdentifyCalls { get; } = new();
+
+    public Task<Result<FaceIdentification>> IdentifyAsync(string imageBase64, IReadOnlyList<IdentifyCandidate> candidates, CancellationToken ct = default)
+    {
+        IdentifyCalls.Add(candidates);
+        var results = candidates.Select(c => new GuardianIdentification(
+            c.GuardianId, ScoreByGuardian.GetValueOrDefault(c.GuardianId, NextIdentifyScore), c.References.Count > 0 ? c.References[0].ReferenceId : null,
+            c.References.Select(r => new ReferenceScore(r.ReferenceId, ScoreByGuardian.GetValueOrDefault(c.GuardianId, NextIdentifyScore))).ToList(), [])).ToList();
+        return Task.FromResult(Result<FaceIdentification>.Success(new FaceIdentification(0.40, "test-model", results)));
+    }
+
+    public Task<Result<ReferenceRegistration>> RegisterReferenceAsync(string imageBase64, IReadOnlyList<ReferenceEmbedding> existing, CancellationToken ct = default) =>
+        Task.FromResult(Result<ReferenceRegistration>.Success(new ReferenceRegistration("[0.5,0.5,0.5]", "test-model", NextDuplicateOf, NextBestExistingScore, 0.40)));
 }
 
 public static class Json

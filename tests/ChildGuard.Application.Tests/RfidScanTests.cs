@@ -22,6 +22,7 @@ public class RfidScanTests
         public Task AddAsync(RfidCard card, CancellationToken ct = default) { Cards.Add(card); return Task.CompletedTask; }
         public Task<List<RfidDevice>> GetDevicesAsync(CancellationToken ct = default) => Task.FromResult(Devices.ToList());
         public Task<RfidDevice?> GetDeviceByIdAsync(int id, CancellationToken ct = default) => Task.FromResult(Devices.FirstOrDefault(d => d.RfidDeviceId == id));
+        public Task AddDeviceAsync(RfidDevice device, CancellationToken ct = default) { Devices.Add(device); return Task.CompletedTask; }
         public Task<RfidDevice?> GetDeviceByKeyHashAsync(string keyHash, CancellationToken ct = default) => Task.FromResult(Devices.FirstOrDefault(d => d.ApiKeyHash == keyHash));
         public Task SaveChangesAsync(CancellationToken ct = default) => Task.CompletedTask;
     }
@@ -191,5 +192,22 @@ public class RfidScanTests
 
         var note = Assert.Single(h.Notifications.Notifications);
         Assert.Contains(new DateTime(2026, 11, 6, 8, 45, 0).ToString("t"), note.Message);
+    }
+
+    // Guardians read these on their phone: plain words, never enum identifiers.
+    [Theory]
+    [InlineData(JourneyEventType.BusBoarding, "Bus boarding")]
+    [InlineData(JourneyEventType.SchoolArrival, "School arrival")]
+    public async Task Scan_NotificationAndMessage_UsePlainCheckpointNames(JourneyEventType checkpoint, string label)
+    {
+        var h = new Harness();
+
+        var result = await h.Scan(checkpoint);
+
+        var note = Assert.Single(h.Notifications.Notifications);
+        Assert.Equal($"{label} recorded", note.Title);
+        Assert.StartsWith($"Rahul Patel: {label} recorded at ", note.Message);
+        Assert.Equal($"{label} recorded.", result.Message);
+        Assert.DoesNotContain(checkpoint.ToString(), note.Message);
     }
 }

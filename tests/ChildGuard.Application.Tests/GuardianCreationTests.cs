@@ -39,10 +39,35 @@ public class GuardianCreationTests
         var guardian = Assert.Single(h.Guardians.Guardians);
         Assert.True(guardian.PasswordResetRequired);
         Assert.Equal(RecordStatus.Active, guardian.Status);
-        // Never plaintext, and it is the one configured initial password.
-        Assert.NotEqual(GuardianCredentialDefaults.InitialPassword, guardian.PasswordHash);
-        Assert.Equal("hashed:" + GuardianCredentialDefaults.InitialPassword, guardian.PasswordHash);
+        // Never plaintext: the fake hasher marks what it hashed.
+        Assert.StartsWith("hashed:", guardian.PasswordHash);
     }
+
+    // Security: no shared, guessable default. Each guardian gets its own strong
+    // random starting password, and the emailed one is the one that was hashed.
+    [Fact]
+    public async Task Create_GivesEachGuardianADifferentStrongRandomPassword()
+    {
+        var h = new Harness();
+        await h.CreateAsync(email: "a@example.test", contactNumber: "9820011111");
+        await h.CreateAsync(email: "b@example.test", contactNumber: "9820022222");
+
+        var first = InitialPasswordOf(h.Guardians.Guardians[0].PasswordHash);
+        var second = InitialPasswordOf(h.Guardians.Guardians[1].PasswordHash);
+        Assert.NotEqual(first, second);
+        foreach (var pw in new[] { first, second })
+        {
+            Assert.True(pw.Length >= 12, $"'{pw}' is shorter than 12");
+            Assert.Contains(pw, char.IsUpper);
+            Assert.Contains(pw, char.IsLower);
+            Assert.Contains(pw, char.IsDigit);
+            Assert.NotEqual("PASSWORD", pw, StringComparer.OrdinalIgnoreCase);
+        }
+        Assert.Contains(first, h.Email.Sent[0].TextBody);
+        Assert.Contains(second, h.Email.Sent[1].TextBody);
+    }
+
+    private static string InitialPasswordOf(string fakeHash) => fakeHash["hashed:".Length..];
 
     [Fact]
     public async Task Create_NormalizesContactNumber()
@@ -79,7 +104,7 @@ public class GuardianCreationTests
         {
             Assert.Contains("Priya Patel", body);
             Assert.Contains("9820011111", body);
-            Assert.Contains(GuardianCredentialDefaults.InitialPassword, body);
+            Assert.Contains(InitialPasswordOf(h.Guardians.Guardians[0].PasswordHash), body);
         }
 
         Assert.Contains("one-time password", message.TextBody, StringComparison.OrdinalIgnoreCase);

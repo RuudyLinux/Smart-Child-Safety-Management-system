@@ -2,6 +2,7 @@ using ChildGuard.Application.Common;
 using ChildGuard.Application.DTOs;
 using ChildGuard.Application.Interfaces;
 using ChildGuard.Domain.Entities;
+using ChildGuard.Domain.Enums;
 
 namespace ChildGuard.Application.Tests.Fakes;
 
@@ -140,6 +141,43 @@ internal sealed class FakeVerificationRepository : IVerificationRepository
     {
         FaceData.RemoveAll(f => f.GuardianId == data.GuardianId);
         FaceData.Add(data);
+        return Task.CompletedTask;
+    }
+
+    public List<GuardianFaceReference> References { get; } = new();
+
+    public Task<List<GuardianFaceReference>> GetActiveReferencesAsync(int guardianId, CancellationToken ct = default) =>
+        Task.FromResult(References.Where(r => r.GuardianId == guardianId && r.IsActive).OrderBy(r => r.Id).ToList());
+
+    public Task<GuardianFaceReference?> GetReferenceAsync(int guardianId, int referenceId, CancellationToken ct = default) =>
+        Task.FromResult(References.FirstOrDefault(r => r.GuardianId == guardianId && r.Id == referenceId));
+
+    public Task AddReferenceAsync(GuardianFaceReference reference, CancellationToken ct = default)
+    {
+        reference.Id = References.Count + 1;
+        References.Add(reference);
+        return Task.CompletedTask;
+    }
+
+    public List<VerificationSession> Sessions { get; } = new();
+
+    public Task AddSessionAsync(VerificationSession session, CancellationToken ct = default)
+    {
+        session.Id = Sessions.Count + 1;
+        Sessions.Add(session);
+        return Task.CompletedTask;
+    }
+
+    public Task<VerificationSession?> GetSessionAsync(int id, CancellationToken ct = default) =>
+        Task.FromResult(Sessions.FirstOrDefault(s => s.Id == id));
+
+    public Task<bool> IsNeutralFrameHashUsedAsync(string hash, CancellationToken ct = default) =>
+        Task.FromResult(Sessions.Any(s => s.NeutralFrameHash == hash));
+
+    public Task CloseOpenSessionsAsync(int studentId, int adminId, CancellationToken ct = default)
+    {
+        foreach (var s in Sessions.Where(s => s.StudentId == studentId && s.CreatedByAdminId == adminId && s.State == VerificationSessionState.Open))
+            s.State = VerificationSessionState.Closed;
         return Task.CompletedTask;
     }
 
