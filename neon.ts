@@ -1,10 +1,7 @@
 import { defineConfig } from "@neon/config/v1";
 
 export default defineConfig({
-  // Declare your Neon services here
-  preview: {
-    realtime: true,
-  },
+  // ChildGuard uses Neon for PostgreSQL only; no Realtime or Auth services.
   auth: false,
   // Branch policy: per-branch tuning
   branch: (branch) => {

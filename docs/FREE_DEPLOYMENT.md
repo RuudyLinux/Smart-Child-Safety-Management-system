@@ -32,7 +32,13 @@ production unless someone presses *Manual Deploy* (Render dashboard) or calls th
   is verified in Resend and `Email__From` is set to an address on it.
 - **Client IP for rate limits:** `ReverseProxy__TrustAll=true` with one forwarded hop. Check in the logs that it is the
   visitor's address and not Render's edge; raise `ReverseProxy__ForwardLimit` if several proxies are in front.
-- **No automated backups yet.** Take a `pg_dump` from the direct connection string until the backup job exists.
+- **Backups run from the school PC, not the cloud.** A public repo's Actions artifacts are world-readable, so a
+  database dump must not be stored there. `scripts/backup-db.ps1` takes a `pg_dump`, checks the archive, and records a
+  checksum and exact row counts; `scripts/verify-restore.ps1` restores it into a throwaway local database and compares
+  the counts (tested 2026-11-13 against the live database: 26 tables, all counts matched). `scripts/install-backup-task.ps1`
+  schedules it daily at 02:30 (needs `CHILDGUARD_BACKUP_CONNECTION`, see the script header). Dumps are not encrypted
+  (embeddings and photos already are, by the app); keep `%USERPROFILE%\ChildGuardBackups` private, and copy it
+  somewhere off the PC from time to time. Neon's own history is only 6 hours.
 
 ## Configuration (names only; values live in Render's environment, never in the repo)
 **API:** `Database__Provider=Postgres`, `ConnectionStrings__ChildGuardDb` (pooled, least-privilege role `childguard_app`),
