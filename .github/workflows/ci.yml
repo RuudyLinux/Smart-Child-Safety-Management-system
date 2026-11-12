@@ -87,6 +87,7 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
+      - run: dotnet restore ChildGuard.slnx
       - run: dotnet tool install --global dotnet-ef --version 10.0.7
       - name: A model change without a migration fails here
         env:
