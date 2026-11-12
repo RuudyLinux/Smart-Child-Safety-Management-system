@@ -33,9 +33,11 @@ public class PhotoUploadLimitTests : IClassFixture<ApiFactory>
         var child = await _api.NewChildAsync();
         const int size = 1536 * 1024; // a typical phone photo
 
-        long packetLimit;
-        await using (var db = _api.NewDb())
+        // PostgreSQL has no per-statement packet limit (a bytea value can be up to 1 GB).
+        long packetLimit = long.MaxValue;
+        if (_api.Provider == ChildGuard.Infrastructure.Persistence.DatabaseProvider.MySql)
         {
+            await using var db = _api.NewDb();
             var conn = db.Database.GetDbConnection();
             await conn.OpenAsync();
             await using var cmd = conn.CreateCommand();

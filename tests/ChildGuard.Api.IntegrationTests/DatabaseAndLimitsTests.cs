@@ -35,7 +35,10 @@ public class DatabaseTests : IClassFixture<ApiFactory>
         var conn = db.Database.GetDbConnection();
         await conn.OpenAsync();
         await using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT DELETE_RULE FROM information_schema.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND CONSTRAINT_NAME = @name";
+        // pg_constraint.confdeltype 'r' = RESTRICT; MySQL reports the rule by name.
+        cmd.CommandText = _api.Provider == DatabaseProvider.Postgres
+            ? "SELECT CASE confdeltype WHEN 'r' THEN 'RESTRICT' ELSE confdeltype::text END FROM pg_constraint WHERE conname = @name"
+            : "SELECT DELETE_RULE FROM information_schema.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND CONSTRAINT_NAME = @name";
         var p = cmd.CreateParameter(); p.ParameterName = "@name"; p.Value = constraint; cmd.Parameters.Add(p);
 
         Assert.Equal("RESTRICT", (string?)await cmd.ExecuteScalarAsync());
@@ -51,7 +54,7 @@ public class DatabaseTests : IClassFixture<ApiFactory>
         await using (var db = _api.NewDb())
         {
             await Assert.ThrowsAnyAsync<Exception>(() =>
-                db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM Students WHERE StudentId = {child.StudentId}"));
+                db.Database.ExecuteSqlRawAsync($"DELETE FROM {_api.Q("Students")} WHERE {_api.Q("StudentId")} = {{0}}", child.StudentId));
         }
 
         await using var check = _api.NewDb();
@@ -69,7 +72,7 @@ public class DatabaseTests : IClassFixture<ApiFactory>
 
         await using var db = _api.NewDb();
         await Assert.ThrowsAnyAsync<Exception>(() =>
-            db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM Guardians WHERE GuardianId = {child.GuardianId}"));
+            db.Database.ExecuteSqlRawAsync($"DELETE FROM {_api.Q("Guardians")} WHERE {_api.Q("GuardianId")} = {{0}}", child.GuardianId));
         Assert.Equal(1, await db.GuardianVerifications.CountAsync(v => v.GuardianId == child.GuardianId));
     }
 

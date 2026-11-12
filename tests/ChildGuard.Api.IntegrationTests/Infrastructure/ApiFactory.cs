@@ -13,6 +13,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using MySqlConnector;
+using Npgsql;
 
 // Every test class gets its own database, but the API reads its configuration from
 // process environment variables, so classes must not build hosts concurrently.
@@ -30,8 +31,10 @@ namespace ChildGuard.Api.IntegrationTests.Infrastructure;
 ///  * The server must be loopback unless CHILDGUARD_IT_ALLOW_REMOTE=1.
 ///  * After start-up, the connection the API actually uses is checked to be that database.
 ///
-/// Server credentials: CHILDGUARD_IT_MYSQL (no database name), default
-/// "Server=127.0.0.1;Port=3306;User=root;Password=;" (XAMPP default).
+/// Engine: CHILDGUARD_IT_PROVIDER = mysql (default) or postgres. The same tests run on both.
+/// Server credentials (no database name): CHILDGUARD_IT_MYSQL, default
+/// "Server=127.0.0.1;Port=3306;User=root;Password=;" (XAMPP default), or CHILDGUARD_IT_POSTGRES,
+/// default "Host=127.0.0.1;Port=5432;Username=postgres;SSL Mode=Disable".
 /// </summary>
 public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
@@ -42,13 +45,26 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
     public ApiFactory()
     {
-        _serverConnectionString = Environment.GetEnvironmentVariable("CHILDGUARD_IT_MYSQL")
-            ?? "Server=127.0.0.1;Port=3306;User=root;Password=;";
+        Provider = DatabaseProviders.Parse(Environment.GetEnvironmentVariable("CHILDGUARD_IT_PROVIDER"));
         DatabaseName = DatabasePrefix + Guid.NewGuid().ToString("N")[..12];
-        ConnectionString = new MySqlConnectionStringBuilder(_serverConnectionString) { Database = DatabaseName }.ConnectionString;
+        if (Provider == DatabaseProvider.Postgres)
+        {
+            _serverConnectionString = Environment.GetEnvironmentVariable("CHILDGUARD_IT_POSTGRES")
+                ?? "Host=127.0.0.1;Port=5432;Username=postgres;SSL Mode=Disable";
+            ConnectionString = new NpgsqlConnectionStringBuilder(_serverConnectionString) { Database = DatabaseName }.ConnectionString;
+        }
+        else
+        {
+            _serverConnectionString = Environment.GetEnvironmentVariable("CHILDGUARD_IT_MYSQL")
+                ?? "Server=127.0.0.1;Port=3306;User=root;Password=;";
+            ConnectionString = new MySqlConnectionStringBuilder(_serverConnectionString) { Database = DatabaseName }.ConnectionString;
+        }
         AdminPassword = "It-" + Convert.ToHexString(RandomNumberGenerator.GetBytes(12)) + "!a";
         JwtSecret = Convert.ToHexString(RandomNumberGenerator.GetBytes(48));
     }
+
+    /// <summary>The engine this run targets (CHILDGUARD_IT_PROVIDER).</summary>
+    public DatabaseProvider Provider { get; }
 
     public string DatabaseName { get; }
     public string ConnectionString { get; }
@@ -66,6 +82,7 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     /// <summary>Configuration overrides; subclasses can tighten e.g. rate limits.</summary>
     protected virtual IDictionary<string, string> Settings => new Dictionary<string, string>
     {
+        ["Database__Provider"] = Provider.ToString(),
         ["ConnectionStrings__ChildGuardDb"] = ConnectionString,
         ["Jwt__Secret"] = JwtSecret,
         ["SeedAdmin__Email"] = AdminEmail,
@@ -91,17 +108,8 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     {
         GuardIsolation();
 
-        await using (var server = new MySqlConnection(_serverConnectionString))
-        {
-            await server.OpenAsync();
-            await using var create = server.CreateCommand();
-            create.CommandText = $"CREATE DATABASE `{DatabaseName}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci";
-            await create.ExecuteNonQueryAsync();
-        }
-
-        var options = new DbContextOptionsBuilder<ChildGuardDbContext>()
-            .UseMySql(ConnectionString, ServerVersion.AutoDetect(ConnectionString)).Options;
-        await using (var db = new ChildGuardDbContext(options))
+        await CreateDatabaseAsync();
+        await using (var db = NewDb())
             await db.Database.MigrateAsync();
 
         foreach (var (key, value) in Settings)
@@ -118,11 +126,49 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     {
         await base.DisposeAsync();
         GuardIsolation();
-        await using var server = new MySqlConnection(_serverConnectionString);
-        await server.OpenAsync();
-        await using var drop = server.CreateCommand();
-        drop.CommandText = $"DROP DATABASE IF EXISTS `{DatabaseName}`";
-        await drop.ExecuteNonQueryAsync();
+        await DropDatabaseAsync();
+    }
+
+    private async Task CreateDatabaseAsync()
+    {
+        if (Provider == DatabaseProvider.Postgres)
+        {
+            await using var server = new NpgsqlConnection(_serverConnectionString);
+            await server.OpenAsync();
+            await using var create = server.CreateCommand();
+            create.CommandText = $"CREATE DATABASE {Q(DatabaseName)} ENCODING 'UTF8'";
+            await create.ExecuteNonQueryAsync();
+        }
+        else
+        {
+            await using var server = new MySqlConnection(_serverConnectionString);
+            await server.OpenAsync();
+            await using var create = server.CreateCommand();
+            create.CommandText = $"CREATE DATABASE `{DatabaseName}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci";
+            await create.ExecuteNonQueryAsync();
+        }
+    }
+
+    private async Task DropDatabaseAsync()
+    {
+        if (Provider == DatabaseProvider.Postgres)
+        {
+            // Pooled client connections would block the drop.
+            NpgsqlConnection.ClearAllPools();
+            await using var server = new NpgsqlConnection(_serverConnectionString);
+            await server.OpenAsync();
+            await using var drop = server.CreateCommand();
+            drop.CommandText = $"DROP DATABASE IF EXISTS {Q(DatabaseName)} WITH (FORCE)";
+            await drop.ExecuteNonQueryAsync();
+        }
+        else
+        {
+            await using var server = new MySqlConnection(_serverConnectionString);
+            await server.OpenAsync();
+            await using var drop = server.CreateCommand();
+            drop.CommandText = $"DROP DATABASE IF EXISTS `{DatabaseName}`";
+            await drop.ExecuteNonQueryAsync();
+        }
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -144,7 +190,9 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         if (!DatabaseName.StartsWith(DatabasePrefix, StringComparison.Ordinal))
             throw new InvalidOperationException("Refusing to touch a database outside the integration-test prefix.");
 
-        var host = new MySqlConnectionStringBuilder(_serverConnectionString).Server;
+        var host = Provider == DatabaseProvider.Postgres
+            ? new NpgsqlConnectionStringBuilder(_serverConnectionString).Host
+            : new MySqlConnectionStringBuilder(_serverConnectionString).Server;
         var loopback = host is "localhost" or "127.0.0.1" or "::1";
         if (!loopback && Environment.GetEnvironmentVariable("CHILDGUARD_IT_ALLOW_REMOTE") != "1")
             throw new InvalidOperationException(
@@ -155,8 +203,14 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     // ------------------------------------------------------------------ helpers
 
     public ChildGuardDbContext NewDb() =>
-        new(new DbContextOptionsBuilder<ChildGuardDbContext>()
-            .UseMySql(ConnectionString, ServerVersion.AutoDetect(ConnectionString)).Options);
+        new(Provider == DatabaseProvider.Postgres
+            ? new DbContextOptionsBuilder<ChildGuardDbContext>()
+                .UseNpgsql(ConnectionString, o => o.MigrationsAssembly("ChildGuard.Infrastructure.Postgres")).Options
+            : new DbContextOptionsBuilder<ChildGuardDbContext>()
+                .UseMySql(ConnectionString, ServerVersion.AutoDetect(ConnectionString)).Options);
+
+    /// <summary>Quotes an identifier for raw SQL: PostgreSQL needs double quotes to keep mixed case, MySQL needs none.</summary>
+    public string Q(string identifier) => Provider == DatabaseProvider.Postgres ? $"\"{identifier}\"" : identifier;
 
     public async Task<HttpClient> AdminClientAsync()
     {
