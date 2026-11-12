@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- PostgreSQL migration set for ChildGuardDbContext. The MySQL migrations stay in
+       ChildGuard.Infrastructure and are never edited; this assembly has its own snapshot.
+       Infrastructure loads it by name (MigrationsAssembly) when Database:Provider=Postgres.
+       See README.md in this folder for how to add a migration. -->
+  <ItemGroup>
+    <ProjectReference Include="..\ChildGuard.Infrastructure\ChildGuard.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>
