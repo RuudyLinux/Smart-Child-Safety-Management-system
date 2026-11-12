@@ -134,7 +134,7 @@ class LivenessResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     status: str
-    model: str
+    model: Optional[str] = None
     detector: Optional[str] = None
     threshold: Optional[float] = None
     anti_spoofing: Optional[bool] = Field(None, description="Whether passive anti-spoofing (MiniFASNet) is loaded; liveness cannot pass without it.")
