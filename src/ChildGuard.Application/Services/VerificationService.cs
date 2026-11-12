@@ -37,6 +37,8 @@ public class VerificationService : IVerificationService
         "This pickup was rejected and cannot be approved. Start a new face verification.";
     public const string ExpiredMessage =
         "This verification has expired. Start a new face verification.";
+    public const string LivenessRequiredMessage =
+        "This pickup was not verified with the live camera check, so it cannot be approved. Start a new face verification with the live check.";
 
     private readonly IVerificationRepository _verifications;
     private readonly IStudentRepository _students;
@@ -48,6 +50,8 @@ public class VerificationService : IVerificationService
     private readonly JourneyValidationService _validation;
     private readonly SchoolClock _clock;
     private readonly VerificationOptions _options;
+    private readonly IEmbeddingProtector _protector;
+    private readonly IGuardianFaceReferenceService _references;
 
     public VerificationService(
         IVerificationRepository verifications,
@@ -59,8 +63,12 @@ public class VerificationService : IVerificationService
         IFaceServiceClient faceClient,
         JourneyValidationService validation,
         SchoolClock clock,
-        VerificationOptions options)
+        VerificationOptions options,
+        IEmbeddingProtector protector,
+        IGuardianFaceReferenceService references)
     {
+        _protector = protector;
+        _references = references;
         _verifications = verifications;
         _students = students;
         _guardians = guardians;
@@ -85,7 +93,7 @@ public class VerificationService : IVerificationService
         await _verifications.UpsertFaceDataAsync(new GuardianFaceData
         {
             GuardianId = guardianId,
-            EmbeddingJson = embeddingResult.Value!.EmbeddingJson,
+            EmbeddingJson = _protector.Protect(embeddingResult.Value!.EmbeddingJson, guardianId),
             Model = embeddingResult.Value.Model,
             IsActive = true,
             RegisteredAt = _clock.UtcNow
@@ -107,9 +115,17 @@ public class VerificationService : IVerificationService
         var faceData = await _verifications.GetFaceDataAsync(request.GuardianId, ct);
         if (faceData is null || !faceData.IsActive)
             return Result<FaceVerifyResultDto>.Success(new FaceVerifyResultDto(
-                0, true, false, 0, "Guardian has no registered face data."));
+                0, true, false, 0, "Guardian has no registered face data.", FaceRegistered: false));
 
-        var matchResult = await _faceClient.VerifyFaceAsync(faceData.EmbeddingJson, request.ImageBase64, ct);
+        var references = await _references.LoadEmbeddingsAsync(request.GuardianId, ct);
+        if (!references.Succeeded)
+            return Result<FaceVerifyResultDto>.Failure(references.Error!);
+
+        // One face on file: exactly the original comparison. More than one: the best score over all
+        // of them, against the same threshold (a different photo of the same person may match better).
+        var matchResult = references.Value!.Count <= 1
+            ? await _faceClient.VerifyFaceAsync(references.Value[0].EmbeddingJson, request.ImageBase64, ct)
+            : await MatchAgainstAllAsync(request.GuardianId, references.Value, request.ImageBase64, ct);
         if (!matchResult.Succeeded)
             return Result<FaceVerifyResultDto>.Failure(matchResult.Error ?? "Face verification service error.");
 
@@ -134,6 +150,18 @@ public class VerificationService : IVerificationService
             matchResult.Value.Match ? verification.AttemptedAt + _options.PendingExpiry : null));
     }
 
+    private async Task<Result<FaceMatchResult>> MatchAgainstAllAsync(
+        int guardianId, IReadOnlyList<ReferenceEmbedding> references, string imageBase64, CancellationToken ct)
+    {
+        var identified = await _faceClient.IdentifyAsync(imageBase64, [new IdentifyCandidate(guardianId, references)], ct);
+        if (!identified.Succeeded) return Result<FaceMatchResult>.Failure(identified.Error ?? "Face verification service error.");
+
+        var best = identified.Value!.Results.FirstOrDefault(r => r.GuardianId == guardianId)?.BestScore;
+        return best is null
+            ? Result<FaceMatchResult>.Failure("The registered face data could not be read. Register the face again.")
+            : Result<FaceMatchResult>.Success(new FaceMatchResult(best.Value >= identified.Value.Threshold, best.Value));
+    }
+
     public async Task<Result<PickupDecisionResultDto>> ApproveAsync(ApprovePickupRequest request, int approvingAdminId, CancellationToken ct = default)
     {
         var verification = await _verifications.GetVerificationByIdAsync(request.VerificationId, ct);
@@ -141,6 +169,13 @@ public class VerificationService : IVerificationService
 
         var blocked = ApprovalBlockedReason(verification.GetState(_clock.UtcNow, _options.PendingExpiry));
         if (blocked is not null) return Result<PickupDecisionResultDto>.Failure(blocked);
+
+        // A layered record whose liveness did not pass is never approvable, whatever its match score. Records
+        // with no liveness result (made before layers existed, or by the original face-verify endpoint) are
+        // refused too once RequireLiveness is on: that path is what lets a held-up photo through.
+        if (verification.LivenessResult == LivenessResult.Fail
+            || (_options.RequireLiveness && verification.LivenessResult != LivenessResult.Pass))
+            return Result<PickupDecisionResultDto>.Failure(LivenessRequiredMessage);
 
         // The time between face verification and an admin's approval is the
         // whole point of the pending queue, so both parties' status could have
@@ -295,7 +330,8 @@ public class VerificationService : IVerificationService
                 v.Id, v.StudentId, v.Student.FullName, v.GuardianId, v.Guardian.FullName,
                 v.AttemptedAt, v.MatchScore, v.Result, v.PickupApproved,
                 v.GetState(now, _options.PendingExpiry),
-                v.Result == VerificationResult.Match ? v.AttemptedAt + _options.PendingExpiry : null))
+                v.Result == VerificationResult.Match ? v.AttemptedAt + _options.PendingExpiry : null,
+                FaceLayersDto.From(v)))
             .ToList();
     }
 

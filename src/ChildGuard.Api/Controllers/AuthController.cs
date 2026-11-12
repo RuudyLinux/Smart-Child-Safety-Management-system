@@ -1,6 +1,7 @@
 using ChildGuard.Api.Security;
 using ChildGuard.Application.DTOs;
 using ChildGuard.Application.Interfaces;
+using ChildGuard.Application.Services;
 using ChildGuard.Domain.Enums;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
@@ -65,8 +66,14 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> GuardianLogin(GuardianLoginRequest request, CancellationToken ct)
     {
         await _guardianLoginValidator.ValidateAndThrowAsync(request, ct);
-        var result = await _authService.LoginGuardianAsync(request, ct);
-        return result.Succeeded ? Ok(result.Value) : Unauthorized(new { message = result.Error });
+        var result = await _authService.SignInGuardianAsync(request, ct);
+        // An OTP challenge keeps its original JSON shape; a trusted phone gets the verify-otp shape instead
+        // (the "stage" field tells the app which one it received).
+        if (result.Succeeded) return Ok((object?)result.Value!.Challenge ?? result.Value.Auth);
+        // A code that could not be emailed is a service problem, not bad credentials.
+        return result.Error == AuthService.OtpDeliveryFailedMessage
+            ? StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = result.Error })
+            : Unauthorized(new { message = result.Error });
     }
 
     /// <summary>
@@ -88,7 +95,10 @@ public class AuthController : ControllerBase
     {
         await _resendOtpValidator.ValidateAndThrowAsync(request, ct);
         var result = await _authService.ResendGuardianOtpAsync(request, ct);
-        return result.Succeeded ? Ok(result.Value) : BadRequest(new { message = result.Error });
+        if (result.Succeeded) return Ok(result.Value);
+        return result.Error == AuthService.OtpDeliveryFailedMessage
+            ? StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = result.Error })
+            : BadRequest(new { message = result.Error });
     }
 
     /// <summary>Completes the mandatory first-login password reset using the ticket from verify-otp.</summary>

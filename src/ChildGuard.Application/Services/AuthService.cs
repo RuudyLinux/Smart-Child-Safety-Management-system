@@ -12,6 +12,10 @@ public class AuthService : IAuthService
 {
     /// <summary>Same message for unknown account, wrong password and inactive account — never reveal which.</summary>
     private const string InvalidCredentials = "Invalid contact number or password.";
+
+    /// <summary>Shown to the guardian when their code could not be emailed. The provider's reason is logged, not shown.</summary>
+    public const string OtpDeliveryFailedMessage =
+        "We couldn't send the verification code to your email right now. Please try again in a few minutes, or contact the school office.";
     private const string InvalidOtp = "Invalid or expired OTP.";
     private const string OtpAttemptsExceeded = "Too many incorrect attempts. Please sign in again to request a new code.";
     private const string ChallengeGone = "Your sign-in session has expired. Please sign in again.";
@@ -63,22 +67,47 @@ public class AuthService : IAuthService
 
     public async Task<Result<GuardianOtpChallengeDto>> LoginGuardianAsync(GuardianLoginRequest request, CancellationToken ct = default)
     {
+        // The original contract: always an OTP challenge, never a trusted-device shortcut.
+        var result = await SignInGuardianAsync(request with { DeviceToken = null }, ct);
+        return result.Succeeded
+            ? Result<GuardianOtpChallengeDto>.Success(result.Value!.Challenge!)
+            : Result<GuardianOtpChallengeDto>.Failure(result.Error!);
+    }
+
+    public async Task<Result<GuardianSignInDto>> SignInGuardianAsync(GuardianLoginRequest request, CancellationToken ct = default)
+    {
         var contactNumber = ContactNumber.Normalize(request.ContactNumber);
         var guardian = contactNumber is null ? null : await _guardianRepo.GetByContactNumberAsync(contactNumber, ct);
 
         if (guardian is null || guardian.Status != RecordStatus.Active)
         {
             _hasher.Verify(_decoyHash.Value, request.Password);
-            return Result<GuardianOtpChallengeDto>.Failure(InvalidCredentials);
+            return Result<GuardianSignInDto>.Failure(InvalidCredentials);
         }
 
         if (!_hasher.Verify(guardian.PasswordHash, request.Password))
-            return Result<GuardianOtpChallengeDto>.Failure(InvalidCredentials);
+            return Result<GuardianSignInDto>.Failure(InvalidCredentials);
+
+        var now = UtcNow;
+
+        // A phone that already passed the OTP skips it, but only after the password has been checked above, and
+        // only while its trust is unrevoked and unexpired. Anything else falls through to the normal OTP step.
+        if (_otpOptions.TrustedDeviceDays > 0 && !string.IsNullOrWhiteSpace(request.DeviceToken))
+        {
+            var device = await _guardianRepo.GetActiveTrustedDeviceAsync(
+                guardian.GuardianId, HashDeviceToken(request.DeviceToken), now, ct);
+            if (device is not null)
+            {
+                device.LastUsedAt = now;
+                device.ExpiresAt = now.AddDays(_otpOptions.TrustedDeviceDays);
+                var auth = await CompleteGuardianSignInAsync(guardian, now, deviceToken: null, ct);
+                return Result<GuardianSignInDto>.Success(new GuardianSignInDto(null, auth));
+            }
+        }
 
         // Only the newest login attempt may be verified.
         await _guardianRepo.ConsumeOpenOtpChallengesAsync(guardian.GuardianId, ct);
 
-        var now = UtcNow;
         var code = GenerateOtpCode(_otpOptions.CodeLength);
         var challenge = new GuardianOtpChallenge
         {
@@ -93,8 +122,15 @@ public class AuthService : IAuthService
         await _guardianRepo.AddOtpChallengeAsync(challenge, ct);
         await _guardianRepo.SaveChangesAsync(ct);
 
-        await SendOtpAsync(guardian, code, ct);
-        return Result<GuardianOtpChallengeDto>.Success(ToChallengeDto(challenge, now));
+        var sent = await SendOtpAsync(guardian, code, ct);
+        if (!sent.Succeeded)
+        {
+            // The code never left, so this attempt must not be completable.
+            challenge.IsConsumed = true;
+            await _guardianRepo.SaveChangesAsync(ct);
+            return Result<GuardianSignInDto>.Failure(OtpDeliveryFailedMessage);
+        }
+        return Result<GuardianSignInDto>.Success(new GuardianSignInDto(ToChallengeDto(challenge, now), null));
     }
 
     public async Task<Result<GuardianAuthResultDto>> VerifyGuardianOtpAsync(VerifyGuardianOtpRequest request, CancellationToken ct = default)
@@ -131,6 +167,21 @@ public class AuthService : IAuthService
             return Result<GuardianAuthResultDto>.Failure(InvalidCredentials);
         }
 
+        // Trust this phone only now that the OTP has actually been proven.
+        string? deviceToken = null;
+        if (request.TrustDevice && _otpOptions.TrustedDeviceDays > 0)
+            deviceToken = await AddTrustedDeviceAsync(guardian.GuardianId, request.DeviceLabel, now, ct);
+
+        var auth = await CompleteGuardianSignInAsync(guardian, now, deviceToken, ct);
+        return Result<GuardianAuthResultDto>.Success(auth);
+    }
+
+    /// <summary>
+    /// The end of every successful guardian sign-in, with or without the OTP: a first-login guardian gets a
+    /// password-reset ticket and no token; everyone else gets a session. Saves the caller's pending changes.
+    /// </summary>
+    private async Task<GuardianAuthResultDto> CompleteGuardianSignInAsync(Guardian guardian, DateTime now, string? deviceToken, CancellationToken ct)
+    {
         if (guardian.PasswordResetRequired)
         {
             // No token is issued, so the first-login reset cannot be skipped by the client.
@@ -141,17 +192,65 @@ public class AuthService : IAuthService
             guardian.UpdatedAt = now;
             await _guardianRepo.SaveChangesAsync(ct);
 
-            return Result<GuardianAuthResultDto>.Success(
-                new GuardianAuthResultDto(GuardianAuthStage.PasswordResetRequired, null, ticket, ticketExpiry));
+            return new GuardianAuthResultDto(GuardianAuthStage.PasswordResetRequired, null, ticket, ticketExpiry, deviceToken);
         }
 
         await _guardianRepo.SaveChangesAsync(ct);
 
         var (token, expires) = _jwt.GenerateToken(guardian.GuardianId, guardian.Email, guardian.FullName, AppRole.Guardian);
         var session = new LoginResponse(token, expires, nameof(AppRole.Guardian), guardian.GuardianId, guardian.FullName, guardian.Email);
-        return Result<GuardianAuthResultDto>.Success(
-            new GuardianAuthResultDto(GuardianAuthStage.Authenticated, session, null, null));
+        return new GuardianAuthResultDto(GuardianAuthStage.Authenticated, session, null, null, deviceToken);
     }
+
+    // ---- Trusted devices ----
+
+    /// <summary>
+    /// For a phone that is already signed in (it holds a valid session, which itself proves an OTP was passed):
+    /// trusts it without another code. Used once per phone by the app after an update.
+    /// </summary>
+    public async Task<Result<string>> EnrollTrustedDeviceAsync(int guardianId, string? label, CancellationToken ct = default)
+    {
+        if (_otpOptions.TrustedDeviceDays <= 0)
+            return Result<string>.Failure("Trusted devices are turned off.");
+        var guardian = await _guardianRepo.GetByIdAsync(guardianId, ct);
+        if (guardian is null || guardian.Status != RecordStatus.Active)
+            return Result<string>.Failure("Guardian not found.");
+        var token = await AddTrustedDeviceAsync(guardianId, label, UtcNow, ct);
+        await _guardianRepo.SaveChangesAsync(ct);
+        return Result<string>.Success(token);
+    }
+
+    public async Task<List<TrustedDeviceDto>> ListTrustedDevicesAsync(int guardianId, CancellationToken ct = default) =>
+        (await _guardianRepo.GetActiveTrustedDevicesAsync(guardianId, UtcNow, ct))
+            .Select(d => new TrustedDeviceDto(d.Id, d.Label, d.CreatedAt, d.LastUsedAt, d.ExpiresAt))
+            .ToList();
+
+    public async Task<int> RevokeTrustedDevicesAsync(int guardianId, int? deviceId, CancellationToken ct = default)
+    {
+        var count = await _guardianRepo.RevokeTrustedDevicesAsync(guardianId, UtcNow, deviceId, ct);
+        await _guardianRepo.SaveChangesAsync(ct);
+        return count;
+    }
+
+    private async Task<string> AddTrustedDeviceAsync(int guardianId, string? label, DateTime now, CancellationToken ct)
+    {
+        var secret = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        var trimmed = label?.Trim();
+        await _guardianRepo.AddTrustedDeviceAsync(new GuardianTrustedDevice
+        {
+            GuardianId = guardianId,
+            TokenHash = HashDeviceToken(secret),
+            Label = string.IsNullOrEmpty(trimmed) ? null : trimmed[..Math.Min(trimmed.Length, 100)],
+            CreatedAt = now,
+            LastUsedAt = now,
+            ExpiresAt = now.AddDays(_otpOptions.TrustedDeviceDays)
+        }, ct);
+        return secret;
+    }
+
+    /// <summary>SHA-256 is enough here: the secret is 256 random bits, so there is nothing to brute-force.</summary>
+    private static string HashDeviceToken(string token) =>
+        Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(token.Trim()))).ToLowerInvariant();
 
     public async Task<Result<GuardianOtpChallengeDto>> ResendGuardianOtpAsync(ResendGuardianOtpRequest request, CancellationToken ct = default)
     {
@@ -175,6 +274,9 @@ public class AuthService : IAuthService
                 string.Create(CultureInfo.InvariantCulture, $"Please wait {wait} seconds before requesting another code."));
         }
 
+        var (previousHash, previousExpiry, previousFailures, previousResends, previousSentAt) =
+            (challenge.CodeHash, challenge.ExpiresAtUtc, challenge.FailedAttempts, challenge.ResendCount, challenge.LastSentAtUtc);
+
         var code = GenerateOtpCode(_otpOptions.CodeLength);
         challenge.CodeHash = _hasher.Hash(code);
         challenge.ExpiresAtUtc = now.AddMinutes(_otpOptions.ExpiryMinutes);
@@ -183,7 +285,16 @@ public class AuthService : IAuthService
         challenge.LastSentAtUtc = now;
         await _guardianRepo.SaveChangesAsync(ct);
 
-        await SendOtpAsync(challenge.Guardian, code, ct);
+        var sent = await SendOtpAsync(challenge.Guardian, code, ct);
+        if (!sent.Succeeded)
+        {
+            // A failed send is not a used resend: put the challenge back as it was, so the code the guardian
+            // already holds still works and they can try again straight away.
+            (challenge.CodeHash, challenge.ExpiresAtUtc, challenge.FailedAttempts, challenge.ResendCount, challenge.LastSentAtUtc) =
+                (previousHash, previousExpiry, previousFailures, previousResends, previousSentAt);
+            await _guardianRepo.SaveChangesAsync(ct);
+            return Result<GuardianOtpChallengeDto>.Failure(OtpDeliveryFailedMessage);
+        }
         return Result<GuardianOtpChallengeDto>.Success(ToChallengeDto(challenge, now));
     }
 
@@ -290,6 +401,7 @@ public class AuthService : IAuthService
             guardian.PasswordResetTokenExpiresAt = null;
             // A self-chosen password also clears the forced first-login reset.
             guardian.PasswordResetRequired = false;
+            await _guardianRepo.RevokeTrustedDevicesAsync(guardian.GuardianId, UtcNow, null, ct);
             await _guardianRepo.SaveChangesAsync(ct);
         }
 
@@ -315,12 +427,14 @@ public class AuthService : IAuthService
             guardian.PasswordHash = _hasher.Hash(request.NewPassword);
             guardian.PasswordResetRequired = false;
             guardian.UpdatedAt = UtcNow;
+            // A new password ends every phone's OTP exemption: they must prove the email again.
+            await _guardianRepo.RevokeTrustedDevicesAsync(guardian.GuardianId, UtcNow, null, ct);
             await _guardianRepo.SaveChangesAsync(ct);
         }
         return Result.Success();
     }
 
-    private Task SendOtpAsync(Guardian guardian, string code, CancellationToken ct) =>
+    private Task<Result> SendOtpAsync(Guardian guardian, string code, CancellationToken ct) =>
         _otpSender.SendLoginOtpAsync(
             guardian, code, TimeSpan.FromMinutes(_otpOptions.ExpiryMinutes), ct);
 
@@ -329,7 +443,8 @@ public class AuthService : IAuthService
             challenge.ExpiresAtUtc,
             _otpOptions.CodeLength,
             Math.Max(0, (int)Math.Ceiling((challenge.LastSentAtUtc.AddSeconds(_otpOptions.ResendIntervalSeconds) - now).TotalSeconds)),
-            Math.Max(0, _otpOptions.MaxResends - challenge.ResendCount));
+            Math.Max(0, _otpOptions.MaxResends - challenge.ResendCount),
+            EmailMasking.Mask(challenge.Guardian?.Email));
 
     private static string GenerateOtpCode(int length)
     {

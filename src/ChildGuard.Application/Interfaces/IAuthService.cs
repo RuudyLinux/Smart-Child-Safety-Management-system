@@ -19,6 +19,19 @@ public interface IAuthService
     /// Step 2: verifies the code. Returns a session for a returning Guardian, or a
     /// password-reset ticket when the account is still on its default password.
     /// </summary>
+    /// <summary>
+    /// Password step with the trusted-device shortcut: a phone presenting a valid device token skips the OTP and
+    /// gets the same outcome verify-otp would give; any other phone gets an OTP challenge exactly as
+    /// <see cref="LoginGuardianAsync"/> does.
+    /// </summary>
+    Task<Result<GuardianSignInDto>> SignInGuardianAsync(GuardianLoginRequest request, CancellationToken ct = default);
+
+    /// <summary>Trusts the phone of an already signed-in guardian. Returns the device secret, shown once.</summary>
+    Task<Result<string>> EnrollTrustedDeviceAsync(int guardianId, string? label, CancellationToken ct = default);
+    Task<List<TrustedDeviceDto>> ListTrustedDevicesAsync(int guardianId, CancellationToken ct = default);
+    /// <summary>Revokes one trusted phone, or all of the guardian's when <paramref name="deviceId"/> is null.</summary>
+    Task<int> RevokeTrustedDevicesAsync(int guardianId, int? deviceId, CancellationToken ct = default);
+
     Task<Result<GuardianAuthResultDto>> VerifyGuardianOtpAsync(VerifyGuardianOtpRequest request, CancellationToken ct = default);
 
     Task<Result<GuardianOtpChallengeDto>> ResendGuardianOtpAsync(ResendGuardianOtpRequest request, CancellationToken ct = default);

@@ -21,5 +21,12 @@ public class VerificationOptions
     /// <summary>A matched verification not decided within this many minutes expires and cannot be approved.</summary>
     public int PendingExpiryMinutes { get; set; } = 15;
 
+    /// <summary>
+    /// When true, a verification can only be approved if a live-person check passed for it. Records made by
+    /// the original face-verify endpoint have no liveness result, so they cannot be approved while this is on:
+    /// that path is exactly what lets a held-up photo through.
+    /// </summary>
+    public bool RequireLiveness { get; set; }
+
     public TimeSpan PendingExpiry => TimeSpan.FromMinutes(Math.Max(1, PendingExpiryMinutes));
 }

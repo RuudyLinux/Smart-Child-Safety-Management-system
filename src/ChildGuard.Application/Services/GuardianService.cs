@@ -45,14 +45,15 @@ public class GuardianService : IGuardianService
         if (await _guardians.ContactNumberExistsAsync(contactNumber, ct))
             return Result<CreateGuardianResultDto>.Failure("Contact number already registered.");
 
+        // Random per Guardian. Hashed before it ever reaches the database; the
+        // plaintext exists only in this method and in the email sent to the Guardian.
+        var initialPassword = GuardianCredentialDefaults.NewInitialPassword();
         var guardian = new Guardian
         {
             FullName = request.FullName,
             Email = request.Email,
             Phone = contactNumber,
-            // Hashed before it ever reaches the database; the plaintext exists only
-            // in this method and in the email sent to the Guardian.
-            PasswordHash = _hasher.Hash(GuardianCredentialDefaults.InitialPassword),
+            PasswordHash = _hasher.Hash(initialPassword),
             PasswordResetRequired = true,
             Status = RecordStatus.Active
         };
@@ -62,7 +63,7 @@ public class GuardianService : IGuardianService
 
         // Sent to the Guardian's own registered address, never the admin's.
         var message = GuardianEmails.BuildCredentialEmail(
-            guardian.FullName, guardian.Email, contactNumber, GuardianCredentialDefaults.InitialPassword);
+            guardian.FullName, guardian.Email, contactNumber, initialPassword);
         var delivery = await _email.SendAsync(message, ct);
 
         // A delivery failure does not undo the account, but it is reported to the
@@ -101,7 +102,8 @@ public class GuardianService : IGuardianService
         var history = (await _verifications.GetHistoryForGuardianAsync(id, ProfileHistoryRows, ct))
             .Select(v => new GuardianVerificationHistoryDto(
                 v.Id, v.StudentId, v.Student.FullName, v.GuardianId, v.Guardian.FullName,
-                v.AttemptedAt, v.MatchScore, v.Result, v.PickupApproved))
+                v.AttemptedAt, v.MatchScore, v.Result, v.PickupApproved,
+                Layers: FaceLayersDto.From(v)))
             .ToList();
 
         var children = g.StudentGuardians.Select(sg =>
@@ -199,6 +201,8 @@ public class GuardianService : IGuardianService
         g.PasswordHash = _hasher.Hash(request.NewPassword);
         g.PasswordResetRequired = true;
         g.UpdatedAt = DateTime.UtcNow;
+        // A password the admin chose resets trust: every phone must pass the OTP again.
+        await _guardians.RevokeTrustedDevicesAsync(g.GuardianId, DateTime.UtcNow, null, ct);
         await _guardians.SaveChangesAsync(ct);
         return Result.Success();
     }

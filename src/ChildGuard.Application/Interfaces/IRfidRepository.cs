@@ -10,6 +10,7 @@ public interface IRfidRepository
     Task AddAsync(RfidCard card, CancellationToken ct = default);
     Task<List<RfidDevice>> GetDevicesAsync(CancellationToken ct = default);
     Task<RfidDevice?> GetDeviceByIdAsync(int id, CancellationToken ct = default);
+    Task AddDeviceAsync(RfidDevice device, CancellationToken ct = default);
     Task<RfidDevice?> GetDeviceByKeyHashAsync(string keyHash, CancellationToken ct = default);
     Task SaveChangesAsync(CancellationToken ct = default);
 }

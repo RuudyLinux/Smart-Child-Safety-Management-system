@@ -31,5 +31,6 @@ public interface IPasswordResetNotifier
 /// </summary>
 public interface IOtpSender
 {
-    Task SendLoginOtpAsync(Domain.Entities.Guardian guardian, string code, TimeSpan validFor, CancellationToken ct = default);
+    /// <summary>Returns a failure when the code could not be delivered, so the caller can tell the guardian instead of leaving them waiting.</summary>
+    Task<Common.Result> SendLoginOtpAsync(Domain.Entities.Guardian guardian, string code, TimeSpan validFor, CancellationToken ct = default);
 }

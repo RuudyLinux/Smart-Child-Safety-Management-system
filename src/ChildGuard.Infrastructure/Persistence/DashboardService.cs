@@ -262,6 +262,7 @@ public class DashboardService : IDashboardService
         // 5. Active students with no RFID card — they cannot be identified at a checkpoint.
         var withoutCard = await _db.Students.AsNoTracking()
             .Where(s => s.Status == RecordStatus.Active && s.RfidCard == null)
+            .OrderBy(s => s.StudentId)
             .Select(s => new { s.StudentId, s.FullName })
             .Take(5)
             .ToListAsync(ct);

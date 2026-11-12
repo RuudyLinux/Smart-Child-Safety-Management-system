@@ -28,6 +28,9 @@ public class RfidRepository : IRfidRepository
     public Task<RfidDevice?> GetDeviceByIdAsync(int id, CancellationToken ct = default) =>
         _db.RfidDevices.FirstOrDefaultAsync(d => d.RfidDeviceId == id, ct);
 
+    public async Task AddDeviceAsync(RfidDevice device, CancellationToken ct = default) =>
+        await _db.RfidDevices.AddAsync(device, ct);
+
     public Task<RfidDevice?> GetDeviceByKeyHashAsync(string keyHash, CancellationToken ct = default) =>
         _db.RfidDevices.AsNoTracking().FirstOrDefaultAsync(d => d.ApiKeyHash == keyHash, ct);
 

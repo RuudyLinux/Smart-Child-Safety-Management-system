@@ -16,17 +16,20 @@ public class RfidController : ControllerBase
     private readonly IValidator<AssignRfidRequest> _assignValidator;
     private readonly IValidator<UpdateRfidStatusRequest> _statusValidator;
     private readonly IValidator<RfidScanRequest> _scanValidator;
+    private readonly IValidator<RfidIdentifyRequest> _identifyValidator;
 
     public RfidController(
         IRfidService rfidService,
         IValidator<AssignRfidRequest> assignValidator,
         IValidator<UpdateRfidStatusRequest> statusValidator,
-        IValidator<RfidScanRequest> scanValidator)
+        IValidator<RfidScanRequest> scanValidator,
+        IValidator<RfidIdentifyRequest> identifyValidator)
     {
         _rfidService = rfidService;
         _assignValidator = assignValidator;
         _statusValidator = statusValidator;
         _scanValidator = scanValidator;
+        _identifyValidator = identifyValidator;
     }
 
     [HttpGet("cards")]
@@ -63,6 +66,30 @@ public class RfidController : ControllerBase
     [Authorize(Policy = "AdminOnly")]
     public async Task<IActionResult> GetDevices(CancellationToken ct) => Ok(await _rfidService.GetDevicesAsync(ct));
 
+    /// <summary>Registers another checkpoint scanner (a new gate, a second desk, a bus reader).</summary>
+    [HttpPost("devices")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> CreateDevice(CreateRfidDeviceRequest request,
+        [FromServices] IValidator<CreateRfidDeviceRequest> validator, CancellationToken ct)
+    {
+        await validator.ValidateAndThrowAsync(request, ct);
+        var result = await _rfidService.CreateDeviceAsync(request, ct);
+        return result.Succeeded ? Ok(result.Value) : BadRequest(new { message = result.Error });
+    }
+
+    [HttpPut("devices/{id:int}")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> RenameDevice(int id, UpdateRfidDeviceRequest request,
+        [FromServices] IValidator<UpdateRfidDeviceRequest> validator, CancellationToken ct)
+    {
+        await validator.ValidateAndThrowAsync(request, ct);
+        var result = await _rfidService.RenameDeviceAsync(id, request, ct);
+        if (result.Succeeded) return Ok(new { message = "Scanner renamed." });
+        return result.Error == ChildGuard.Application.Services.RfidService.DeviceNotFound
+            ? NotFound(new { message = result.Error })
+            : BadRequest(new { message = result.Error });
+    }
+
     /// <summary>
     /// Real scanners announce themselves on connect; the demo page calls this on load.
     /// Accepts either an Admin session (browser demo path) or a device API key
@@ -90,6 +117,20 @@ public class RfidController : ControllerBase
         await _scanValidator.ValidateAndThrowAsync(request, ct);
         if (!CallerMayActAsDevice(request.RfidDeviceId)) return Forbid();
         return Ok(await _rfidService.ProcessScanAsync(request, ct));
+    }
+
+    /// <summary>
+    /// Pickup desk: identifies the student on a card without recording anything.
+    /// At a pickup checkpoint the departure is written only by the handover approval,
+    /// after the collecting guardian has been verified.
+    /// </summary>
+    [HttpPost("identify")]
+    [Authorize(Policy = "AdminOnly")]
+    [EnableRateLimiting(RateLimitPolicies.RfidScan)]
+    public async Task<IActionResult> Identify(RfidIdentifyRequest request, CancellationToken ct)
+    {
+        await _identifyValidator.ValidateAndThrowAsync(request, ct);
+        return Ok(await _rfidService.IdentifyAsync(request, ct));
     }
 
     /// <summary>

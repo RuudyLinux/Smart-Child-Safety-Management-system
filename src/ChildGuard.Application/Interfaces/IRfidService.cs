@@ -10,8 +10,13 @@ public interface IRfidService
     Task<Result> AssignAsync(AssignRfidRequest request, CancellationToken ct = default);
     Task<Result> UpdateStatusAsync(int cardId, UpdateRfidStatusRequest request, CancellationToken ct = default);
     Task<List<RfidDeviceDto>> GetDevicesAsync(CancellationToken ct = default);
+    Task<Result<RfidDeviceDto>> CreateDeviceAsync(CreateRfidDeviceRequest request, CancellationToken ct = default);
+    Task<Result> RenameDeviceAsync(int deviceId, UpdateRfidDeviceRequest request, CancellationToken ct = default);
     Task<Result> HeartbeatAsync(int deviceId, CancellationToken ct = default);
     Task<RfidScanResultDto> ProcessScanAsync(RfidScanRequest request, CancellationToken ct = default);
+
+    /// <summary>Looks up the active student on a card. Records no journey event or attendance.</summary>
+    Task<RfidIdentifyResultDto> IdentifyAsync(RfidIdentifyRequest request, CancellationToken ct = default);
 
     /// <summary>Issues (or rotates) this scanner's own API key. The plaintext is returned once and never stored.</summary>
     Task<Result<DeviceCredentialDto>> IssueDeviceKeyAsync(int deviceId, CancellationToken ct = default);

@@ -24,5 +24,12 @@ public interface IGuardianRepository
     /// <summary>Burns every still-open challenge for the Guardian, so only the newest login attempt can be verified.</summary>
     Task ConsumeOpenOtpChallengesAsync(int guardianId, CancellationToken ct = default);
 
+    Task AddTrustedDeviceAsync(GuardianTrustedDevice device, CancellationToken ct = default);
+    /// <summary>The unrevoked, unexpired trusted device with this hash for this guardian, tracked for update.</summary>
+    Task<GuardianTrustedDevice?> GetActiveTrustedDeviceAsync(int guardianId, string tokenHash, DateTime nowUtc, CancellationToken ct = default);
+    Task<List<GuardianTrustedDevice>> GetActiveTrustedDevicesAsync(int guardianId, DateTime nowUtc, CancellationToken ct = default);
+    /// <summary>Marks every active device of the guardian revoked (or just <paramref name="deviceId"/>). Returns how many.</summary>
+    Task<int> RevokeTrustedDevicesAsync(int guardianId, DateTime nowUtc, int? deviceId = null, CancellationToken ct = default);
+
     Task SaveChangesAsync(CancellationToken ct = default);
 }

@@ -45,6 +45,68 @@ public enum VerificationResult
     NoMatch = 2
 }
 
+/// <summary>Outcome of one mandatory check (image quality, face detection) in the face verification layers.</summary>
+public enum CheckResult
+{
+    Pass = 1,
+    Fail = 2
+}
+
+/// <summary>How the image for a verification arrived. A gallery file can identify a person but can never show they are present.</summary>
+public enum CaptureSource
+{
+    Webcam = 1,
+    Gallery = 2
+}
+
+/// <summary>Identity layer: does the face belong to a guardian registered for this student?</summary>
+public enum IdentityResult
+{
+    Match = 1,
+    NoMatch = 2,
+    /// <summary>Not enough to decide (for example two guardians matched almost equally). Never approvable.</summary>
+    Inconclusive = 3
+}
+
+/// <summary>Authorisation layer: is the identified guardian allowed to collect this student?</summary>
+public enum AuthorisationResult
+{
+    Authorised = 1,
+    Unauthorised = 2,
+    /// <summary>No guardian was identified, so there was nothing to check.</summary>
+    NotEvaluated = 3
+}
+
+/// <summary>Liveness layer: was a real person present at the camera? NotPerformed is never a pass.</summary>
+public enum LivenessResult
+{
+    Pass = 1,
+    Fail = 2,
+    NotPerformed = 3
+}
+
+public enum VerificationSessionState
+{
+    Open = 1,
+    Completed = 2,
+    Expired = 3,
+    /// <summary>Ended without a result: too many failed attempts, or replaced by a newer session.</summary>
+    Closed = 4
+}
+
+/// <summary>Which verification layer an audit row describes. Each layer is logged independently.</summary>
+public enum FaceAuditLayer
+{
+    Quality = 1,
+    Detection = 2,
+    Identity = 3,
+    Authorisation = 4,
+    Liveness = 5,
+    Decision = 6,
+    Reference = 7,
+    Access = 8
+}
+
 /// <summary>
 /// Where a pickup verification stands. Derived (never stored) from Result,
 /// PickupApproved, ApprovedByAdminId and AttemptedAt — see GuardianVerification.GetState.
@@ -100,4 +162,30 @@ public enum AlertSeverity
     Info = 1,
     Warning = 2,
     Critical = 3
+}
+
+/// <summary>Stored lifecycle of a temporary pickup authorisation. Expiry is derived, never stored.</summary>
+public enum TemporaryPickupStatus
+{
+    Pending = 1,
+    Approved = 2,
+    Rejected = 3,
+    Cancelled = 4,
+    Revoked = 5,
+    Completed = 6
+}
+
+/// <summary>What a temporary pickup means right now (see TemporaryPickupAuthorization.GetState).</summary>
+public enum TemporaryPickupState
+{
+    PendingApproval = 1,
+    /// <summary>Approved; the window has not opened yet.</summary>
+    Scheduled = 2,
+    /// <summary>Approved and inside the window: the handover may happen.</summary>
+    Active = 3,
+    Completed = 4,
+    Rejected = 5,
+    Cancelled = 6,
+    Revoked = 7,
+    Expired = 8
 }

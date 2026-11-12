@@ -13,11 +13,11 @@ public class LoggingOtpSender : IOtpSender
     private readonly ILogger<LoggingOtpSender> _logger;
     public LoggingOtpSender(ILogger<LoggingOtpSender> logger) => _logger = logger;
 
-    public Task SendLoginOtpAsync(Domain.Entities.Guardian guardian, string code, TimeSpan validFor, CancellationToken ct = default)
+    public Task<Application.Common.Result> SendLoginOtpAsync(Domain.Entities.Guardian guardian, string code, TimeSpan validFor, CancellationToken ct = default)
     {
         _logger.LogWarning(
-            "Login OTP for {ContactNumber} (dev-only log): {Code}. Valid for {Minutes} minute(s).",
-            guardian.Phone, code, validFor.TotalMinutes);
-        return Task.CompletedTask;
+            "Login OTP for guardian {GuardianId} (dev-only log): {Code}. Valid for {Minutes} minute(s).",
+            guardian.GuardianId, code, validFor.TotalMinutes);
+        return Task.FromResult(Application.Common.Result.Success());
     }
 }

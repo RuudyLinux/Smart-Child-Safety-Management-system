@@ -133,6 +133,10 @@ builder.Services.AddRateLimiter(options =>
     // scanners behind one NAT/proxy must not share a bucket. 60/min = a sustained
     // tap per second per reader.
     options.AddPolicy(RateLimitPolicies.RfidScan, PerIdentityFixedWindow(limits.GetValue("RfidScanPerMinute", 60), TimeSpan.FromMinutes(1)));
+    // Image analysis runs a detector per call, so it is metered per signed-in caller.
+    options.AddPolicy(RateLimitPolicies.FaceAnalyze, PerIdentityFixedWindow(limits.GetValue("FaceAnalyzePerMinute", 60), TimeSpan.FromMinutes(1)));
+    // A live check is a heavy multi-frame analysis, so it is metered tighter than single-image checks.
+    options.AddPolicy(RateLimitPolicies.LiveVerify, PerIdentityFixedWindow(limits.GetValue("LiveVerifyPerMinute", 20), TimeSpan.FromMinutes(1)));
 });
 
 builder.Services.AddCors(options =>
@@ -225,6 +229,10 @@ static void WarnOnInsecureProductionSettings(IConfiguration config, Microsoft.Ex
     var hasCa = System.Text.RegularExpressions.Regex.IsMatch(cs, @"(?i)ssl\s*ca\s*=");
     if (!verified || !hasCa)
         logger.LogWarning("Database connection is not using SslMode=VerifyFull (or VerifyCA) with SslCa: the server certificate is not verified.");
+    if (config.GetValue<bool>("Otp:LogCodeOnDeliveryFailure"))
+        logger.LogWarning("Otp:LogCodeOnDeliveryFailure is set. It is ignored outside Development, but remove it: a logged login code can be used by anyone with log access.");
+    if (string.IsNullOrWhiteSpace(config["Biometrics:EncryptionKey"]))
+        logger.LogWarning("Biometrics:EncryptionKey is not set: face embeddings are stored unencrypted. Set a 32-byte base64 key.");
     if (!string.IsNullOrWhiteSpace(config["Rfid:DeviceApiKey"]))
         logger.LogWarning("Rfid:DeviceApiKey (shared scanner key) is set. Issue per-scanner keys and remove it.");
     if ((config["AllowedHosts"] ?? "*") == "*")

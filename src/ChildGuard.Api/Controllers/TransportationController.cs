@@ -1,3 +1,4 @@
+using ChildGuard.Application.Common;
 using ChildGuard.Application.DTOs;
 using ChildGuard.Application.Interfaces;
 using FluentValidation;
@@ -73,4 +74,68 @@ public class TransportationController : ControllerBase
         var result = await _service.AddAssignmentAsync(request, ct);
         return result.Succeeded ? Ok(new { message = "Assignment created." }) : BadRequest(new { message = result.Error });
     }
+
+    // ---- Edit and status. Records are never deleted; they become Inactive. ----
+
+    [HttpPut("drivers/{id:int}")]
+    public async Task<IActionResult> UpdateDriver(int id, UpdateDriverRequest request,
+        [FromServices] IValidator<UpdateDriverRequest> validator, CancellationToken ct)
+    {
+        await validator.ValidateAndThrowAsync(request, ct);
+        return Answer(await _service.UpdateDriverAsync(id, request, ct), "Driver updated.");
+    }
+
+    [HttpPatch("drivers/{id:int}/status")]
+    public async Task<IActionResult> SetDriverStatus(int id, UpdateTransportStatusRequest request,
+        [FromServices] IValidator<UpdateTransportStatusRequest> validator, CancellationToken ct)
+    {
+        await validator.ValidateAndThrowAsync(request, ct);
+        return Answer(await _service.SetDriverStatusAsync(id, request.Status, ct), "Driver status updated.");
+    }
+
+    [HttpPut("routes/{id:int}")]
+    public async Task<IActionResult> UpdateRoute(int id, UpdateRouteRequest request,
+        [FromServices] IValidator<UpdateRouteRequest> validator, CancellationToken ct)
+    {
+        await validator.ValidateAndThrowAsync(request, ct);
+        return Answer(await _service.UpdateRouteAsync(id, request, ct), "Route updated.");
+    }
+
+    [HttpPatch("routes/{id:int}/status")]
+    public async Task<IActionResult> SetRouteStatus(int id, UpdateTransportStatusRequest request,
+        [FromServices] IValidator<UpdateTransportStatusRequest> validator, CancellationToken ct)
+    {
+        await validator.ValidateAndThrowAsync(request, ct);
+        return Answer(await _service.SetRouteStatusAsync(id, request.Status, ct), "Route status updated.");
+    }
+
+    [HttpPut("buses/{id:int}")]
+    public async Task<IActionResult> UpdateBus(int id, UpdateBusRequest request,
+        [FromServices] IValidator<UpdateBusRequest> validator, CancellationToken ct)
+    {
+        await validator.ValidateAndThrowAsync(request, ct);
+        return Answer(await _service.UpdateBusAsync(id, request, ct), "Bus updated.");
+    }
+
+    [HttpPatch("buses/{id:int}/status")]
+    public async Task<IActionResult> SetBusStatus(int id, UpdateTransportStatusRequest request,
+        [FromServices] IValidator<UpdateTransportStatusRequest> validator, CancellationToken ct)
+    {
+        await validator.ValidateAndThrowAsync(request, ct);
+        return Answer(await _service.SetBusStatusAsync(id, request.Status, ct), "Bus status updated.");
+    }
+
+    [HttpPatch("assignments/{id:int}/status")]
+    public async Task<IActionResult> SetAssignmentStatus(int id, UpdateTransportStatusRequest request,
+        [FromServices] IValidator<UpdateTransportStatusRequest> validator, CancellationToken ct)
+    {
+        await validator.ValidateAndThrowAsync(request, ct);
+        return Answer(await _service.SetAssignmentStatusAsync(id, request.Status, ct), "Assignment status updated.");
+    }
+
+    // 404 for a missing record (its error ends in "not found."), 400 for any other refusal.
+    private IActionResult Answer(Result result, string success) =>
+        result.Succeeded ? Ok(new { message = success })
+        : result.Error!.EndsWith("not found.", StringComparison.Ordinal) ? NotFound(new { message = result.Error })
+        : BadRequest(new { message = result.Error });
 }

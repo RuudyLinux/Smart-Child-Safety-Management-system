@@ -91,6 +91,40 @@ public class RfidService : IRfidService
         return devices.Select(d => new RfidDeviceDto(d.RfidDeviceId, d.DeviceLabel, d.ConnectionStatus, d.LastSeenAt, d.ApiKeyHash is not null, d.ApiKeyIssuedAt)).ToList();
     }
 
+    public async Task<Result<RfidDeviceDto>> CreateDeviceAsync(CreateRfidDeviceRequest request, CancellationToken ct = default)
+    {
+        var label = request.DeviceLabel.Trim();
+        if (await LabelTakenAsync(label, null, ct))
+            return Result<RfidDeviceDto>.Failure("A scanner with this label already exists.");
+
+        // A new scanner starts disconnected and without a key; it is usable from the
+        // pickup desk at once, and a key is issued from Settings for standalone readers.
+        var device = new RfidDevice { DeviceLabel = label };
+        await _rfid.AddDeviceAsync(device, ct);
+        await _rfid.SaveChangesAsync(ct);
+        return Result<RfidDeviceDto>.Success(new RfidDeviceDto(device.RfidDeviceId, device.DeviceLabel, device.ConnectionStatus, device.LastSeenAt));
+    }
+
+    public async Task<Result> RenameDeviceAsync(int deviceId, UpdateRfidDeviceRequest request, CancellationToken ct = default)
+    {
+        var device = await _rfid.GetDeviceByIdAsync(deviceId, ct);
+        if (device is null) return Result.Failure(DeviceNotFound);
+
+        var label = request.DeviceLabel.Trim();
+        if (await LabelTakenAsync(label, deviceId, ct))
+            return Result.Failure("A scanner with this label already exists.");
+
+        device.DeviceLabel = label;
+        await _rfid.SaveChangesAsync(ct);
+        return Result.Success();
+    }
+
+    public const string DeviceNotFound = "Scanner device not found.";
+
+    private async Task<bool> LabelTakenAsync(string label, int? exceptId, CancellationToken ct) =>
+        (await _rfid.GetDevicesAsync(ct)).Any(d => d.RfidDeviceId != exceptId &&
+            string.Equals(d.DeviceLabel, label, StringComparison.OrdinalIgnoreCase));
+
     public async Task<Result> HeartbeatAsync(int deviceId, CancellationToken ct = default)
     {
         var device = await _rfid.GetDeviceByIdAsync(deviceId, ct);
@@ -124,6 +158,25 @@ public class RfidService : IRfidService
         device.ApiKeyIssuedAt = null;
         await _rfid.SaveChangesAsync(ct);
         return Result.Success();
+    }
+
+    public async Task<RfidIdentifyResultDto> IdentifyAsync(RfidIdentifyRequest request, CancellationToken ct = default)
+    {
+        var device = await _rfid.GetDeviceByIdAsync(request.RfidDeviceId, ct);
+        if (device is null)
+            return new RfidIdentifyResultDto(false, null, null, null, "Scanner device not recognized.");
+
+        // Same card and student checks as a scan, without touching journey state.
+        var card = await _rfid.GetByCardUidAsync(request.CardUid, ct);
+        if (card is null || card.Status != RfidCardStatus.Active || card.StudentId is null)
+            return new RfidIdentifyResultDto(false, null, null, RfidMasking.Mask(request.CardUid),
+                "Card not recognized or not assigned to an active student.");
+
+        var student = await _students.GetByIdAsync(card.StudentId.Value, ct);
+        if (student is null || student.Status != RecordStatus.Active)
+            return new RfidIdentifyResultDto(false, null, student?.FullName, RfidMasking.Mask(card.CardUid), "Student is not active.");
+
+        return new RfidIdentifyResultDto(true, student.StudentId, student.FullName, RfidMasking.Mask(card.CardUid), "Student identified.");
     }
 
     public async Task<RfidScanResultDto> ProcessScanAsync(RfidScanRequest request, CancellationToken ct = default)
@@ -225,8 +278,9 @@ public class RfidService : IRfidService
         // Notify every guardian linked to this student — in-app record now, push delivery in Notifications phase.
         var guardianLinks = await _students.GetLinkedGuardiansAsync(student.StudentId, ct);
         var allGuardianIds = guardianLinks.Select(g => g.GuardianId).Distinct().ToList();
-        var title = $"{request.Checkpoint} recorded";
-        var message = $"{student.FullName}: {request.Checkpoint} recorded at {localTime:t}.";
+        var label = JourneyEventNames.Label(request.Checkpoint);
+        var title = $"{label} recorded";
+        var message = $"{student.FullName}: {label} recorded at {localTime:t}.";
         foreach (var guardianId in allGuardianIds)
         {
             await _notifications.AddAsync(new Notification
@@ -248,7 +302,7 @@ public class RfidService : IRfidService
         }
 
         return new RfidScanResultDto(true, student.StudentId, student.FullName, masked,
-            true, request.Checkpoint, $"{request.Checkpoint} recorded successfully.");
+            true, request.Checkpoint, $"{label} recorded.");
     }
 
     private sealed record ScanOutcome(JourneyEvent? Event, bool AlreadyRecorded, string? Rejection)

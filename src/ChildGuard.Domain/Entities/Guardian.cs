@@ -21,6 +21,8 @@ public class Guardian
 
     public ICollection<StudentGuardian> StudentGuardians { get; set; } = new List<StudentGuardian>();
     public GuardianFaceData? FaceData { get; set; }
+    /// <summary>Additional reference faces; the first face lives in <see cref="FaceData"/>.</summary>
+    public ICollection<GuardianFaceReference> FaceReferences { get; set; } = new List<GuardianFaceReference>();
     /// <summary>Profile image, when one has been uploaded. Never loaded unless explicitly included.</summary>
     public GuardianPhoto? Photo { get; set; }
     public ICollection<Notification> Notifications { get; set; } = new List<Notification>();

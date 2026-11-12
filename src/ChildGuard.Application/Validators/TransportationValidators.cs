@@ -42,3 +42,38 @@ public class CreateStudentBusAssignmentRequestValidator : AbstractValidator<Crea
         RuleFor(x => x.RouteId).GreaterThan(0).When(x => x.RouteId.HasValue);
     }
 }
+
+public class UpdateDriverRequestValidator : AbstractValidator<UpdateDriverRequest>
+{
+    public UpdateDriverRequestValidator()
+    {
+        RuleFor(x => x.FullName).NotEmpty().MaximumLength(150);
+        RuleFor(x => x.Phone).MaximumLength(30);
+        RuleFor(x => x.LicenseNumber).MaximumLength(50);
+    }
+}
+
+public class UpdateRouteRequestValidator : AbstractValidator<UpdateRouteRequest>
+{
+    public UpdateRouteRequestValidator()
+    {
+        RuleFor(x => x.RouteName).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.Description).MaximumLength(500);
+    }
+}
+
+public class UpdateBusRequestValidator : AbstractValidator<UpdateBusRequest>
+{
+    public UpdateBusRequestValidator()
+    {
+        RuleFor(x => x.BusNumber).NotEmpty().MaximumLength(20);
+        RuleFor(x => x.Capacity).GreaterThan(0).LessThanOrEqualTo(200);
+        RuleFor(x => x.DriverId).GreaterThan(0).When(x => x.DriverId.HasValue);
+        RuleFor(x => x.RouteId).GreaterThan(0).When(x => x.RouteId.HasValue);
+    }
+}
+
+public class UpdateTransportStatusRequestValidator : AbstractValidator<UpdateTransportStatusRequest>
+{
+    public UpdateTransportStatusRequestValidator() => RuleFor(x => x.Status).IsInEnum();
+}

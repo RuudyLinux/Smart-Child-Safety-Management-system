@@ -32,4 +32,10 @@ public class OtpOptions
     /// can use. The delivery failure is logged as an error either way.
     /// </summary>
     public bool LogCodeOnDeliveryFailure { get; set; }
+
+    /// <summary>
+    /// Days a phone stays trusted after its last use (the OTP is then skipped on that phone). 0 turns the feature off:
+    /// every sign-in needs the OTP and no device is ever trusted.
+    /// </summary>
+    public int TrustedDeviceDays { get; set; } = 90;
 }

@@ -39,5 +39,22 @@ public record RfidScanResultDto(
     string Message,
     bool AlreadyRecorded = false);
 
+/// <summary>
+/// Read-only card lookup for the pickup desk: who does this card belong to? Unlike a
+/// scan it records nothing — at a pickup checkpoint the handover approval is the only
+/// writer of the departure.
+/// </summary>
+public record RfidIdentifyRequest(string CardUid, int RfidDeviceId);
+
+public record RfidIdentifyResultDto(
+    bool StudentIdentified,
+    int? StudentId,
+    string? StudentName,
+    string? MaskedCardUid,
+    string Message);
+
 /// <summary>Returned once when a scanner credential is issued; the key is not retrievable afterwards.</summary>
 public record DeviceCredentialDto(int RfidDeviceId, string DeviceLabel, string ApiKey, DateTime IssuedAt);
+
+public record CreateRfidDeviceRequest(string DeviceLabel);
+public record UpdateRfidDeviceRequest(string DeviceLabel);

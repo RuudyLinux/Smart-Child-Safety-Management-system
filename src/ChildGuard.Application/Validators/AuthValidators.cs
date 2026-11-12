@@ -71,6 +71,7 @@ public class GuardianLoginRequestValidator : AbstractValidator<GuardianLoginRequ
             .Must(c => ContactNumber.Normalize(c) is { Length: >= 8 })
             .WithMessage("Enter a valid contact number.");
         RuleFor(x => x.Password).NotEmpty();
+        RuleFor(x => x.DeviceToken).MaximumLength(200);
     }
 }
 
@@ -80,6 +81,7 @@ public class VerifyGuardianOtpRequestValidator : AbstractValidator<VerifyGuardia
     {
         RuleFor(x => x.ChallengeToken).NotEmpty();
         RuleFor(x => x.Code).NotEmpty().Matches("^[0-9]{4,8}$").WithMessage("Enter the code sent to your contact number.");
+        RuleFor(x => x.DeviceLabel).MaximumLength(100);
     }
 }
 

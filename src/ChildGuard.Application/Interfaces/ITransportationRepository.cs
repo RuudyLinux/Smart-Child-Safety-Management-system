@@ -18,5 +18,9 @@ public interface ITransportationRepository
     Task<Student?> GetStudentAsync(int studentId, CancellationToken ct = default);
     Task AddAssignmentAsync(StudentBusAssignment assignment, CancellationToken ct = default);
 
+    Task<Driver?> GetDriverByIdAsync(int id, CancellationToken ct = default);
+    Task<Route?> GetRouteByIdAsync(int id, CancellationToken ct = default);
+    Task<StudentBusAssignment?> GetAssignmentByIdAsync(int id, CancellationToken ct = default);
+
     Task SaveChangesAsync(CancellationToken ct = default);
 }

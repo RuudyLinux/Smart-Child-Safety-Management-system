@@ -45,5 +45,14 @@ public class TransportationRepository : ITransportationRepository
     public async Task AddAssignmentAsync(StudentBusAssignment assignment, CancellationToken ct = default) =>
         await _db.StudentBusAssignments.AddAsync(assignment, ct);
 
+    public Task<Driver?> GetDriverByIdAsync(int id, CancellationToken ct = default) =>
+        _db.Drivers.FirstOrDefaultAsync(d => d.DriverId == id, ct);
+
+    public Task<Route?> GetRouteByIdAsync(int id, CancellationToken ct = default) =>
+        _db.Routes.FirstOrDefaultAsync(r => r.RouteId == id, ct);
+
+    public Task<StudentBusAssignment?> GetAssignmentByIdAsync(int id, CancellationToken ct = default) =>
+        _db.StudentBusAssignments.FirstOrDefaultAsync(a => a.Id == id, ct);
+
     public Task SaveChangesAsync(CancellationToken ct = default) => _db.SaveChangesAsync(ct);
 }

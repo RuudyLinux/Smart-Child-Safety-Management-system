@@ -67,6 +67,28 @@ public class GuardianRepository : IGuardianRepository
         foreach (var challenge in open) challenge.IsConsumed = true;
     }
 
+    public async Task AddTrustedDeviceAsync(GuardianTrustedDevice device, CancellationToken ct = default) =>
+        await _db.GuardianTrustedDevices.AddAsync(device, ct);
+
+    public Task<GuardianTrustedDevice?> GetActiveTrustedDeviceAsync(int guardianId, string tokenHash, DateTime nowUtc, CancellationToken ct = default) =>
+        _db.GuardianTrustedDevices.FirstOrDefaultAsync(d =>
+            d.GuardianId == guardianId && d.TokenHash == tokenHash && d.RevokedAt == null && d.ExpiresAt > nowUtc, ct);
+
+    public Task<List<GuardianTrustedDevice>> GetActiveTrustedDevicesAsync(int guardianId, DateTime nowUtc, CancellationToken ct = default) =>
+        _db.GuardianTrustedDevices.AsNoTracking()
+            .Where(d => d.GuardianId == guardianId && d.RevokedAt == null && d.ExpiresAt > nowUtc)
+            .OrderByDescending(d => d.LastUsedAt)
+            .ToListAsync(ct);
+
+    public async Task<int> RevokeTrustedDevicesAsync(int guardianId, DateTime nowUtc, int? deviceId = null, CancellationToken ct = default)
+    {
+        var active = await _db.GuardianTrustedDevices
+            .Where(d => d.GuardianId == guardianId && d.RevokedAt == null && (deviceId == null || d.Id == deviceId))
+            .ToListAsync(ct);
+        foreach (var d in active) d.RevokedAt = nowUtc;
+        return active.Count;
+    }
+
     public Task SaveChangesAsync(CancellationToken ct = default) =>
         _db.SaveChangesAsync(ct);
 }

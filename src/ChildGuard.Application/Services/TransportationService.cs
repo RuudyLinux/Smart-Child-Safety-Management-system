@@ -39,7 +39,7 @@ public class TransportationService : ITransportationService
 
     public async Task<List<BusDto>> GetBusesAsync(CancellationToken ct = default) =>
         (await _repo.GetBusesAsync(ct)).Select(b => new BusDto(
-            b.BusId, b.BusNumber, b.Capacity, b.Driver?.FullName, b.Route?.RouteName, b.Status)).ToList();
+            b.BusId, b.BusNumber, b.Capacity, b.Driver?.FullName, b.Route?.RouteName, b.Status, b.DriverId, b.RouteId)).ToList();
 
     public async Task<Result<BusDto>> AddBusAsync(CreateBusRequest request, CancellationToken ct = default)
     {
@@ -70,7 +70,7 @@ public class TransportationService : ITransportationService
         };
         await _repo.AddBusAsync(bus, ct);
         await _repo.SaveChangesAsync(ct);
-        return Result<BusDto>.Success(new BusDto(bus.BusId, bus.BusNumber, bus.Capacity, driver?.FullName, route?.RouteName, bus.Status));
+        return Result<BusDto>.Success(new BusDto(bus.BusId, bus.BusNumber, bus.Capacity, driver?.FullName, route?.RouteName, bus.Status, bus.DriverId, bus.RouteId));
     }
 
     public async Task<List<StudentBusAssignmentDto>> GetAssignmentsAsync(CancellationToken ct = default) =>
@@ -105,4 +105,91 @@ public class TransportationService : ITransportationService
         await _repo.SaveChangesAsync(ct);
         return Result.Success();
     }
+
+    public const string DriverNotFound = "Driver not found.";
+    public const string RouteNotFound = "Route not found.";
+    public const string BusNotFound = "Bus not found.";
+    public const string AssignmentNotFound = "Assignment not found.";
+
+    public async Task<Result> UpdateDriverAsync(int id, UpdateDriverRequest request, CancellationToken ct = default)
+    {
+        var driver = await _repo.GetDriverByIdAsync(id, ct);
+        if (driver is null) return Result.Failure(DriverNotFound);
+        driver.FullName = request.FullName.Trim();
+        driver.Phone = Blank(request.Phone);
+        driver.LicenseNumber = Blank(request.LicenseNumber);
+        await _repo.SaveChangesAsync(ct);
+        return Result.Success();
+    }
+
+    public async Task<Result> SetDriverStatusAsync(int id, RecordStatus status, CancellationToken ct = default)
+    {
+        var driver = await _repo.GetDriverByIdAsync(id, ct);
+        if (driver is null) return Result.Failure(DriverNotFound);
+        driver.Status = status;
+        await _repo.SaveChangesAsync(ct);
+        return Result.Success();
+    }
+
+    public async Task<Result> UpdateRouteAsync(int id, UpdateRouteRequest request, CancellationToken ct = default)
+    {
+        var route = await _repo.GetRouteByIdAsync(id, ct);
+        if (route is null) return Result.Failure(RouteNotFound);
+        var name = request.RouteName.Trim();
+        if ((await _repo.GetRoutesAsync(ct)).Any(r => r.RouteId != id && string.Equals(r.RouteName, name, StringComparison.OrdinalIgnoreCase)))
+            return Result.Failure("A route with this name already exists.");
+        route.RouteName = name;
+        route.Description = Blank(request.Description);
+        await _repo.SaveChangesAsync(ct);
+        return Result.Success();
+    }
+
+    public async Task<Result> SetRouteStatusAsync(int id, RecordStatus status, CancellationToken ct = default)
+    {
+        var route = await _repo.GetRouteByIdAsync(id, ct);
+        if (route is null) return Result.Failure(RouteNotFound);
+        route.Status = status;
+        await _repo.SaveChangesAsync(ct);
+        return Result.Success();
+    }
+
+    public async Task<Result> UpdateBusAsync(int id, UpdateBusRequest request, CancellationToken ct = default)
+    {
+        var bus = await _repo.GetBusByIdAsync(id, ct);
+        if (bus is null) return Result.Failure(BusNotFound);
+        var number = request.BusNumber.Trim();
+        if ((await _repo.GetBusesAsync(ct)).Any(b => b.BusId != id && string.Equals(b.BusNumber, number, StringComparison.OrdinalIgnoreCase)))
+            return Result.Failure("A bus with this number already exists.");
+        if (request.DriverId is int driverId && await _repo.GetDriverByIdAsync(driverId, ct) is null)
+            return Result.Failure(DriverNotFound);
+        if (request.RouteId is int routeId && await _repo.GetRouteByIdAsync(routeId, ct) is null)
+            return Result.Failure(RouteNotFound);
+
+        bus.BusNumber = number;
+        bus.Capacity = request.Capacity;
+        bus.DriverId = request.DriverId;
+        bus.RouteId = request.RouteId;
+        await _repo.SaveChangesAsync(ct);
+        return Result.Success();
+    }
+
+    public async Task<Result> SetBusStatusAsync(int id, RecordStatus status, CancellationToken ct = default)
+    {
+        var bus = await _repo.GetBusByIdAsync(id, ct);
+        if (bus is null) return Result.Failure(BusNotFound);
+        bus.Status = status;
+        await _repo.SaveChangesAsync(ct);
+        return Result.Success();
+    }
+
+    public async Task<Result> SetAssignmentStatusAsync(int id, RecordStatus status, CancellationToken ct = default)
+    {
+        var assignment = await _repo.GetAssignmentByIdAsync(id, ct);
+        if (assignment is null) return Result.Failure(AssignmentNotFound);
+        assignment.Status = status;
+        await _repo.SaveChangesAsync(ct);
+        return Result.Success();
+    }
+
+    private static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

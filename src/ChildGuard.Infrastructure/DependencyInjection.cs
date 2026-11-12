@@ -1,6 +1,7 @@
 using ChildGuard.Application.Common;
 using ChildGuard.Application.Interfaces;
 using ChildGuard.Application.Services;
+using ChildGuard.Application.Services.FaceVerification;
 using ChildGuard.Infrastructure.FaceService;
 using ChildGuard.Infrastructure.Identity;
 using ChildGuard.Infrastructure.Notifications;
@@ -66,8 +67,30 @@ public static class DependencyInjection
 
         services.AddScoped<IVerificationRepository, VerificationRepository>();
         services.AddScoped<IVerificationService, VerificationService>();
+        // Embeddings are stored encrypted when a key is configured. An invalid key fails here, at
+        // startup, rather than on the first registration.
+        var biometrics = config.GetSection("Biometrics").Get<BiometricsOptions>() ?? new BiometricsOptions();
+        services.AddSingleton(biometrics);
+        if (string.IsNullOrWhiteSpace(biometrics.EncryptionKey))
+            services.AddSingleton<IEmbeddingProtector, NullEmbeddingProtector>();
+        else
+            services.AddSingleton<IEmbeddingProtector>(new AesGcmEmbeddingProtector(biometrics));
+        services.AddScoped<IGuardianFaceReferenceService, GuardianFaceReferenceService>();
+        services.AddSingleton(config.GetSection("FaceVerification").Get<FaceVerificationOptions>() ?? new FaceVerificationOptions());
+        services.AddSingleton<ILiveChallengeGenerator, SecureLiveChallengeGenerator>();
+        services.AddScoped<IVerificationSessionService, VerificationSessionService>();
+        services.AddScoped<IFaceAuditLog, EfFaceAuditLog>();
+        services.AddScoped<IFaceImageAnalysisService, FaceImageAnalysisService>();
         services.AddScoped<ISafetyReadService, SafetyReadService>();
         services.AddScoped<IDashboardService, DashboardService>();
+        services.AddScoped<IGuardianPortalReadService, GuardianPortalReadService>();
+
+        // Temporary pickup guardians: separate from permanent guardians, admin-approved, QR + face checked.
+        services.AddSingleton(config.GetSection("TemporaryPickup").Get<TemporaryPickupOptions>() ?? new TemporaryPickupOptions());
+        services.AddScoped<ITemporaryPickupRepository, TemporaryPickupRepository>();
+        services.AddSingleton<ITemporaryPickupTokenService>(sp =>
+            new TemporaryPickupTokenService(sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<JwtSettings>>().Value.Secret));
+        services.AddScoped<ITemporaryPickupService, TemporaryPickupService>();
 
         services.AddScoped<IPhotoRepository, PhotoRepository>();
         services.AddScoped<IPhotoService, PhotoService>();
@@ -88,39 +111,57 @@ public static class DependencyInjection
     }
 
     /// <summary>
-    /// Sends real email through Resend only when an API key is configured
-    /// (Email:Resend:ApiKey, via user-secrets/env — never hardcoded). Without one,
-    /// falls back to the logging sender so the app runs fully in dev — Development
-    /// only, since that sender writes live OTP codes and credentials to the log.
-    /// The login OTP rides the same channel: there is no SMS gateway in the
-    /// approved stack, so it goes to the Guardian's registered email address, and
-    /// only drops to a log line when no provider is configured at all.
+    /// Picks the email provider from <c>Email:Provider</c>: "Resend", "Smtp" or "Log". Empty means Resend when
+    /// <c>Email:Resend:ApiKey</c> is set, otherwise Log. Credentials come from user-secrets or environment
+    /// variables only. The login OTP is sent by the same provider to the Guardian's registered email.
+    /// "Log" writes email bodies (login codes, initial passwords) to the log, so it exists only in Development.
+    /// Switching provider is a configuration change: nothing in the OTP flow knows which one is in use.
     /// </summary>
     private static void RegisterEmailSender(IServiceCollection services, IConfiguration config, bool isDevelopment)
     {
         var emailOptions = config.GetSection("Email").Get<EmailOptions>() ?? new EmailOptions();
         services.AddSingleton(emailOptions);
 
-        var apiKey = config["Email:Resend:ApiKey"];
-        if (string.IsNullOrWhiteSpace(apiKey))
-        {
-            if (!isDevelopment)
-                throw new InvalidOperationException(
-                    "Email:Resend:ApiKey must be configured outside Development — the fallback sender logs live OTP codes and passwords in plaintext.");
+        var apiKey = emailOptions.Resend.ApiKey;
+        var provider = string.IsNullOrWhiteSpace(emailOptions.Provider)
+            ? (string.IsNullOrWhiteSpace(apiKey) ? "Log" : "Resend")
+            : emailOptions.Provider.Trim();
 
-            services.AddScoped<IEmailSender, LoggingEmailSender>();
-            services.AddScoped<IOtpSender, LoggingOtpSender>();
-            return;
+        switch (provider.ToLowerInvariant())
+        {
+            case "resend":
+                if (string.IsNullOrWhiteSpace(apiKey))
+                    throw new InvalidOperationException("Email:Provider is Resend but Email:Resend:ApiKey is not configured.");
+                services.AddHttpClient<IEmailSender, ResendEmailSender>(client =>
+                {
+                    client.BaseAddress = new Uri("https://api.resend.com");
+                    client.Timeout = TimeSpan.FromSeconds(15);
+                    client.DefaultRequestHeaders.Authorization =
+                        new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
+                });
+                break;
+
+            case "smtp":
+                if (string.IsNullOrWhiteSpace(emailOptions.Smtp.Host))
+                    throw new InvalidOperationException("Email:Provider is Smtp but Email:Smtp:Host is not configured.");
+                services.AddScoped<IEmailSender, SmtpEmailSender>();
+                break;
+
+            case "log":
+                if (!isDevelopment)
+                    throw new InvalidOperationException(
+                        "No email provider is configured. Set Email:Provider (Resend or Smtp) with its credentials: the Log provider writes live OTP codes and passwords to the log and is allowed only in Development.");
+                services.AddScoped<IEmailSender, LoggingEmailSender>();
+                services.AddScoped<IOtpSender, LoggingOtpSender>();
+                return;
+
+            default:
+                throw new InvalidOperationException($"Email:Provider '{emailOptions.Provider}' is not supported. Use Resend, Smtp or Log.");
         }
 
-        services.AddHttpClient<IEmailSender, ResendEmailSender>(client =>
-        {
-            client.BaseAddress = new Uri("https://api.resend.com");
-            client.Timeout = TimeSpan.FromSeconds(15);
-            client.DefaultRequestHeaders.Authorization =
-                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
-        });
-        services.AddScoped<IOtpSender, EmailOtpSender>();
+        services.AddScoped<IOtpSender>(sp => new EmailOtpSender(
+            sp.GetRequiredService<IEmailSender>(), sp.GetRequiredService<OtpOptions>(),
+            sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<EmailOtpSender>>(), allowDevCodeLogging: isDevelopment));
     }
 
     /// <summary>

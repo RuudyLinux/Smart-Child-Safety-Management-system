@@ -24,6 +24,7 @@ public class GuardianVerificationConfiguration : IEntityTypeConfiguration<Guardi
         // All-student date-range verification report.
         b.HasIndex(x => x.AttemptedAt);
         b.Property(x => x.Version).IsConcurrencyToken();
+        b.Property(x => x.LayerNotes).HasMaxLength(500);
 
         b.HasOne(x => x.Student)
             .WithMany(x => x.GuardianVerifications)

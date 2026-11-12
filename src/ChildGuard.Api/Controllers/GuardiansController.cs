@@ -1,8 +1,10 @@
+using ChildGuard.Api.Security;
 using ChildGuard.Application.DTOs;
 using ChildGuard.Application.Interfaces;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace ChildGuard.Api.Controllers;
 
@@ -17,6 +19,10 @@ public class GuardiansController : ControllerBase
     private readonly IValidator<AdminUpdateGuardianCredentialsRequest> _credentialsValidator;
     private readonly IValidator<CreateGuardianRequest> _createValidator;
     private readonly IValidator<AdminUpdateGuardianRequest> _updateValidator;
+    private readonly IVerificationService _verification;
+    private readonly IValidator<RegisterFaceRequest> _registerFaceValidator;
+    private readonly IGuardianFaceReferenceService _faceReferences;
+    private readonly IValidator<AddFaceReferenceRequest> _addReferenceValidator;
 
     public GuardiansController(
         IGuardianService guardianService,
@@ -24,14 +30,22 @@ public class GuardiansController : ControllerBase
         IValidator<UpdateGuardianStatusRequest> statusValidator,
         IValidator<AdminUpdateGuardianCredentialsRequest> credentialsValidator,
         IValidator<CreateGuardianRequest> createValidator,
-        IValidator<AdminUpdateGuardianRequest> updateValidator)
+        IValidator<AdminUpdateGuardianRequest> updateValidator,
+        IVerificationService verification,
+        IValidator<RegisterFaceRequest> registerFaceValidator,
+        IGuardianFaceReferenceService faceReferences,
+        IValidator<AddFaceReferenceRequest> addReferenceValidator)
     {
+        _faceReferences = faceReferences;
+        _addReferenceValidator = addReferenceValidator;
         _guardianService = guardianService;
         _photos = photos;
         _statusValidator = statusValidator;
         _credentialsValidator = credentialsValidator;
         _createValidator = createValidator;
         _updateValidator = updateValidator;
+        _verification = verification;
+        _registerFaceValidator = registerFaceValidator;
     }
 
     [HttpGet]
@@ -113,6 +127,53 @@ public class GuardiansController : ControllerBase
 
         var result = await _photos.SaveGuardianPhotoAsync(id, read.Value!, ct);
         return result.Succeeded ? Ok(result.Value) : BadRequest(new { message = result.Error });
+    }
+
+    /// <summary>
+    /// In-person face registration by an admin (school desk camera), alongside the
+    /// guardian's own registration from the app. Registers or replaces the stored
+    /// face; only the embedding is kept, never the captured image.
+    /// </summary>
+    [HttpPost("{id:int}/face-registration")]
+    public async Task<IActionResult> RegisterFace(int id, RegisterFaceRequest request, CancellationToken ct)
+    {
+        await _registerFaceValidator.ValidateAndThrowAsync(request, ct);
+        var result = await _verification.RegisterFaceAsync(id, request, ct);
+        if (result.Succeeded) return Ok(new { message = "Face registered." });
+        return result.Error == "Guardian not found."
+            ? NotFound(new { message = result.Error })
+            : BadRequest(new { message = result.Error });
+    }
+
+    // ---- Reference faces ----
+    // A guardian can have several reference faces (different light, angle, expression). Only metadata
+    // is ever returned: no embedding leaves the server.
+
+    [HttpGet("{id:int}/face-references")]
+    public async Task<IActionResult> GetFaceReferences(int id, CancellationToken ct)
+    {
+        var result = await _faceReferences.ListAsync(id, ct);
+        return result.Succeeded ? Ok(result.Value) : NotFound(new { message = result.Error });
+    }
+
+    [HttpPost("{id:int}/face-references")]
+    [EnableRateLimiting(RateLimitPolicies.FaceAnalyze)]
+    [RequestSizeLimit(FaceUploads.SingleImageRequestLimit)]
+    public async Task<IActionResult> AddFaceReference(int id, AddFaceReferenceRequest request, CancellationToken ct)
+    {
+        await _addReferenceValidator.ValidateAndThrowAsync(request, ct);
+        var result = await _faceReferences.AddAsync(id, request, FaceActor.Admin(this.GetUserId()), ct);
+        if (result.Succeeded) return Ok(result.Value);
+        return result.Error == "Guardian not found."
+            ? NotFound(new { message = result.Error })
+            : BadRequest(new { message = result.Error });
+    }
+
+    [HttpDelete("{id:int}/face-references/{referenceId:int}")]
+    public async Task<IActionResult> RemoveFaceReference(int id, int referenceId, CancellationToken ct)
+    {
+        var result = await _faceReferences.RemoveAsync(id, referenceId, FaceActor.Admin(this.GetUserId()), ct);
+        return result.Succeeded ? Ok(new { message = "Reference photo removed." }) : BadRequest(new { message = result.Error });
     }
 
     [HttpDelete("{id:int}/photo")]
