@@ -224,11 +224,21 @@ app.Run();
 static void WarnOnInsecureProductionSettings(IConfiguration config, Microsoft.Extensions.Logging.ILogger logger)
 {
     var cs = config.GetConnectionString("ChildGuardDb") ?? "";
-    var sslMode = System.Text.RegularExpressions.Regex.Match(cs, @"(?i)ssl\s*mode\s*=\s*([a-z]+)");
-    var verified = sslMode.Success && sslMode.Groups[1].Value.ToLowerInvariant() is "verifyca" or "verifyfull";
-    var hasCa = System.Text.RegularExpressions.Regex.IsMatch(cs, @"(?i)ssl\s*ca\s*=");
-    if (!verified || !hasCa)
-        logger.LogWarning("Database connection is not using SslMode=VerifyFull (or VerifyCA) with SslCa: the server certificate is not verified.");
+    if (ChildGuard.Infrastructure.Persistence.DatabaseProviders.Parse(config["Database:Provider"])
+        == ChildGuard.Infrastructure.Persistence.DatabaseProvider.Postgres)
+    {
+        // Public CAs (Neon, most managed hosts) need no SslCa; the certificate just has to be verified.
+        if (!ChildGuard.Infrastructure.Persistence.PostgresConnectionString.UsesVerifiedTls(cs))
+            logger.LogWarning("Database connection is not using SSL Mode=VerifyFull (or VerifyCA): the server certificate is not verified.");
+    }
+    else
+    {
+        var sslMode = System.Text.RegularExpressions.Regex.Match(cs, @"(?i)ssl\s*mode\s*=\s*([a-z]+)");
+        var verified = sslMode.Success && sslMode.Groups[1].Value.ToLowerInvariant() is "verifyca" or "verifyfull";
+        var hasCa = System.Text.RegularExpressions.Regex.IsMatch(cs, @"(?i)ssl\s*ca\s*=");
+        if (!verified || !hasCa)
+            logger.LogWarning("Database connection is not using SslMode=VerifyFull (or VerifyCA) with SslCa: the server certificate is not verified.");
+    }
     if (config.GetValue<bool>("Otp:LogCodeOnDeliveryFailure"))
         logger.LogWarning("Otp:LogCodeOnDeliveryFailure is set. It is ignored outside Development, but remove it: a logged login code can be used by anyone with log access.");
     if (string.IsNullOrWhiteSpace(config["Biometrics:EncryptionKey"]))

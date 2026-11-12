@@ -49,8 +49,10 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         DatabaseName = DatabasePrefix + Guid.NewGuid().ToString("N")[..12];
         if (Provider == DatabaseProvider.Postgres)
         {
-            _serverConnectionString = Environment.GetEnvironmentVariable("CHILDGUARD_IT_POSTGRES")
-                ?? "Host=127.0.0.1;Port=5432;Username=postgres;SSL Mode=Disable";
+            // Keyword string or postgresql:// URI (e.g. a throwaway Neon branch).
+            _serverConnectionString = PostgresConnectionString.Normalize(
+                Environment.GetEnvironmentVariable("CHILDGUARD_IT_POSTGRES")
+                ?? "Host=127.0.0.1;Port=5432;Username=postgres;SSL Mode=Disable");
             ConnectionString = new NpgsqlConnectionStringBuilder(_serverConnectionString) { Database = DatabaseName }.ConnectionString;
         }
         else

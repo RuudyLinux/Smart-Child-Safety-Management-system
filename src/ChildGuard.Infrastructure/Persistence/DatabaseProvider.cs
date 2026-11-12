@@ -32,6 +32,10 @@ public static class PostgresConnectionString
     private const int DefaultPort = 5432;
     private const int DefaultTimeoutSeconds = 30;
 
+    /// <summary>True when TLS is on and the server certificate is verified (VerifyFull or VerifyCA).</summary>
+    public static bool UsesVerifiedTls(string connectionString) =>
+        new NpgsqlConnectionStringBuilder(Normalize(connectionString)).SslMode is SslMode.VerifyFull or SslMode.VerifyCA;
+
     public static string Normalize(string connectionString)
     {
         if (string.IsNullOrWhiteSpace(connectionString))

@@ -72,4 +72,14 @@ public class PostgresConnectionStringTests
     [Fact]
     public void UnknownProvider_StopsStartup() =>
         Assert.Throws<InvalidOperationException>(() => DatabaseProviders.Parse("sqlite"));
+
+    [Theory]
+    [InlineData(NeonUri, true)]
+    [InlineData("postgres://u:p@db.example.com/app?sslmode=verify-ca", true)]
+    [InlineData("postgres://u:p@db.example.com/app?sslmode=disable", false)]
+    [InlineData("Host=db;Database=x;Username=u;SSL Mode=VerifyFull", true)]
+    [InlineData("Host=db;Database=x;Username=u;SSL Mode=Require", false)]
+    [InlineData("Host=db;Database=x;Username=u", false)]
+    public void UsesVerifiedTls_IsTrueOnlyWhenTheServerCertificateIsChecked(string connection, bool expected) =>
+        Assert.Equal(expected, PostgresConnectionString.UsesVerifiedTls(connection));
 }

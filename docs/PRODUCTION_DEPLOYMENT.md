@@ -12,6 +12,7 @@ the repository. ASP.NET Core maps `Section:Key` to the environment variable
 
 | Setting | Required | Notes |
 |---|---|---|
+| `Database__Provider` | optional | `MySql` (default) or `Postgres`. See §3a. |
 | `ConnectionStrings__ChildGuardDb` | yes | Dedicated DB user with rights on the ChildGuard schema only. See §3 for TLS options. |
 | `Jwt__Secret` | yes | ≥ 64 random bytes. Rotating it signs every user out. |
 | `Email__Provider` | optional | `Resend` (default when an API key is set) or `Smtp`. `Log` is refused outside Development; an unknown value stops startup. |
@@ -68,6 +69,27 @@ shared scanner key, and `AllowedHosts=*`. Treat any of these warnings as a deplo
   their UTC projection, so it cannot apply twice. Set `School__TimeZone` correctly
   **before** that first start.
 * Backups: daily full + binary logs; test a restore.
+
+### 3a. PostgreSQL (Neon free plan or self-hosted)
+
+* Set `Database__Provider=Postgres`. `ConnectionStrings__ChildGuardDb` may be an Npgsql keyword string or a
+  `postgresql://` URI. For a URI, `sslmode=require` is upgraded to `SSL Mode=VerifyFull` (the certificate is
+  verified, not just encrypted). The API logs a warning at startup if TLS is not verified.
+* **Engine:** PostgreSQL 16 or newer; tested on 18. The first migration creates the `citext` extension (a trusted
+  extension, so the database owner can create it). `citext` keeps logins, uniqueness and list order
+  case-insensitive, matching MySQL.
+* **Migrations:** a separate set in `ChildGuard.Infrastructure.Postgres` (the MySQL set is untouched). Apply with the
+  **direct** (non-pooled) connection string: `dotnet ef database update --project src/ChildGuard.Infrastructure.Postgres --startup-project src/ChildGuard.Api`
+  with `Database__Provider=Postgres`. Back up first. Run the API itself on the **pooled** (`-pooler`) string on Neon.
+  Verified on Neon (PostgreSQL 18): migration applied, and the scan/approval concurrency tests pass through both URLs.
+* **Neon free plan limits (verified Nov 2026):** 1 GB storage per project, 100 CU-hours a month, compute suspends
+  after 5 minutes idle (the first request after that waits a few hundred ms; a health check that touches the database
+  every minute would keep it awake and use the hours up), 5 GB egress a month, 6 hours of restore history, no IP
+  allow list. When storage, CU-hours or egress run out, writes fail or compute is suspended; data is not deleted.
+* **Exposure:** a managed Postgres is reachable over the internet with credentials only. Keep the password in the
+  secret store, rotate it if it is ever printed or shared, and never commit it. `.env*` and `.neon` are git-ignored.
+* **Backups:** the 6-hour restore window is not a backup. Take scheduled `pg_dump` backups from the direct
+  connection and test a restore (automated backups arrive in the security/backups phase).
 
 ## 4. Reverse proxy and rate limiting
 

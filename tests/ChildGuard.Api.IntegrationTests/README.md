@@ -7,6 +7,22 @@ RFID duplicate and concurrent scans, scanner credentials, pickup approval/reject
 races, verification expiry, school time zone and late-arrival rules, journey report
 pagination, invalid requests, historical-record delete protection and rate limiting.
 
+## Engines
+
+The same suite runs on MySQL/MariaDB (default) or PostgreSQL. Pick one with `CHILDGUARD_IT_PROVIDER`:
+
+```
+set CHILDGUARD_IT_PROVIDER=postgres
+set CHILDGUARD_IT_POSTGRES=Host=127.0.0.1;Port=5432;Username=postgres;SSL Mode=Disable
+dotnet test tests/ChildGuard.Api.IntegrationTests
+```
+
+`CHILDGUARD_IT_POSTGRES` takes a keyword string or a `postgresql://` URI (for example a throwaway Neon
+branch, which also needs `CHILDGUARD_IT_ALLOW_REMOTE=1`; never point it at a branch with real data). The
+account needs `CREATEDB`. `DatabaseProviderParityTests` pins the behaviour that differs between engines
+(case-insensitive logins/uniqueness/order/search, date and UTC round trips) and checks which engine ran.
+CI runs both engines.
+
 ## Requirements
 
 A local MySQL 8 / MariaDB server. By default the tests connect as
