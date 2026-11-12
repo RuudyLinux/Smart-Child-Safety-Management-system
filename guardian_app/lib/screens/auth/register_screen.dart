@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/theme.dart';
 import '../../core/api_client.dart';
 import '../../providers/auth_provider.dart';
 
@@ -56,8 +57,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
               Container(
                 padding: const EdgeInsets.all(12),
                 margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(color: const Color(0xFFFBEAE9), borderRadius: BorderRadius.circular(8)),
-                child: Text(_error!, style: const TextStyle(color: Color(0xFFB3261E))),
+                decoration: BoxDecoration(color: CgColors.errorSoft, borderRadius: BorderRadius.circular(12), border: Border.all(color: CgColors.errorBorder)),
+                child: Text(_error!, style: const TextStyle(color: CgColors.errorText)),
               ),
             TextField(controller: _nameCtrl, decoration: const InputDecoration(labelText: 'Full Name')),
             const SizedBox(height: 14),

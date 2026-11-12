@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -40,6 +41,11 @@ class ApiException implements Exception {
 /// platform secure store (Keychain on iOS, Keystore-backed on Android) and
 /// attaches it to every request.
 class ApiClient {
+  /// A request that gets no answer fails after this long, so a button never spins forever when the server
+  /// (or its database) is down. The screens turn it into the "could not reach the server" message.
+  static const _timeout = Duration(seconds: 20);
+  static const _uploadTimeout = Duration(seconds: 60);
+
   static const _tokenKey = 'cg_auth_token';
   static const _storage = FlutterSecureStorage();
   String? _cachedToken;
@@ -61,6 +67,23 @@ class ApiClient {
       await _storage.delete(key: _tokenKey);
     } else {
       await _storage.write(key: _tokenKey, value: token);
+    }
+  }
+
+  // ---- Trusted device ----
+  // The secret the server issued when this phone passed the emailed OTP. It survives sign-out on purpose:
+  // signing out is not "forget this phone". It is only replaced by a newer secret, or revoked on the server.
+  static const _deviceKey = 'cg_device_token';
+  String? _cachedDeviceToken;
+
+  Future<String?> get deviceToken async => _cachedDeviceToken ??= await _storage.read(key: _deviceKey);
+
+  Future<void> setDeviceToken(String? value) async {
+    _cachedDeviceToken = value;
+    if (value == null || value.isEmpty) {
+      await _storage.delete(key: _deviceKey);
+    } else {
+      await _storage.write(key: _deviceKey, value: value);
     }
   }
 
@@ -104,33 +127,33 @@ class ApiClient {
       filename: filename,
       contentType: MediaType.parse(contentType),
     ));
-    final streamed = await request.send();
-    final resp = await http.Response.fromStream(streamed);
+    final streamed = await request.send().timeout(_uploadTimeout);
+    final resp = await http.Response.fromStream(streamed).timeout(_uploadTimeout);
     return _handle(resp);
   }
 
   Future<dynamic> delete(String path) async {
-    final resp = await http.delete(_uri(path), headers: await _headers(auth: false)..addAll(await authHeaders()));
+    final resp = await http.delete(_uri(path), headers: await _headers(auth: false)..addAll(await authHeaders())).timeout(_timeout);
     return _handle(resp);
   }
 
   Future<dynamic> get(String path) async {
-    final resp = await http.get(_uri(path), headers: await _headers());
+    final resp = await http.get(_uri(path), headers: await _headers()).timeout(_timeout);
     return _handle(resp);
   }
 
   Future<dynamic> post(String path, Map<String, dynamic> body, {bool auth = true}) async {
-    final resp = await http.post(_uri(path), headers: await _headers(auth: auth), body: jsonEncode(body));
+    final resp = await http.post(_uri(path), headers: await _headers(auth: auth), body: jsonEncode(body)).timeout(_timeout);
     return _handle(resp);
   }
 
   Future<dynamic> put(String path, Map<String, dynamic> body) async {
-    final resp = await http.put(_uri(path), headers: await _headers(), body: jsonEncode(body));
+    final resp = await http.put(_uri(path), headers: await _headers(), body: jsonEncode(body)).timeout(_timeout);
     return _handle(resp);
   }
 
   Future<dynamic> patch(String path, Map<String, dynamic> body) async {
-    final resp = await http.patch(_uri(path), headers: await _headers(), body: jsonEncode(body));
+    final resp = await http.patch(_uri(path), headers: await _headers(), body: jsonEncode(body)).timeout(_timeout);
     return _handle(resp);
   }
 

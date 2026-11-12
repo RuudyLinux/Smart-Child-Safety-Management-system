@@ -26,11 +26,18 @@ class CgEmptyState extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(color: CgColors.surface2, borderRadius: BorderRadius.circular(18)),
-                child: Icon(icon, size: 30, color: CgColors.textMuted2),
+              _Floating(
+                child: Container(
+                  width: 76,
+                  height: 76,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(colors: [Color(0xFFE6F0FF), CgColors.lavenderSoft]),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: Colors.white),
+                    boxShadow: CgShadows.glow(CgColors.primary.withValues(alpha: 0.6)),
+                  ),
+                  child: Icon(icon, size: 34, color: CgColors.primary),
+                ),
               ),
               const SizedBox(height: 16),
               Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: CgColors.text)),
@@ -84,14 +91,15 @@ class _ShimmerCardState extends State<_ShimmerCard> with SingleTickerProviderSta
         builder: (context, _) {
           final t = _controller.value;
           return Container(
-            height: 84,
+            height: 92,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: CgColors.border),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: CgColors.glassBorder),
+              boxShadow: CgShadows.sm,
               gradient: LinearGradient(
                 begin: Alignment(-1 + t * 3, 0),
                 end: Alignment(1 + t * 3, 0),
-                colors: const [CgColors.surface2, Color(0xFFE8EDF3), CgColors.surface2],
+                colors: const [Color(0xCCEDF1F7), Color(0xF2FFFFFF), Color(0xCCEDF1F7)],
               ),
             ),
           );
@@ -113,10 +121,15 @@ class CgErrorState extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(color: CgColors.errorSoft, borderRadius: BorderRadius.circular(18)),
-                child: const Icon(Icons.wifi_off_rounded, size: 30, color: CgColors.error),
+                width: 76,
+                height: 76,
+                decoration: BoxDecoration(
+                  color: CgColors.errorSoft,
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: Colors.white),
+                  boxShadow: CgShadows.glow(CgColors.error.withValues(alpha: 0.5)),
+                ),
+                child: const Icon(Icons.wifi_off_rounded, size: 34, color: CgColors.errorText),
               ),
               const SizedBox(height: 16),
               const Text('Could not load this', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: CgColors.text)),
@@ -142,12 +155,58 @@ class CgSectionHeader extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              title.toUpperCase(),
-              style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, letterSpacing: 0.6, color: CgColors.textMuted),
+            Row(
+              children: [
+                Container(
+                  width: 4,
+                  height: 14,
+                  decoration: BoxDecoration(gradient: CgColors.brandGradient, borderRadius: BorderRadius.circular(4)),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  title.toUpperCase(),
+                  style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, letterSpacing: 0.8, color: CgColors.textMuted),
+                ),
+              ],
             ),
             if (trailing != null) trailing!,
           ],
         ),
+      );
+}
+
+/// Gentle hover-in-place for empty-state art.
+class _Floating extends StatefulWidget {
+  final Widget child;
+  const _Floating({required this.child});
+  @override
+  State<_Floating> createState() => _FloatingState();
+}
+
+class _FloatingState extends State<_Floating> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 2600));
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) {
+      _c.stop();
+    } else if (!_c.isAnimating) {
+      _c.repeat(reverse: true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+        animation: _c,
+        builder: (context, child) =>
+            Transform.translate(offset: Offset(0, -5 * Curves.easeInOut.transform(_c.value)), child: child),
+        child: widget.child,
       );
 }

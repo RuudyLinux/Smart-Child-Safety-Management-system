@@ -85,7 +85,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     });
     if (ok) {
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('A new code has been sent to your contact number.')));
+          const SnackBar(content: Text('A new code has been sent to your email.')));
     }
   }
 
@@ -108,15 +108,18 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         child: ListView(
           padding: const EdgeInsets.all(24),
           children: [
-            const Text('Enter the code we sent to your registered contact number.',
-                style: TextStyle(color: CgColors.textMuted)),
+            Text(
+                challenge?.maskedEmail != null
+                    ? 'Enter the code we sent to your registered email (${challenge!.maskedEmail}).'
+                    : 'Enter the code we sent to your registered email address.',
+                style: const TextStyle(color: CgColors.textMuted)),
             const SizedBox(height: 20),
             if (auth.lastError != null)
               Container(
                 padding: const EdgeInsets.all(12),
                 margin: const EdgeInsets.only(bottom: 16),
                 decoration: BoxDecoration(color: CgColors.errorBg, borderRadius: BorderRadius.circular(8)),
-                child: Text(auth.lastError!, style: const TextStyle(color: CgColors.error)),
+                child: Text(auth.lastError!, style: const TextStyle(color: CgColors.errorText)),
               ),
             if (expired && auth.lastError == null)
               Container(
@@ -124,7 +127,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                 margin: const EdgeInsets.only(bottom: 16),
                 decoration: BoxDecoration(color: CgColors.errorBg, borderRadius: BorderRadius.circular(8)),
                 child: const Text('This code has expired. Request a new one.',
-                    style: TextStyle(color: CgColors.error)),
+                    style: TextStyle(color: CgColors.errorText)),
               ),
             TextField(
               controller: _codeCtrl,

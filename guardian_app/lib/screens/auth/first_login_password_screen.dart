@@ -74,7 +74,7 @@ class _FirstLoginPasswordScreenState extends State<FirstLoginPasswordScreen> {
                 padding: const EdgeInsets.all(12),
                 margin: const EdgeInsets.only(bottom: 16),
                 decoration: BoxDecoration(color: CgColors.errorBg, borderRadius: BorderRadius.circular(8)),
-                child: Text(error, style: const TextStyle(color: CgColors.error)),
+                child: Text(error, style: const TextStyle(color: CgColors.errorText)),
               ),
             TextField(
               controller: _newPasswordCtrl,

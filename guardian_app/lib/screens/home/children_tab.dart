@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../core/theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/cg_child_card.dart';
 import '../../widgets/cg_states.dart';
+import '../../widgets/cg_ui.dart';
 import 'student_detail_screen.dart';
 
 /// All linked children, one card each — the full roster this guardian can see.
@@ -16,16 +16,19 @@ class ChildrenTab extends StatelessWidget {
     final profile = auth.profile;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Children')),
-      body: profile == null
+      body: SafeArea(
+        bottom: false,
+        child: profile == null
           ? const CgLoadingState()
           : RefreshIndicator(
               onRefresh: () => context.read<AuthProvider>().refreshProfile(),
               child: profile.students.isEmpty
                   ? ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
                       children: const [
-                        SizedBox(height: 80),
+                        CgPageHead(title: 'Children', subtitle: 'Students linked to your account.'),
+                        SizedBox(height: 60),
                         CgEmptyState(
                           icon: Icons.family_restroom_rounded,
                           title: 'No children linked yet',
@@ -34,11 +37,13 @@ class ChildrenTab extends StatelessWidget {
                       ],
                     )
                   : ListView(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
                       physics: const AlwaysScrollableScrollPhysics(),
                       children: [
-                        Text('${profile.students.length} linked', style: const TextStyle(color: CgColors.textMuted, fontSize: 12.5)),
-                        const SizedBox(height: 10),
+                        CgPageHead(
+                          title: 'Children',
+                          subtitle: '${profile.students.length} linked to your account · tap a child for details, transport and reports.',
+                        ),
                         ...profile.students.map((s) => Padding(
                               padding: const EdgeInsets.only(bottom: 10),
                               child: CgChildCard(
@@ -52,6 +57,7 @@ class ChildrenTab extends StatelessWidget {
                       ],
                     ),
             ),
+      ),
     );
   }
 }

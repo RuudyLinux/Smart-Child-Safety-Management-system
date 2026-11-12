@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../core/theme.dart';
 import '../models/models.dart';
 import 'cg_avatar.dart';
+import 'cg_glass.dart';
 
 /// A child's live safety picture in one tappable card: photo, name, current
 /// status, check-in time and bus — the core unit of the Guardian app's home
@@ -23,11 +24,12 @@ class CgChildCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final status = student.safetyStatus;
-    return Card(
-      child: InkWell(
-        onTap: onTap,
+    return CgPressable(
+      onTap: onTap,
+      child: CgGlass(
+        padding: EdgeInsets.zero,
         child: Padding(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(16),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -35,7 +37,7 @@ class CgChildCard extends StatelessWidget {
                 name: student.fullName,
                 photoUrl: photoUrl,
                 headers: photoHeaders,
-                size: 54,
+                size: 58,
                 square: true,
                 statusDot: CgSafety.color(status),
               ),
@@ -48,7 +50,7 @@ class CgChildCard extends StatelessWidget {
                       children: [
                         Expanded(
                           child: Text(student.fullName,
-                              style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w800, color: CgColors.text)),
+                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: CgColors.text, letterSpacing: -0.2)),
                         ),
                         const Icon(Icons.chevron_right_rounded, color: CgColors.textMuted2, size: 20),
                       ],
@@ -64,7 +66,7 @@ class CgChildCard extends StatelessWidget {
                     _factRow(
                       Icons.event_available_rounded,
                       student.presentToday && student.checkInTime != null
-                          ? 'Checked in at ${student.checkInTime}'
+                          ? 'Checked in at ${formatCheckInTime(student.checkInTime)}'
                           : 'Not checked in today',
                     ),
                     if (student.busNumber != null) ...[
@@ -114,13 +116,16 @@ class CgChildChip extends StatelessWidget {
   Widget build(BuildContext context) => GestureDetector(
         onTap: onTap,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
+          duration: CgMotion.base,
+          curve: CgMotion.ease,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           margin: const EdgeInsets.only(right: 8),
           decoration: BoxDecoration(
-            color: selected ? CgColors.primary : CgColors.card,
+            color: selected ? null : CgColors.glassStrong,
+            gradient: selected ? CgColors.brandGradient : null,
             borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: selected ? CgColors.primary : CgColors.border),
+            border: Border.all(color: selected ? Colors.white.withValues(alpha: 0.4) : CgColors.border),
+            boxShadow: selected ? CgShadows.glow() : CgShadows.sm,
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,

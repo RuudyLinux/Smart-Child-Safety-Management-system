@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../core/theme.dart';
 import '../models/models.dart';
+import 'cg_glass.dart';
 
 IconData _eventIcon(String type) => switch (type) {
       'BusBoarding' => Icons.directions_bus_rounded,
@@ -32,7 +33,8 @@ class CgJourneyTimeline extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        for (var i = 0; i < sorted.length; i++) _row(sorted[i], isLast: i == sorted.length - 1),
+        for (var i = 0; i < sorted.length; i++)
+          CgFadeIn(index: i, offset: 10, child: _row(sorted[i], isLast: i == sorted.length - 1)),
       ],
     );
   }
@@ -44,12 +46,31 @@ class CgJourneyTimeline extends StatelessWidget {
             Column(
               children: [
                 Container(
-                  width: 32,
-                  height: 32,
-                  decoration: const BoxDecoration(color: CgColors.successSoft, shape: BoxShape.circle),
-                  child: Icon(_eventIcon(e.eventType), size: 16, color: CgColors.success),
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: CgColors.successSoft,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2),
+                    boxShadow: [BoxShadow(color: CgColors.success.withValues(alpha: 0.25), blurRadius: 10, offset: const Offset(0, 3))],
+                  ),
+                  child: Icon(_eventIcon(e.eventType), size: 17, color: CgColors.successText),
                 ),
-                if (!isLast) Expanded(child: Container(width: 2, color: CgColors.border)),
+                if (!isLast)
+                  Expanded(
+                    child: Container(
+                      width: 2,
+                      margin: const EdgeInsets.symmetric(vertical: 2),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [CgColors.success.withValues(alpha: 0.45), CgColors.border],
+                        ),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
               ],
             ),
             const SizedBox(width: 12),

@@ -28,7 +28,7 @@ class PickupVerificationScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(children: [
-                    Icon(registered ? Icons.check_circle : Icons.error_outline, color: registered ? CgColors.success : CgColors.warning),
+                    Icon(registered ? Icons.check_circle : Icons.error_outline, color: registered ? CgColors.successText : CgColors.warning),
                     const SizedBox(width: 8),
                     Text(registered ? 'Your face is registered' : 'Face not registered yet', style: const TextStyle(fontWeight: FontWeight.w600)),
                   ]),
@@ -68,7 +68,7 @@ class PickupVerificationScreen extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            CircleAvatar(radius: 12, backgroundColor: CgColors.primaryLight, child: Text(n, style: const TextStyle(fontSize: 12, color: CgColors.primary, fontWeight: FontWeight.w700))),
+            CircleAvatar(radius: 12, backgroundColor: CgColors.primaryLight, child: Text(n, style: const TextStyle(fontSize: 12, color: CgColors.primaryDeep, fontWeight: FontWeight.w800))),
             const SizedBox(width: 10),
             Expanded(child: Text(text)),
           ],

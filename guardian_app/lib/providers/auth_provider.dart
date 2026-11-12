@@ -52,6 +52,7 @@ class AuthProvider extends ChangeNotifier {
         profile = await api.getProfile();
         status = AuthStatus.authenticated;
         unawaited(_pushService.registerForPushNotifications());
+        unawaited(api.enrolTrustedDeviceIfNeeded());
       } catch (_) {
         await client.setToken(null);
         status = AuthStatus.unauthenticated;
@@ -60,13 +61,29 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Step 1: validate credentials and raise an OTP challenge. No session yet.
-  Future<bool> login(String contactNumber, String password) async {
-    return _guard(() async {
-      challenge = await api.login(contactNumber, password);
+  /// Step 1: validate credentials. Usually raises an OTP challenge (no session yet). On a phone the server
+  /// already trusts it finishes here instead: authenticated, or a first-login reset ticket. Returns the stage
+  /// the server chose, or null when the attempt failed (the reason is in [lastError]).
+  Future<GuardianAuthStage?> login(String contactNumber, String password) async {
+    GuardianAuthStage? stage;
+    await _guard(() async {
+      final result = await api.login(contactNumber, password);
+      stage = result.stage;
       resetTicket = null;
+      challenge = null;
+      switch (result.stage) {
+        case GuardianAuthStage.otpRequired:
+          challenge = result.challenge;
+        case GuardianAuthStage.passwordResetRequired:
+          resetTicket = result.auth?.resetTicket;
+        case GuardianAuthStage.authenticated:
+          profile = await api.getProfile();
+          status = AuthStatus.authenticated;
+          unawaited(_pushService.registerForPushNotifications());
+      }
       return true;
     });
+    return stage;
   }
 
   /// Step 2: verify the code. Returns the stage the server put the flow in.
