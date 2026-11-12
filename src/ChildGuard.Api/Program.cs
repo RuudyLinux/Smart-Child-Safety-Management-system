@@ -16,10 +16,13 @@ using Serilog;
 var builder = WebApplication.CreateBuilder(args);
 
 // ---- Logging ----
-builder.Host.UseSerilog((ctx, cfg) => cfg
-    .ReadFrom.Configuration(ctx.Configuration)
-    .WriteTo.Console()
-    .WriteTo.File("logs/childguard-api-.log", rollingInterval: RollingInterval.Day));
+builder.Host.UseSerilog((ctx, cfg) =>
+{
+    cfg.ReadFrom.Configuration(ctx.Configuration).WriteTo.Console();
+    // Containers have an ephemeral disk, so the rolling file is opt-out: LogToFile=false there.
+    if (ctx.Configuration.GetValue("LogToFile", true))
+        cfg.WriteTo.File("logs/childguard-api-.log", rollingInterval: RollingInterval.Day);
+});
 
 // ---- Services ----
 builder.Services.AddControllers()
@@ -105,20 +108,10 @@ builder.Services.AddAuthorizationBuilder()
 // Behind a proxy/load balancer every request arrives from the proxy's address, which
 // would put all callers in one rate-limit bucket. X-Forwarded-For is only trusted
 // from the proxies listed here — never from arbitrary clients, who could forge it.
-var knownProxies = builder.Configuration.GetSection("ReverseProxy:KnownProxies").Get<string[]>() ?? [];
-var knownNetworks = builder.Configuration.GetSection("ReverseProxy:KnownNetworks").Get<string[]>() ?? [];
-var behindProxy = knownProxies.Length > 0 || knownNetworks.Length > 0;
+var reverseProxy = ReverseProxySettings.From(builder.Configuration);
+var behindProxy = reverseProxy.Enabled;
 if (behindProxy)
-{
-    builder.Services.Configure<ForwardedHeadersOptions>(options =>
-    {
-        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-        options.KnownProxies.Clear();
-        options.KnownIPNetworks.Clear();
-        foreach (var proxy in knownProxies) options.KnownProxies.Add(System.Net.IPAddress.Parse(proxy));
-        foreach (var network in knownNetworks) options.KnownIPNetworks.Add(System.Net.IPNetwork.Parse(network));
-    });
-}
+    builder.Services.Configure<ForwardedHeadersOptions>(reverseProxy.Apply);
 
 // ---- Rate limiting (brute-force / scan-flood protection) ----
 var limits = builder.Configuration.GetSection("RateLimiting");

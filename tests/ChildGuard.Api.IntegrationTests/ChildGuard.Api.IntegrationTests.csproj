@@ -22,6 +22,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\ChildGuard.Api\ChildGuard.Api.csproj" />
     <ProjectReference Include="..\..\src\ChildGuard.Infrastructure\ChildGuard.Infrastructure.csproj" />
+    <!-- Aliased: AdminWeb and the API both define a top-level `Program`. -->
+    <ProjectReference Include="..\..\src\ChildGuard.AdminWeb\ChildGuard.AdminWeb.csproj" Aliases="AdminWebAssembly" />
   </ItemGroup>
 
 </Project>

@@ -19,6 +19,13 @@ public class HealthController : ControllerBase
     private readonly ChildGuardDbContext _db;
     public HealthController(ChildGuardDbContext db) => _db = db;
 
+    /// <summary>
+    /// Liveness only: answers without touching the database. Platform health checks poll this, so they
+    /// never wake a sleeping serverless database (Neon free plan has 100 compute-hours a month).
+    /// </summary>
+    [HttpGet("live")]
+    public IActionResult Live() => Ok(new { status = "ok" });
+
     [HttpGet]
     public async Task<IActionResult> Get(CancellationToken ct)
     {

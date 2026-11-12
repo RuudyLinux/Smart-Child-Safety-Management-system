@@ -1,5 +1,7 @@
 using ChildGuard.AdminWeb.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -8,17 +10,42 @@ builder.Services.AddControllersWithViews(options => options.Filters.Add<ApiSessi
         options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
 builder.Services.AddHttpContextAccessor();
 
+// Behind a TLS-terminating proxy (Render) the app only sees http unless forwarded headers are honoured.
+var reverseProxy = ReverseProxySettings.From(builder.Configuration);
+if (reverseProxy.Enabled)
+    builder.Services.Configure<ForwardedHeadersOptions>(reverseProxy.Apply);
+
+// Keys for cookies/antiforgery. On a host with an ephemeral disk they must come from configuration.
+var dataProtection = builder.Services.AddDataProtection().SetApplicationName("ChildGuard.AdminWeb");
+var keyRingXml = builder.Configuration["DataProtection:KeyRingXml"];
+if (!string.IsNullOrWhiteSpace(keyRingXml))
+    dataProtection.AddKeyManagementOptions(o => o.XmlRepository = new ConfiguredKeyRingRepository(keyRingXml));
+
 // Lets fetch()-based JSON posts (the pickup desk) carry the antiforgery token
 // as a header instead of a form field, read from the <meta name="csrf-token">
 // in _Layout.cshtml.
-builder.Services.AddAntiforgery(options => options.HeaderName = "X-CSRF-TOKEN");
+builder.Services.AddAntiforgery(options =>
+{
+    options.HeaderName = "X-CSRF-TOKEN";
+    // Same rule as the sign-in cookie: https only, except plain-http local development.
+    options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
+        ? CookieSecurePolicy.SameAsRequest
+        : CookieSecurePolicy.Always;
+});
+
+// TempData (flash messages) travels in its own cookie; it gets the same https-only rule.
+builder.Services.Configure<Microsoft.AspNetCore.Mvc.CookieTempDataProviderOptions>(options =>
+    options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
+        ? CookieSecurePolicy.SameAsRequest
+        : CookieSecurePolicy.Always);
 
 builder.Services.AddTransient<JwtForwardingHandler>();
 var apiBaseUrl = builder.Configuration["Api:BaseUrl"] ?? "http://localhost:5275";
 builder.Services.AddHttpClient<ApiClient>(client =>
 {
     client.BaseAddress = new Uri(apiBaseUrl);
-    client.Timeout = TimeSpan.FromSeconds(30);
+    // A sleeping API (free hosting) needs about a minute to wake: raise this there.
+    client.Timeout = TimeSpan.FromSeconds(builder.Configuration.GetValue("Api:TimeoutSeconds", 30));
 }).AddHttpMessageHandler<JwtForwardingHandler>();
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
@@ -32,6 +59,10 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.Cookie.Name = "ChildGuardAdminAuth";
         options.Cookie.HttpOnly = true;
         options.Cookie.SameSite = SameSiteMode.Lax;
+        // Only ever over https outside local development (plain http there keeps `dotnet run` usable).
+        options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
+            ? CookieSecurePolicy.SameAsRequest
+            : CookieSecurePolicy.Always;
         // fetch() calls cannot follow a redirect to an HTML sign-in page; answer them
         // 401 so the page script sends the browser to sign-in instead.
         options.Events.OnRedirectToLogin = context =>
@@ -49,6 +80,11 @@ ChildGuard.AdminWeb.Services.SchoolTime.Configure(builder.Configuration["School:
 
 var app = builder.Build();
 
+if (reverseProxy.Enabled)
+    app.UseForwardedHeaders(); // first, so the https redirect and Secure cookies see the real scheme
+if (!app.Environment.IsDevelopment() && string.IsNullOrWhiteSpace(keyRingXml))
+    app.Logger.LogWarning("DataProtection:KeyRingXml is not set: keys live on local disk, so admins are signed out whenever the host's disk is reset.");
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Account/Error");
@@ -61,6 +97,9 @@ app.UseRouting();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Platform health check: no API call, no database.
+app.MapGet("/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
 
 app.MapControllerRoute(
     name: "default",

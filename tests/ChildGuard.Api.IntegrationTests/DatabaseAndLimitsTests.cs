@@ -51,10 +51,11 @@ public class DatabaseTests : IClassFixture<ApiFactory>
         var child = await _api.NewChildAsync();
         await admin.ScanOkAsync(child, JourneyEventType.SchoolArrival);
 
+        // Identifiers are constants quoted for the engine; the id is a parameter.
+        var deleteStudent = $"DELETE FROM {_api.Q("Students")} WHERE {_api.Q("StudentId")} = {{0}}";
         await using (var db = _api.NewDb())
         {
-            await Assert.ThrowsAnyAsync<Exception>(() =>
-                db.Database.ExecuteSqlRawAsync($"DELETE FROM {_api.Q("Students")} WHERE {_api.Q("StudentId")} = {{0}}", child.StudentId));
+            await Assert.ThrowsAnyAsync<Exception>(() => db.Database.ExecuteSqlRawAsync(deleteStudent, child.StudentId));
         }
 
         await using var check = _api.NewDb();
@@ -70,9 +71,9 @@ public class DatabaseTests : IClassFixture<ApiFactory>
         var child = await _api.NewChildAsync();
         await admin.VerifyFaceAsync(_api, child, match: false);
 
+        var deleteGuardian = $"DELETE FROM {_api.Q("Guardians")} WHERE {_api.Q("GuardianId")} = {{0}}";
         await using var db = _api.NewDb();
-        await Assert.ThrowsAnyAsync<Exception>(() =>
-            db.Database.ExecuteSqlRawAsync($"DELETE FROM {_api.Q("Guardians")} WHERE {_api.Q("GuardianId")} = {{0}}", child.GuardianId));
+        await Assert.ThrowsAnyAsync<Exception>(() => db.Database.ExecuteSqlRawAsync(deleteGuardian, child.GuardianId));
         Assert.Equal(1, await db.GuardianVerifications.CountAsync(v => v.GuardianId == child.GuardianId));
     }
 
