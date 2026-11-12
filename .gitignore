@@ -38,3 +38,24 @@ Thumbs.db
 
 # --- Local tooling artifacts ---
 .playwright-mcp/
+
+# --- Playwright E2E ---
+tests/e2e/node_modules/
+# Test-stack build, logs, inventory and state (holds the throwaway admin password).
+tests/e2e/.e2e/
+tests/e2e/playwright-report/
+tests/e2e/test-results/
+
+# Brainstorm mockups
+.superpowers/
+
+# Face evaluation: datasets and caches are never committed
+face-service/eval/datasets/
+face-service/eval/cache/
+
+# Local database backups (contain personal data)
+backups/
+
+# E2E auth state (session tokens) and failure evidence (screens/traces may show personal data)
+tests/e2e/.auth/
+tests/e2e/reports/evidence/

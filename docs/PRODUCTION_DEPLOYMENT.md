@@ -14,8 +14,19 @@ the repository. ASP.NET Core maps `Section:Key` to the environment variable
 |---|---|---|
 | `ConnectionStrings__ChildGuardDb` | yes | Dedicated DB user with rights on the ChildGuard schema only. See §3 for TLS options. |
 | `Jwt__Secret` | yes | ≥ 64 random bytes. Rotating it signs every user out. |
-| `Email__Resend__ApiKey` | yes | The API refuses to start outside Development without it (OTP/credential mail). |
+| `Email__Provider` | optional | `Resend` (default when an API key is set) or `Smtp`. `Log` is refused outside Development; an unknown value stops startup. |
+| `Email__From` | yes | Must be on a domain verified with the provider. `onboarding@resend.dev` only delivers to the Resend account owner and is for testing. |
+| `Email__Resend__ApiKey` | yes with Resend | The API refuses to start outside Development without a working provider (OTP/credential mail). |
+| `Email__Resend__TestRecipient` | testing only | Resend account email; while `Email__From` is `@resend.dev`, all mail is redirected here. Leave unset in production. |
+| `Email__Smtp__Host`, `Port`, `UseSsl`, `Username`, `Password` | with Smtp | e.g. Gmail with an app password. Secrets only. |
+| `Otp__TrustedDeviceDays` | optional | Default 90. Days a phone stays OTP-exempt after its last use. `0` disables trusted phones: every sign-in needs the emailed code. Revoked on password change/reset and admin-issued passwords. |
+| `Otp__LogCodeOnDeliveryFailure` | never | Ignored outside Development; the API warns at startup if it is set. Codes, keys and SMTP passwords are never logged in production. |
 | `FaceService__BaseUrl`, `FaceService__ApiKey` | yes | Face service must not be reachable from the internet; set `FACE_SERVICE_KEY` on that side too. |
+| `Biometrics__EncryptionKey` | strongly recommended | Base64 of 32 random bytes. New face embeddings are AES-256-GCM encrypted with it (`enc:v1:<keyId>:...`); rows written before it was set stay readable. **Without it embeddings are stored as plain JSON and the API logs a startup warning.** Keep a backup in the secret store: losing the key makes encrypted embeddings unreadable. Rotate by setting a new `Biometrics__EncryptionKey` + `Biometrics__EncryptionKeyId` and listing the old one as `Biometrics__PreviousKeys__<id>`. `Biometrics__MaxReferencesPerGuardian` (default 5) caps reference photos. |
+| `Verification__RequireLiveness` | decision | Default `false`: a captured or uploaded photo that matches an authorised guardian can be approved by an administrator without the live check. Set `true` to require a passed live check for every pickup. While `false`, a held-up photo of the guardian can pass, and the original `face-verify` path also produces approvable records. A live check that was run and failed is never approvable either way. |
+| `FaceVerification__*` | optional | `SessionMinutes` (10), `ChallengeSeconds` (30), `MinLiveSeconds` (2), `MaxLiveAttempts` (5), `MinFrames`/`MaxFrames` (6/16), `PassiveMinRealFraction` (0.8), `PassiveMinMeanReal` (0.6), `AmbiguityMargin` (0 = off). Thresholds are uncalibrated defaults; see `docs/face-evaluation/`. |
+| `RateLimiting__FaceAnalyzePerMinute`, `RateLimiting__LiveVerifyPerMinute` | optional | Per signed-in admin; defaults 60 and 20. |
+| `TemporaryPickup__MaxWindowHours`, `TemporaryPickup__MaxAdvanceDays`, `TemporaryPickup__StartGraceMinutes` | optional | Defaults 24, 14 and 10. The window can be lowered but never raised above 24 hours (hard ceiling in code). The QR token key is derived from `Jwt__Secret`, so rotating that secret also invalidates every issued temporary-pickup QR. |
 | `Firebase__CredentialsPath` | recommended | Push notifications; without it guardians only get in-app notifications. |
 | `SeedAdmin__Email`, `SeedAdmin__Password` | first boot only | Used only while the Admins table is empty. Change the password after first sign-in and remove the variables. |
 | `School__TimeZone` | yes | IANA id, e.g. `Asia/Kolkata`. Must be identical in the API **and** AdminWeb. Startup fails on an unknown id. |
@@ -25,8 +36,8 @@ the repository. ASP.NET Core maps `Section:Key` to the environment variable
 | `SeedDemoData` | must be unset/false | Demo data is ignored outside Development anyway. |
 
 `ASPNETCORE_ENVIRONMENT` must be `Production`. In Production the API logs a warning at
-startup for: unverified database TLS, a configured shared scanner key, and
-`AllowedHosts=*`. Treat any of these warnings as a deployment failure.
+startup for: unverified database TLS, a missing `Biometrics__EncryptionKey`, a configured
+shared scanner key, and `AllowedHosts=*`. Treat any of these warnings as a deployment failure.
 
 ## 2. HTTPS
 
@@ -89,6 +100,21 @@ and are not affected by NAT.
   Notifications capability and `UIBackgroundModes: remote-notification`, or accept
   in-app notifications only.
 
+## 6a. Face data and the face service
+
+Face images, webcam frames and (decrypted) embeddings cross the API-to-face-service connection, so treat it like the database link.
+
+* Run the face service on the same host or a private network; never expose it to the internet. Set `FACE_SERVICE_KEY` on the service and
+  `FaceService__ApiKey` on the API. If the two are not on one host, put TLS in front of the face service.
+* The face service needs PyTorch (`torch`, CPU build) and about 4 MB of anti-spoofing weights downloaded once from GitHub on first start
+  (then it works offline). Check `GET /health`: `anti_spoofing` must be `true`. While it is `false` every live check fails (by design).
+* Set `Biometrics__EncryptionKey` before registering production faces, and back the key up: a lost key makes encrypted embeddings unreadable.
+  Faces registered before a key was set stay readable as plain rows until they are registered again; encrypting them is a data rewrite
+  that needs an explicit decision.
+* No verification photo or webcam frame is written to disk or the database; they exist in memory for one request. Audit rows
+  (`FaceAuditLogs`) hold codes and scores only. No purge is configured: keep or archive audit rows per your retention policy.
+* Reception staff are administrators in this system (there is no narrower role); biometric management and the verification log are visible to every admin.
+
 ## 7. Verification before go-live
 
 1. `dotnet test` — unit tests and API integration tests (integration tests need a local
@@ -96,3 +122,19 @@ and are not affected by NAT.
 2. Startup log shows none of the warnings listed in §1.
 3. Sign in to AdminWeb over HTTPS; scan a test card with a scanner key; approve a test
    pickup; check times shown match the school's wall clock.
+
+
+## Temporary pickup guardians: rollout
+
+Adds three tables (`TemporaryPickupAuthorizations`, `TemporaryPickupPhotos`, `TemporaryPickupAuditEntries`) through migration `AddTemporaryPickupGuardians`. It only creates tables and indexes: no drops, no data rewrites, existing tables untouched; foreign keys are RESTRICT like every other history table.
+
+1. Back up the production database first (`mysqldump --single-transaction childguard_db > backup.sql`) and keep it outside the repository.
+2. Review the script: `dotnet ef migrations script <previous migration> AddTemporaryPickupGuardians --idempotent --project src/ChildGuard.Infrastructure --startup-project src/ChildGuard.Api`.
+3. Apply it with the deploy account (`dotnet ef database update ...`), then deploy the API, AdminWeb and the new Guardian app build together.
+4. Rollback of the schema is `Down()` (drops the three new tables, and only them); the previous API and app builds ignore the tables and keep working.
+
+## Trusted phones (OTP once per device): rollout
+
+Adds one table, `GuardianTrustedDevices` (migration `AddGuardianTrustedDevices`): a create-table and two indexes, nothing dropped or rewritten. Back up, review and apply it like the temporary-pickup migration, **before** deploying the new API: an API that stores trusted devices without the table fails the OTP verify step.
+
+No existing guardian is marked trusted (that would need a bulk data change, and trust belongs to a phone, not an account). An already signed-in phone enrols itself on its next app start; every other phone asks for the emailed code once, then stops asking. Older app builds are unaffected: they never send a device token, so they keep the OTP on every sign-in. Rollback: `Otp__TrustedDeviceDays=0` switches the shortcut off at once; the migration's `Down()` drops only this table.

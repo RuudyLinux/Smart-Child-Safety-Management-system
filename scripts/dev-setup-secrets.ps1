@@ -12,6 +12,10 @@
   * SeedAdmin:Email / SeedAdmin:Password missing -> generates them (used only when
     the Admins table is empty).
   * Jwt:Secret missing                       -> generates a 64-byte random secret.
+  * -EnableBiometricEncryption               -> generates Biometrics:EncryptionKey (32 random bytes,
+    base64) if missing, so new face embeddings are stored encrypted. Opt-in: without the key
+    new embeddings are stored as plain JSON. Back the key up: losing it makes the encrypted
+    embeddings unreadable (the faces would need registering again).
 
   Read the values later with:  dotnet user-secrets list --project src\ChildGuard.Api
   Development only. Production secrets come from environment variables / a vault.
@@ -19,7 +23,8 @@
 param(
     [string]$MySql = "C:\xampp\mysql\bin\mysql.exe",
     [string]$RootUser = "root",
-    [switch]$RotateDbPassword
+    [switch]$RotateDbPassword,
+    [switch]$EnableBiometricEncryption
 )
 
 $ErrorActionPreference = "Stop"
@@ -85,4 +90,11 @@ if (-not $secrets.ContainsKey("SeedAdmin:Password")) {
 if (-not $secrets.ContainsKey("Jwt:Secret")) {
     Set-Secret "Jwt:Secret" (New-Secret 64)
     Write-Host "      [OK] JWT signing secret generated and stored in user-secrets."
+}
+
+if ($EnableBiometricEncryption -and -not $secrets.ContainsKey("Biometrics:EncryptionKey")) {
+    $key = New-Object byte[] 32
+    [System.Security.Cryptography.RandomNumberGenerator]::Fill($key)
+    Set-Secret "Biometrics:EncryptionKey" ([Convert]::ToBase64String($key))
+    Write-Host "      [OK] Biometric encryption key generated and stored in user-secrets. Back it up."
 }
