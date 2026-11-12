@@ -23,11 +23,25 @@ public static class DependencyInjection
         if (string.IsNullOrWhiteSpace(connectionString))
             throw new InvalidOperationException("Missing ConnectionStrings:ChildGuardDb configuration.");
 
-        // Detect once at startup. Inside the options lambda AutoDetect runs for every
-        // DbContext instance — i.e. an extra connection + SELECT VERSION() per request.
-        var serverVersion = ServerVersion.AutoDetect(connectionString);
-        services.AddDbContext<ChildGuardDbContext>(options =>
-            options.UseMySql(connectionString, serverVersion));
+        // Database:Provider picks the engine (default MySql, so existing deployments are unchanged).
+        // Each provider has its own migration set: MySQL's live in this assembly, PostgreSQL's in
+        // ChildGuard.Infrastructure.Postgres (loaded by name so this project does not reference it).
+        var provider = DatabaseProviders.Parse(config["Database:Provider"]);
+        if (provider == DatabaseProvider.Postgres)
+        {
+            var npgsqlConnectionString = PostgresConnectionString.Normalize(connectionString);
+            services.AddDbContext<ChildGuardDbContext>(options =>
+                options.UseNpgsql(npgsqlConnectionString,
+                    npgsql => npgsql.MigrationsAssembly("ChildGuard.Infrastructure.Postgres")));
+        }
+        else
+        {
+            // Detect once at startup. Inside the options lambda AutoDetect runs for every
+            // DbContext instance — i.e. an extra connection + SELECT VERSION() per request.
+            var serverVersion = ServerVersion.AutoDetect(connectionString);
+            services.AddDbContext<ChildGuardDbContext>(options =>
+                options.UseMySql(connectionString, serverVersion));
+        }
 
         services.Configure<JwtSettings>(config.GetSection("Jwt"));
 

@@ -59,3 +59,10 @@ backups/
 # E2E auth state (session tokens) and failure evidence (screens/traces may show personal data)
 tests/e2e/.auth/
 tests/e2e/reports/evidence/
+
+# Neon / Node tooling: connection strings and local context are secrets, never committed
+.env
+.env.*
+!.env.example
+.neon
+node_modules/
