@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../core/theme.dart';
+import '../../core/responsive.dart';
 import '../../providers/auth_provider.dart';
+import '../../widgets/cg_ui.dart';
 import '../face/face_registration_screen.dart';
 
 /// Guardian-side pickup verification info screen. The actual RFID scan and
@@ -11,67 +12,45 @@ import '../face/face_registration_screen.dart';
 class PickupVerificationScreen extends StatelessWidget {
   const PickupVerificationScreen({super.key});
 
+  static const _steps = [
+    (Icons.contactless_rounded, 'Your child is identified', 'The student is identified by their RFID card at school.'),
+    (Icons.how_to_reg_rounded, 'Your authorisation is checked', 'Staff confirm you are an authorised guardian for that student.'),
+    (Icons.face_retouching_natural_rounded, 'Your face is compared', 'Your face is captured and compared with your registered face.'),
+    (Icons.verified_rounded, 'Staff approve the pickup', 'On a successful match, staff approve the handover.'),
+    (Icons.notifications_active_outlined, 'You are notified', 'You receive a notification once the pickup is recorded.'),
+  ];
+
   @override
   Widget build(BuildContext context) {
     final profile = context.watch<AuthProvider>().profile;
     final registered = profile?.faceRegistered ?? false;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Pickup Verification')),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
+      appBar: AppBar(title: const Text('Pickup verification')),
+      body: CgPage(
+        maxWidth: CgWidths.reading,
         children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(children: [
-                    Icon(registered ? Icons.check_circle : Icons.error_outline, color: registered ? CgColors.successText : CgColors.warning),
-                    const SizedBox(width: 8),
-                    Text(registered ? 'Your face is registered' : 'Face not registered yet', style: const TextStyle(fontWeight: FontWeight.w600)),
-                  ]),
-                  const SizedBox(height: 8),
-                  Text(
-                    registered
-                        ? 'You can be verified for pickup at school.'
-                        : 'Register your face so staff can verify you at pickup time.',
-                    style: const TextStyle(color: CgColors.textMuted),
+          const CgPageHead(title: 'How pickup verification works', subtitle: 'What happens at the school desk when you collect your child.'),
+          CgAlert(
+            tone: registered ? CgTone.success : CgTone.warning,
+            title: registered ? 'Your face is registered' : 'Face not registered yet',
+            message: registered ? 'You can be verified for pickup at school.' : 'Register your face so staff can verify you at pickup time.',
+            action: registered
+                ? null
+                : ElevatedButton(
+                    onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FaceRegistrationScreen())),
+                    child: const Text('Register face now'),
                   ),
-                  if (!registered) ...[
-                    const SizedBox(height: 12),
-                    ElevatedButton(
-                      onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FaceRegistrationScreen())),
-                      child: const Text('Register Face Now'),
-                    ),
-                  ],
-                ],
-              ),
-            ),
           ),
-          const SizedBox(height: 16),
-          const Text('How pickup verification works', style: TextStyle(fontWeight: FontWeight.w700, color: CgColors.text)),
-          const SizedBox(height: 8),
-          _step('1', 'Student is identified via RFID at school.'),
-          _step('2', 'Staff confirms you are an authorized guardian for that student.'),
-          _step('3', 'Your face is captured and compared to your registered face.'),
-          _step('4', 'On a successful match, staff approves the pickup.'),
-          _step('5', 'You receive a notification once the pickup is recorded.'),
+          CgCard(
+            title: 'The steps',
+            child: CgTimeline([
+              for (final (i, s) in _steps.indexed)
+                CgTimelineItem(title: '${i + 1}. ${s.$2}', body: s.$3, icon: s.$1, tone: CgTone.primary),
+            ]),
+          ),
         ],
       ),
     );
   }
-
-  Widget _step(String n, String text) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            CircleAvatar(radius: 12, backgroundColor: CgColors.primaryLight, child: Text(n, style: const TextStyle(fontSize: 12, color: CgColors.primaryDeep, fontWeight: FontWeight.w800))),
-            const SizedBox(width: 10),
-            Expanded(child: Text(text)),
-          ],
-        ),
-      );
 }

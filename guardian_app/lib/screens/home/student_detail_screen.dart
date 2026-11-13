@@ -1,7 +1,10 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../core/formatters.dart';
+import '../../core/responsive.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../models/portal_models.dart';
@@ -67,87 +70,20 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
     return DefaultTabController(
       length: 3,
       child: Scaffold(
+        appBar: AppBar(title: Text(s.fullName)),
         body: NestedScrollView(
           headerSliverBuilder: (context, _) => [
-            SliverAppBar(
-              pinned: true,
-              backgroundColor: CgColors.glassStrong,
-              surfaceTintColor: Colors.transparent,
-              expandedHeight: 236,
-              title: Text(s.fullName, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-              flexibleSpace: FlexibleSpaceBar(
-                background: Container(
-                  padding: const EdgeInsets.fromLTRB(20, 76, 20, 58),
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Color(0xF2DCEBFF), Color(0xD9FFFFFF), Color(0xF2EFEDFD)],
-                    ),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      DecoratedBox(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(24),
-                          border: Border.all(color: Colors.white, width: 3),
-                          boxShadow: CgShadows.md,
-                        ),
-                        child: CgAvatar(
-                          name: s.fullName,
-                          photoUrl: s.hasPhoto ? auth.api.studentPhotoUrl(s.studentId) : null,
-                          headers: auth.photoHeaders,
-                          size: 84,
-                          square: true,
-                          statusDot: CgSafety.color(s.safetyStatus),
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            Text(s.fullName,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w800, letterSpacing: -0.4)),
-                            const SizedBox(height: 6),
-                            Wrap(spacing: 6, runSpacing: 6, children: [
-                              CgBadge.safety(s.safetyStatus),
-                              if (s.grade != null) CgBadge.neutral('Grade ${s.grade}'),
-                            ]),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              bottom: const TabBar(
-                labelColor: CgColors.primaryDeep,
-                unselectedLabelColor: CgColors.textMuted,
-                dividerColor: CgColors.border,
-                indicatorSize: TabBarIndicatorSize.label,
-                indicator: UnderlineTabIndicator(
-                  borderSide: BorderSide(width: 3, color: CgColors.primary),
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(3)),
-                ),
-                labelStyle: TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5),
-                unselectedLabelStyle: TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5),
-                tabs: [Tab(text: 'Overview'), Tab(text: 'Attendance'), Tab(text: 'Journey')],
-              ),
-            ),
+            SliverToBoxAdapter(child: _Identity(student: s, photoUrl: s.hasPhoto ? auth.api.studentPhotoUrl(s.studentId) : null, headers: auth.photoHeaders)),
+            const SliverPersistentHeader(pinned: true, delegate: _TabsHeader()),
           ],
           body: _loading
               ? const CgLoadingState()
               : _error != null
                   ? CgErrorState(message: _error!, onRetry: _load)
                   : TabBarView(children: [
-                      RefreshIndicator(onRefresh: _load, child: _OverviewTab(detail: _detail!)),
-                      RefreshIndicator(onRefresh: _load, child: _AttendanceTab(records: _attendance ?? [])),
-                      RefreshIndicator(onRefresh: _load, child: _JourneyTab(events: _journey ?? [])),
+                      _OverviewTab(detail: _detail!, onRefresh: _load),
+                      _AttendanceTab(records: _attendance ?? [], onRefresh: _load),
+                      _JourneyTab(events: _journey ?? [], onRefresh: _load),
                     ]),
         ),
       ),
@@ -155,9 +91,89 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
   }
 }
 
+/// Photo, name, status and grade, on the card surface under the app bar.
+class _Identity extends StatelessWidget {
+  final StudentSummary student;
+  final String? photoUrl;
+  final Map<String, String>? headers;
+  const _Identity({required this.student, required this.photoUrl, required this.headers});
+
+  @override
+  Widget build(BuildContext context) => ColoredBox(
+        color: CgColors.card,
+        child: LayoutBuilder(
+          builder: (context, c) {
+            final side = math.max(CgBreakpoints.gutter(c.maxWidth), (c.maxWidth - CgWidths.detail) / 2);
+            return Padding(
+              padding: EdgeInsets.fromLTRB(side, CgSpace.lg, side, CgSpace.md),
+              child: Row(
+                children: [
+                  CgAvatar(
+                    name: student.fullName,
+                    photoUrl: photoUrl,
+                    headers: headers,
+                    size: 64,
+                    square: true,
+                    statusDot: CgSafety.color(student.safetyStatus),
+                  ),
+                  const SizedBox(width: CgSpace.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(student.fullName, maxLines: 2, overflow: TextOverflow.ellipsis, style: CgText.h1),
+                        const SizedBox(height: 6),
+                        Wrap(spacing: 6, runSpacing: 6, children: [
+                          CgBadge.safety(student.safetyStatus),
+                          if (student.grade != null) CgBadge.neutral('Grade ${student.grade}'),
+                        ]),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      );
+}
+
+/// Pinned tab strip, aligned with the page content.
+class _TabsHeader extends SliverPersistentHeaderDelegate {
+  const _TabsHeader();
+
+  @override
+  double get minExtent => 48;
+  @override
+  double get maxExtent => 48;
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) => DecoratedBox(
+        decoration: const BoxDecoration(color: CgColors.card, border: Border(bottom: BorderSide(color: CgColors.border))),
+        child: LayoutBuilder(
+          builder: (context, c) {
+            final side = math.max(CgBreakpoints.gutter(c.maxWidth), (c.maxWidth - CgWidths.detail) / 2);
+            return Padding(
+              padding: EdgeInsets.symmetric(horizontal: side - 12 < 0 ? 0 : side - 12),
+              child: const TabBar(
+                isScrollable: true,
+                tabAlignment: TabAlignment.start,
+                dividerColor: Colors.transparent,
+                tabs: [Tab(text: 'Overview'), Tab(text: 'Attendance'), Tab(text: 'Journey')],
+              ),
+            );
+          },
+        ),
+      );
+
+  @override
+  bool shouldRebuild(covariant _TabsHeader oldDelegate) => false;
+}
+
 class _OverviewTab extends StatelessWidget {
   final StudentDetail detail;
-  const _OverviewTab({required this.detail});
+  final Future<void> Function() onRefresh;
+  const _OverviewTab({required this.detail, required this.onRefresh});
 
   @override
   Widget build(BuildContext context) {
@@ -166,109 +182,111 @@ class _OverviewTab extends StatelessWidget {
     final t = detail.transport;
     void push(Widget w) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => w));
 
-    return ListView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+    return CgPage(
+      maxWidth: CgWidths.detail,
+      onRefresh: onRefresh,
       children: [
-        CgFadeIn(
-          child: CgAlert(
-            tone: switch (s.safetyStatus) {
-              CgSafetyStatus.atSchool || CgSafetyStatus.droppedOff => CgTone.success,
-              CgSafetyStatus.onBus => CgTone.info,
-              CgSafetyStatus.leftSchool => CgTone.warning,
-              CgSafetyStatus.noActivity => CgTone.neutral,
-            },
-            icon: CgSafety.icon(s.safetyStatus),
-            title: CgSafety.label(s.safetyStatus),
-            message: [
-              CgSafety.explanation(s.safetyStatus),
-              if (s.lastEventAt != null) 'Last checkpoint ${CgFormat.time(s.lastEventAt!)}.',
-            ].join(' '),
+        CgAlert(
+          tone: switch (s.safetyStatus) {
+            CgSafetyStatus.atSchool || CgSafetyStatus.droppedOff => CgTone.success,
+            CgSafetyStatus.onBus => CgTone.info,
+            CgSafetyStatus.leftSchool => CgTone.warning,
+            CgSafetyStatus.noActivity => CgTone.neutral,
+          },
+          icon: CgSafety.icon(s.safetyStatus),
+          title: CgSafety.label(s.safetyStatus),
+          message: [
+            CgSafety.explanation(s.safetyStatus),
+            if (s.lastEventAt != null) 'Last checkpoint ${CgFormat.time(s.lastEventAt!)}.',
+          ].join(' '),
+        ),
+        CgKpiGrid(children: [
+          CgKpi(
+            label: 'Today',
+            value: s.presentToday ? (formatCheckInTime(s.checkInTime) ?? 'In') : 'Not in',
+            icon: Icons.event_available_rounded,
+            tone: s.presentToday ? (s.lateToday ? CgTone.warning : CgTone.success) : CgTone.neutral,
+            note: s.presentToday ? (s.lateToday ? 'Checked in late' : 'Checked in on time') : 'No school arrival yet',
           ),
-        ),
-        CgFadeIn(
-          index: 1,
-          child: CgKpiGrid(children: [
-            CgKpi(
-              label: 'Today',
-              value: s.presentToday ? (formatCheckInTime(s.checkInTime) ?? 'In') : 'Not in',
-              icon: Icons.event_available_rounded,
-              tone: s.presentToday ? (s.lateToday ? CgTone.warning : CgTone.success) : CgTone.neutral,
-              note: s.presentToday ? (s.lateToday ? 'Checked in late' : 'Checked in on time') : 'No school arrival yet',
+          CgKpi(
+            label: 'Attendance',
+            value: stats.presentRate.toStringAsFixed(stats.presentRate % 1 == 0 ? 0 : 1),
+            unit: '%',
+            icon: Icons.donut_large_rounded,
+            tone: stats.presentRate >= 90 ? CgTone.success : CgTone.warning,
+            note: '${stats.daysPresent} of ${stats.schoolDaysObserved} days · ${stats.daysLate} late',
+            onTap: () => push(ReportsScreen(initialStudentId: s.studentId)),
+          ),
+        ]),
+        const SizedBox(height: CgSpace.md),
+        CgSplit(
+          breakAt: 760,
+          primaryFlex: 1,
+          secondaryFlex: 1,
+          primary: [
+            CgCard(
+              title: 'Student information',
+              child: CgDefList([
+                CgDefList.text('Full name', s.fullName),
+                CgDefList.text('Grade', s.grade),
+                CgDefList.text('Date of birth', detail.dateOfBirth == null ? null : DateFormat('d MMMM yyyy').format(detail.dateOfBirth!)),
+                CgDefList.text('Your relationship', s.relationship),
+                ('RFID card', detail.hasRfidCard ? CgBadge.success('Card issued', icon: Icons.contactless_rounded) : CgBadge.warning('No card')),
+                (
+                  'Pickup',
+                  s.isAuthorizedForPickup
+                      ? CgBadge.success('You can collect', icon: Icons.check_circle_rounded)
+                      : CgBadge.neutral('Not authorised for pickup'),
+                ),
+              ]),
             ),
-            CgKpi(
-              label: 'Attendance',
-              value: stats.presentRate.toStringAsFixed(stats.presentRate % 1 == 0 ? 0 : 1),
-              unit: '%',
-              icon: Icons.donut_large_rounded,
-              tone: stats.presentRate >= 90 ? CgTone.success : CgTone.warning,
-              note: '${stats.daysPresent} of ${stats.schoolDaysObserved} days · ${stats.daysLate} late',
-              onTap: () => push(ReportsScreen(initialStudentId: s.studentId)),
+            CgCard(
+              title: 'Transport',
+              subtitle: t == null ? 'No bus assigned' : 'Assigned bus and route',
+              trailing: t == null ? null : TextButton(onPressed: () => push(TransportScreen(student: s)), child: const Text('Details')),
+              child: t == null
+                  ? const Text('Your child travels independently, or the school has not assigned a bus yet.', style: CgText.small)
+                  : CgDefList([
+                      CgDefList.text('Bus', t.busNumber),
+                      CgDefList.text('Route', t.routeName),
+                      CgDefList.text('Driver', t.driverName),
+                    ]),
             ),
-          ]),
-        ),
-        const SizedBox(height: 14),
-        CgCard(
-          title: 'Student information',
-          child: CgDefList([
-            CgDefList.text('Full name', s.fullName),
-            CgDefList.text('Grade', s.grade),
-            CgDefList.text('Date of birth', detail.dateOfBirth == null ? null : DateFormat('d MMMM yyyy').format(detail.dateOfBirth!)),
-            CgDefList.text('Your relationship', s.relationship),
-            ('RFID card', detail.hasRfidCard ? CgBadge.success('Card issued', icon: Icons.contactless_rounded) : CgBadge.warning('No card')),
-            (
-              'Pickup',
-              s.isAuthorizedForPickup
-                  ? CgBadge.success('You can collect', icon: Icons.check_circle_rounded)
-                  : CgBadge.neutral('Not authorised for pickup'),
+          ],
+          secondary: [
+            CgCard(
+              title: 'Guardians',
+              subtitle: 'People linked to ${s.fullName.split(' ').first}',
+              padding: const EdgeInsets.fromLTRB(CgSpace.md, 0, CgSpace.md, 0),
+              child: Column(children: [
+                for (final (i, g) in detail.guardians.indexed)
+                  CgRow(
+                    divider: i != detail.guardians.length - 1,
+                    leading: CgAvatar(name: g.fullName, size: 34, guardian: true),
+                    title: g.isYou ? '${g.fullName} (you)' : g.fullName,
+                    subtitle: g.relationship ?? 'Guardian',
+                    trailing: g.isAuthorizedForPickup ? CgBadge.success('Pickup') : CgBadge.neutral('No pickup'),
+                  ),
+              ]),
             ),
-          ]),
-        ),
-        CgCard(
-          title: 'Transport',
-          subtitle: t == null ? 'No bus assigned' : 'Assigned bus and route',
-          trailing: t == null ? null : TextButton(onPressed: () => push(TransportScreen(student: s)), child: const Text('Details')),
-          child: t == null
-              ? const Text('Your child travels independently, or the school has not assigned a bus yet.',
-                  style: TextStyle(color: CgColors.textMuted, height: 1.4))
-              : CgDefList([
-                  CgDefList.text('Bus', t.busNumber),
-                  CgDefList.text('Route', t.routeName),
-                  CgDefList.text('Driver', t.driverName),
-                ]),
-        ),
-        CgCard(
-          title: 'Guardians',
-          subtitle: 'People linked to ${s.fullName.split(' ').first}',
-          padding: const EdgeInsets.fromLTRB(16, 2, 16, 2),
-          child: Column(children: [
-            for (final (i, g) in detail.guardians.indexed)
-              CgRow(
-                divider: i != detail.guardians.length - 1,
-                leading: CgAvatar(name: g.fullName, size: 36, guardian: true),
-                title: g.isYou ? '${g.fullName} (you)' : g.fullName,
-                subtitle: g.relationship ?? 'Guardian',
-                trailing: g.isAuthorizedForPickup ? CgBadge.success('Pickup') : CgBadge.neutral('No pickup'),
+            if (s.isAuthorizedForPickup)
+              CgCard(
+                padding: const EdgeInsets.fromLTRB(CgSpace.md, 0, CgSpace.sm, 0),
+                child: CgRow(
+                  divider: false,
+                  leading: const CgIconTile(icon: Icons.badge_rounded, color: CgColors.guardianText, background: CgColors.guardianSoft, size: 36),
+                  title: 'Let someone else collect ${s.fullName.split(' ').first}',
+                  subtitle: 'Needs school approval; QR code and face check at the desk',
+                  onTap: () => push(const TemporaryPickupsScreen()),
+                ),
               ),
-          ]),
-        ),
-        if (s.isAuthorizedForPickup)
-          CgCard(
-            title: 'Temporary pickup',
-            padding: const EdgeInsets.fromLTRB(16, 2, 12, 2),
-            child: CgRow(
-              divider: false,
-              leading: const CgIconTile(icon: Icons.badge_rounded, color: CgColors.guardianText, background: CgColors.guardianSoft, size: 38),
-              title: 'Let someone else collect ${s.fullName.split(' ').first}',
-              subtitle: 'Needs school approval; QR code and face check at the desk',
-              onTap: () => push(const TemporaryPickupsScreen()),
+            CgCard(
+              title: "Today's checkpoints",
+              child: detail.todaysEvents.isEmpty
+                  ? const Text('No checkpoints recorded yet today.', style: CgText.small)
+                  : CgTimeline(CgFormat.timeline(detail.todaysEvents)),
             ),
-          ),
-        CgCard(
-          title: "Today's checkpoints",
-          child: detail.todaysEvents.isEmpty
-              ? const Text('No checkpoints recorded yet today.', style: TextStyle(color: CgColors.textMuted))
-              : CgTimeline(CgFormat.timeline(detail.todaysEvents)),
+          ],
         ),
       ],
     );
@@ -277,33 +295,35 @@ class _OverviewTab extends StatelessWidget {
 
 class _AttendanceTab extends StatelessWidget {
   final List<AttendanceRecord> records;
-  const _AttendanceTab({required this.records});
+  final Future<void> Function() onRefresh;
+  const _AttendanceTab({required this.records, required this.onRefresh});
 
   @override
   Widget build(BuildContext context) {
     if (records.isEmpty) {
-      return ListView(physics: const AlwaysScrollableScrollPhysics(), children: const [
-        SizedBox(height: 60),
-        CgEmptyState(
-          icon: Icons.event_available_rounded,
-          title: 'No attendance recorded',
-          message: 'Attendance is recorded automatically when your child scans in or out at school.',
+      return CgPage(maxWidth: CgWidths.detail, onRefresh: onRefresh, children: const [
+        CgCard(
+          child: CgEmptyState(
+            icon: Icons.event_available_rounded,
+            title: 'No attendance recorded',
+            message: 'Attendance is recorded automatically when your child scans in or out at school.',
+          ),
         ),
       ]);
     }
     final days = records.where((r) => r.eventType == 'SchoolArrival').map((r) => r.date).toSet().length;
-    return ListView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+    return CgPage(
+      maxWidth: CgWidths.detail,
+      onRefresh: onRefresh,
       children: [
         CgKpiGrid(children: [
           CgKpi(label: 'Days present', value: '$days', icon: Icons.event_available_rounded, tone: CgTone.success),
           CgKpi(label: 'Records', value: '${records.length}', icon: Icons.list_alt_rounded, tone: CgTone.neutral),
         ]),
-        const SizedBox(height: 14),
+        const SizedBox(height: CgSpace.md),
         CgCard(
           title: 'Attendance log',
-          padding: const EdgeInsets.fromLTRB(16, 2, 16, 2),
+          padding: const EdgeInsets.fromLTRB(CgSpace.md, 0, CgSpace.md, 0),
           child: Column(children: [
             for (final (i, r) in records.indexed)
               CgRow(
@@ -312,12 +332,12 @@ class _AttendanceTab extends StatelessWidget {
                   icon: r.eventType == 'SchoolArrival' ? Icons.login_rounded : Icons.logout_rounded,
                   color: r.eventType == 'SchoolArrival' ? CgColors.successText : CgColors.primaryDark,
                   background: r.eventType == 'SchoolArrival' ? CgColors.successSoft : CgColors.primarySoft,
-                  size: 36,
+                  size: 34,
                 ),
                 title: r.eventType == 'SchoolArrival' ? 'School arrival' : 'School departure',
                 subtitle: CgFormat.date(r.date),
                 trailing: Text(formatCheckInTime(r.time) ?? r.time,
-                    style: const TextStyle(color: CgColors.text2, fontWeight: FontWeight.w700)),
+                    style: const TextStyle(color: CgColors.text, fontWeight: FontWeight.w600, fontFeatures: [FontFeature.tabularFigures()])),
               ),
           ]),
         ),
@@ -328,18 +348,21 @@ class _AttendanceTab extends StatelessWidget {
 
 class _JourneyTab extends StatelessWidget {
   final List<JourneyEvent> events;
-  const _JourneyTab({required this.events});
+  final Future<void> Function() onRefresh;
+  const _JourneyTab({required this.events, required this.onRefresh});
 
   @override
-  Widget build(BuildContext context) => ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+  Widget build(BuildContext context) => CgPage(
+        maxWidth: CgWidths.detail,
+        onRefresh: onRefresh,
         children: [
           if (events.isEmpty)
-            const CgEmptyState(
-              icon: Icons.route_rounded,
-              title: 'No journey events yet',
-              message: 'Checkpoint scans will appear here as they happen.',
+            const CgCard(
+              child: CgEmptyState(
+                icon: Icons.route_rounded,
+                title: 'No journey events yet',
+                message: 'Checkpoint scans will appear here as they happen.',
+              ),
             )
           else
             CgCard(

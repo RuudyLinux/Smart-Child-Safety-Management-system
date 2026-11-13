@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../core/theme.dart';
 import '../../core/api_client.dart';
 import '../../providers/auth_provider.dart';
+import '../../widgets/cg_auth_layout.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -47,30 +48,67 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Register')),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(20),
+    return CgAuthLayout(
+      title: 'Create your account',
+      subtitle: 'Register as a guardian. Your school links your children to this account.',
+      showBack: true,
+      error: _error,
+      footer: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Text('Already registered?', style: CgText.small),
+          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Sign in')),
+        ],
+      ),
+      child: AutofillGroup(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (_error != null)
-              Container(
-                padding: const EdgeInsets.all(12),
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(color: CgColors.errorSoft, borderRadius: BorderRadius.circular(12), border: Border.all(color: CgColors.errorBorder)),
-                child: Text(_error!, style: const TextStyle(color: CgColors.errorText)),
+            TextField(
+              controller: _nameCtrl,
+              textCapitalization: TextCapitalization.words,
+              textInputAction: TextInputAction.next,
+              autofillHints: const [AutofillHints.name],
+              decoration: const InputDecoration(labelText: 'Full name', prefixIcon: Icon(Icons.person_outline_rounded)),
+            ),
+            const SizedBox(height: CgSpace.md),
+            TextField(
+              controller: _emailCtrl,
+              keyboardType: TextInputType.emailAddress,
+              textInputAction: TextInputAction.next,
+              autofillHints: const [AutofillHints.email],
+              decoration: const InputDecoration(labelText: 'Email', prefixIcon: Icon(Icons.mail_outline_rounded)),
+            ),
+            const SizedBox(height: CgSpace.md),
+            TextField(
+              controller: _phoneCtrl,
+              keyboardType: TextInputType.phone,
+              textInputAction: TextInputAction.next,
+              autofillHints: const [AutofillHints.telephoneNumber],
+              decoration: const InputDecoration(
+                labelText: 'Contact number',
+                helperText: 'You will sign in with this number',
+                prefixIcon: Icon(Icons.phone_outlined),
               ),
-            TextField(controller: _nameCtrl, decoration: const InputDecoration(labelText: 'Full Name')),
-            const SizedBox(height: 14),
-            TextField(controller: _emailCtrl, decoration: const InputDecoration(labelText: 'Email'), keyboardType: TextInputType.emailAddress),
-            const SizedBox(height: 14),
-            TextField(controller: _phoneCtrl, decoration: const InputDecoration(labelText: 'Contact Number', helperText: 'You will sign in with this number'), keyboardType: TextInputType.phone),
-            const SizedBox(height: 14),
-            TextField(controller: _passwordCtrl, decoration: const InputDecoration(labelText: 'Password', helperText: 'At least 8 characters, one uppercase, one digit'), obscureText: true),
-            const SizedBox(height: 20),
+            ),
+            const SizedBox(height: CgSpace.md),
+            TextField(
+              controller: _passwordCtrl,
+              obscureText: true,
+              autofillHints: const [AutofillHints.newPassword],
+              onSubmitted: (_) => _loading ? null : _submit(),
+              decoration: const InputDecoration(
+                labelText: 'Password',
+                helperText: 'At least 8 characters, one uppercase, one digit',
+                prefixIcon: Icon(Icons.lock_outline_rounded),
+              ),
+            ),
+            const SizedBox(height: CgSpace.xl),
             ElevatedButton(
               onPressed: _loading ? null : _submit,
-              child: _loading ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Create Account'),
+              child: _loading
+                  ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Text('Create account'),
             ),
           ],
         ),

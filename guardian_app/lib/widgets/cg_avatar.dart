@@ -98,7 +98,7 @@ class CgAvatar extends StatelessWidget {
             decoration: BoxDecoration(
               color: statusDot,
               shape: BoxShape.circle,
-              border: Border.all(color: CgColors.background, width: 2),
+              border: Border.all(color: CgColors.card, width: 2),
             ),
           ),
         ),

@@ -4,11 +4,11 @@ import '../core/theme.dart';
 import 'cg_glass.dart';
 import 'cg_states.dart';
 
-// Mobile counterparts of the Admin Web components (site.css): page head, hero, KPI tile, card with
-// head/body/foot, definition list, segmented control, alert, timeline and pickup-state badge. Screens
-// compose these so the Guardian app reads the same way the admin console does.
+// Shared components: page head, status summary, KPI tile, card with head/body/foot, definition list,
+// segmented control, alert, timeline, list row, async loader and the pickup-state badge. Every screen
+// composes these, so the whole app reads as one product.
 
-/// Tone shared by KPI icons, alerts and timeline markers (cg-kpi__icon--*, cg-alert--*, cg-timeline__marker--*).
+/// Tone shared by KPI icons, alerts and timeline markers.
 enum CgTone { primary, success, warning, danger, info, neutral }
 
 class CgToneColors {
@@ -27,7 +27,7 @@ class CgToneColors {
       };
 }
 
-/// cg-page-head: large title, muted subtitle, actions on the right.
+/// Page title, muted subtitle, actions on the right.
 class CgPageHead extends StatelessWidget {
   final String title;
   final String? subtitle;
@@ -37,95 +37,30 @@ class CgPageHead extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.fromLTRB(2, 4, 2, 16),
+        padding: const EdgeInsets.only(bottom: CgSpace.lg),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            if (leading != null) ...[leading!, const SizedBox(width: 12)],
+            if (leading != null) ...[leading!, const SizedBox(width: CgSpace.sm)],
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title,
-                      style: const TextStyle(fontSize: 25, fontWeight: FontWeight.w800, letterSpacing: -0.75, height: 1.2, color: CgColors.text)),
+                  Text(title, style: CgText.h1),
                   if (subtitle != null) ...[
-                    const SizedBox(height: 3),
-                    Text(subtitle!, style: const TextStyle(color: CgColors.textMuted, fontSize: 13.5, height: 1.35)),
+                    const SizedBox(height: 4),
+                    Text(subtitle!, style: CgText.small),
                   ],
                 ],
               ),
             ),
-            ...actions,
+            if (actions.isNotEmpty) ...[const SizedBox(width: CgSpace.sm), ...actions],
           ],
         ),
       );
 }
 
-/// cg-hero: gradient welcome panel with frosted stat chips and a live status pill.
-class CgHero extends StatelessWidget {
-  final String greeting;
-  final String subtitle;
-  final List<(String, String)> stats;
-  final Widget? status;
-  const CgHero({required this.greeting, required this.subtitle, this.stats = const [], this.status, super.key});
-
-  @override
-  Widget build(BuildContext context) => CgGlass(
-        radius: 24,
-        padding: const EdgeInsets.fromLTRB(20, 22, 20, 20),
-        shadow: CgShadows.md,
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xEBDCEBFF), Color(0xD9EEF4FF), Color(0xE6EFEDFD)],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(greeting, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, letterSpacing: -0.7, color: CgColors.text)),
-            const SizedBox(height: 4),
-            Text(subtitle, style: const TextStyle(color: CgColors.text2, fontSize: 13.5, height: 1.4)),
-            if (stats.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: [for (final s in stats) _HeroStat(label: s.$1, value: s.$2)],
-              ),
-            ],
-            if (status != null) ...[const SizedBox(height: 14), status!],
-          ],
-        ),
-      );
-}
-
-class _HeroStat extends StatelessWidget {
-  final String label;
-  final String value;
-  const _HeroStat({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.62),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: CgColors.glassBorder),
-          boxShadow: CgShadows.sm,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label.toUpperCase(),
-                style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, letterSpacing: 0.6, color: CgColors.textMuted)),
-            const SizedBox(height: 2),
-            Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: -0.4, color: CgColors.text)),
-          ],
-        ),
-      );
-}
-
-/// cg-sysstatus: pulsing dot plus a two-line status, used inside the hero.
+/// Status line with a live dot: a label above a coloured headline.
 class CgStatusPill extends StatelessWidget {
   final CgTone tone;
   final String label;
@@ -136,12 +71,8 @@ class CgStatusPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = CgToneColors.of(tone);
     return Container(
-      padding: const EdgeInsets.fromLTRB(12, 9, 16, 9),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.72),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: c.border),
-      ),
+      padding: const EdgeInsets.fromLTRB(12, 8, 14, 8),
+      decoration: BoxDecoration(color: c.soft, borderRadius: BorderRadius.circular(CgRadius.md), border: Border.all(color: c.border)),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -151,8 +82,8 @@ class CgStatusPill extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: const TextStyle(fontSize: 11, color: CgColors.textMuted, fontWeight: FontWeight.w600)),
-                Text(headline, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: c.fg)),
+                Text(label, style: CgText.caption),
+                Text(headline, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: c.fg)),
               ],
             ),
           ),
@@ -170,7 +101,7 @@ class _Pulse extends StatefulWidget {
 }
 
 class _PulseState extends State<_Pulse> with SingleTickerProviderStateMixin {
-  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1800));
+  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 2200));
 
   @override
   void didChangeDependencies() {
@@ -192,18 +123,18 @@ class _PulseState extends State<_Pulse> with SingleTickerProviderStateMixin {
   Widget build(BuildContext context) => AnimatedBuilder(
         animation: _c,
         builder: (context, _) => Container(
-          width: 10,
-          height: 10,
+          width: 9,
+          height: 9,
           decoration: BoxDecoration(
             color: widget.color,
             shape: BoxShape.circle,
-            boxShadow: [BoxShadow(color: widget.color.withValues(alpha: 0.4 * (1 - _c.value)), spreadRadius: 7 * _c.value)],
+            boxShadow: [BoxShadow(color: widget.color.withValues(alpha: 0.35 * (1 - _c.value)), spreadRadius: 6 * _c.value)],
           ),
         ),
       );
 }
 
-/// cg-kpi: label, tinted icon tile, big number and a note.
+/// KPI tile: label, tinted icon, big number with unit, and a note.
 class CgKpi extends StatelessWidget {
   final String label;
   final String value;
@@ -229,41 +160,29 @@ class CgKpi extends StatelessWidget {
     return CgPressable(
       onTap: onTap,
       child: CgGlass(
-        radius: 18,
-        padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+        padding: const EdgeInsets.all(CgSpace.md),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Text(label, style: const TextStyle(fontSize: 12.5, color: CgColors.textMuted, fontWeight: FontWeight.w600)),
-                ),
-                Container(
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(
-                    color: c.soft,
-                    borderRadius: BorderRadius.circular(11),
-                    border: Border.all(color: c.border.withValues(alpha: 0.7)),
-                  ),
-                  child: Icon(icon, size: 18, color: c.fg),
-                ),
+                Expanded(child: Text(label, maxLines: 2, overflow: TextOverflow.ellipsis, style: CgText.caption)),
+                const SizedBox(width: CgSpace.xs),
+                CgIconTile(icon: icon, color: c.fg, background: c.soft, size: 30),
               ],
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: CgSpace.xs),
             Text.rich(
               TextSpan(children: [
-                TextSpan(text: value, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, letterSpacing: -0.9, color: CgColors.text)),
-                if (unit != null)
-                  TextSpan(text: ' $unit', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: CgColors.textMuted)),
+                TextSpan(text: value, style: CgText.metric),
+                if (unit != null) TextSpan(text: ' $unit', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: CgColors.textMuted)),
               ]),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-            if (note != null) ...[
-              const SizedBox(height: 2),
-              Text(note!, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: CgColors.textMuted)),
-            ],
+            const SizedBox(height: 2),
+            // The note line is always reserved so tiles in one row keep the same height.
+            Text(note ?? ' ', maxLines: 2, overflow: TextOverflow.ellipsis, style: CgText.caption.copyWith(fontWeight: FontWeight.w400)),
           ],
         ),
       ),
@@ -271,7 +190,7 @@ class CgKpi extends StatelessWidget {
   }
 }
 
-/// Two-column KPI grid that stays two columns on phones (cg-grid--kpi).
+/// KPI grid: two columns on narrow widths, four when there is room.
 class CgKpiGrid extends StatelessWidget {
   final List<Widget> children;
   const CgKpiGrid({required this.children, super.key});
@@ -279,8 +198,8 @@ class CgKpiGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
         builder: (context, c) {
-          final columns = c.maxWidth > 720 ? 4 : 2;
-          const gap = 12.0;
+          final columns = c.maxWidth >= 680 ? (children.length >= 4 ? 4 : children.length) : 2;
+          const gap = CgSpace.sm;
           final w = (c.maxWidth - gap * (columns - 1)) / columns;
           return Wrap(
             spacing: gap,
@@ -291,7 +210,7 @@ class CgKpiGrid extends StatelessWidget {
       );
 }
 
-/// cg-card with optional head (title, subtitle, trailing), body and foot.
+/// Card with optional head (title, subtitle, trailing), body and foot.
 class CgCard extends StatelessWidget {
   final String? title;
   final String? subtitle;
@@ -299,39 +218,42 @@ class CgCard extends StatelessWidget {
   final Widget child;
   final Widget? foot;
   final EdgeInsetsGeometry padding;
+  final double bottomSpacing;
   const CgCard({
     required this.child,
     this.title,
     this.subtitle,
     this.trailing,
     this.foot,
-    this.padding = const EdgeInsets.all(16),
+    this.padding = const EdgeInsets.all(CgSpace.md),
+    this.bottomSpacing = CgSpace.md,
     super.key,
   });
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(bottom: 14),
+        padding: EdgeInsets.only(bottom: bottomSpacing),
         child: CgGlass(
           padding: EdgeInsets.zero,
-          radius: 20,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (title != null)
                 Container(
-                  padding: const EdgeInsets.fromLTRB(16, 14, 12, 12),
-                  decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Color(0xCCE3E9F2)))),
+                  constraints: const BoxConstraints(minHeight: 52),
+                  padding: const EdgeInsets.fromLTRB(CgSpace.md, CgSpace.sm, CgSpace.sm, CgSpace.sm),
+                  decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: CgColors.border))),
                   child: Row(
                     children: [
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(title!, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, letterSpacing: -0.15, color: CgColors.text)),
+                            Text(title!, style: CgText.h3),
                             if (subtitle != null) ...[
-                              const SizedBox(height: 2),
-                              Text(subtitle!, style: const TextStyle(fontSize: 12.5, color: CgColors.textMuted)),
+                              const SizedBox(height: 1),
+                              Text(subtitle!, style: CgText.caption.copyWith(fontWeight: FontWeight.w400)),
                             ],
                           ],
                         ),
@@ -343,11 +265,11 @@ class CgCard extends StatelessWidget {
               Padding(padding: padding, child: child),
               if (foot != null)
                 Container(
-                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+                  padding: const EdgeInsets.fromLTRB(CgSpace.xs, 6, CgSpace.xs, 6),
                   decoration: const BoxDecoration(
-                    color: Color(0xB3F3F6FB),
-                    border: Border(top: BorderSide(color: Color(0xCCE3E9F2))),
-                    borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
+                    color: CgColors.surface2,
+                    border: Border(top: BorderSide(color: CgColors.border)),
+                    borderRadius: BorderRadius.vertical(bottom: Radius.circular(CgRadius.lg)),
                   ),
                   child: foot!,
                 ),
@@ -357,7 +279,7 @@ class CgCard extends StatelessWidget {
       );
 }
 
-/// cg-deflist: muted label column, value column.
+/// Definition list: muted label column, value column. Narrow widths stack label over value.
 class CgDefList extends StatelessWidget {
   final List<(String, Widget)> rows;
   const CgDefList(this.rows, {super.key});
@@ -365,32 +287,36 @@ class CgDefList extends StatelessWidget {
   /// Convenience for plain text values; null or empty shows a dash.
   static (String, Widget) text(String label, String? value) => (
         label,
-        Text(value == null || value.isEmpty ? '—' : value,
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: CgColors.text)),
+        Text(value == null || value.isEmpty ? '—' : value, style: CgText.bodyStrong),
       );
 
   @override
-  Widget build(BuildContext context) => Column(
-        children: [
-          for (var i = 0; i < rows.length; i++)
-            Padding(
-              padding: EdgeInsets.only(bottom: i == rows.length - 1 ? 0 : 11),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(
-                    width: 112,
-                    child: Text(rows[i].$1, style: const TextStyle(fontSize: 12.5, color: CgColors.textMuted, height: 1.5)),
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, c) {
+          final labelWidth = c.maxWidth >= 460 ? 160.0 : 116.0;
+          return Column(
+            children: [
+              for (var i = 0; i < rows.length; i++)
+                Container(
+                  padding: EdgeInsets.only(top: i == 0 ? 0 : 10, bottom: i == rows.length - 1 ? 0 : 10),
+                  decoration: BoxDecoration(
+                    border: i == rows.length - 1 ? null : const Border(bottom: BorderSide(color: CgColors.surface2)),
                   ),
-                  Expanded(child: rows[i].$2),
-                ],
-              ),
-            ),
-        ],
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(width: labelWidth, child: Text(rows[i].$1, style: CgText.small.copyWith(height: 1.55))),
+                      Expanded(child: Align(alignment: Alignment.centerLeft, child: rows[i].$2)),
+                    ],
+                  ),
+                ),
+            ],
+          );
+        },
       );
 }
 
-/// cg-segment: pill segmented control.
+/// Segmented control.
 class CgSegment<T> extends StatelessWidget {
   final List<(T, String)> options;
   final T value;
@@ -401,9 +327,9 @@ class CgSegment<T> extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(3),
         decoration: BoxDecoration(
-          color: const Color(0xB3E6ECF5),
-          borderRadius: BorderRadius.circular(13),
-          border: Border.all(color: CgColors.glassEdge),
+          color: CgColors.surface2,
+          borderRadius: BorderRadius.circular(CgRadius.md),
+          border: Border.all(color: CgColors.border),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -412,22 +338,25 @@ class CgSegment<T> extends StatelessWidget {
               Semantics(
                 button: true,
                 selected: o.$1 == value,
-                child: GestureDetector(
-                  onTap: () => onChanged(o.$1),
-                  child: AnimatedContainer(
-                    duration: CgMotion.fast,
-                    padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: o.$1 == value ? CgColors.card : Colors.transparent,
-                      borderRadius: BorderRadius.circular(10),
-                      boxShadow: o.$1 == value ? CgShadows.sm : null,
+                child: MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: GestureDetector(
+                    onTap: () => onChanged(o.$1),
+                    child: AnimatedContainer(
+                      duration: CgMotion.fast,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: o.$1 == value ? CgColors.card : Colors.transparent,
+                        borderRadius: BorderRadius.circular(CgRadius.sm),
+                        boxShadow: o.$1 == value ? CgShadows.sm : null,
+                      ),
+                      child: Text(o.$2,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: o.$1 == value ? FontWeight.w600 : FontWeight.w500,
+                            color: o.$1 == value ? CgColors.text : CgColors.textMuted,
+                          )),
                     ),
-                    child: Text(o.$2,
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w700,
-                          color: o.$1 == value ? CgColors.primaryDeep : CgColors.textMuted,
-                        )),
                   ),
                 ),
               ),
@@ -436,7 +365,7 @@ class CgSegment<T> extends StatelessWidget {
       );
 }
 
-/// cg-alert: tinted box with icon, title and body.
+/// Tinted message box with icon, title and body.
 class CgAlert extends StatelessWidget {
   final CgTone tone;
   final String title;
@@ -456,24 +385,24 @@ class CgAlert extends StatelessWidget {
           _ => Icons.info_outline_rounded,
         };
     return Container(
-      margin: const EdgeInsets.only(bottom: 14),
+      margin: const EdgeInsets.only(bottom: CgSpace.md),
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      decoration: BoxDecoration(color: c.soft, borderRadius: BorderRadius.circular(14), border: Border.all(color: c.border)),
+      decoration: BoxDecoration(color: c.soft, borderRadius: BorderRadius.circular(CgRadius.md), border: Border.all(color: c.border)),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(i, color: c.fg, size: 20),
+          Padding(padding: const EdgeInsets.only(top: 1), child: Icon(i, color: c.fg, size: 19)),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5, color: c.fg)),
-                if (message != null) ...[
+                Text(title, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5, color: c.fg, height: 1.4)),
+                if (message != null && message!.isNotEmpty) ...[
                   const SizedBox(height: 2),
-                  Text(message!, style: const TextStyle(fontSize: 13, color: CgColors.text2, height: 1.4)),
+                  Text(message!, style: const TextStyle(fontSize: 13, color: CgColors.text2, height: 1.45)),
                 ],
-                if (action != null) ...[const SizedBox(height: 8), action!],
+                if (action != null) ...[const SizedBox(height: 6), action!],
               ],
             ),
           ),
@@ -494,7 +423,7 @@ class CgTimelineItem {
   const CgTimelineItem({required this.title, required this.icon, this.time, this.body, this.tone = CgTone.primary, this.current = false});
 }
 
-/// cg-timeline: marker column with a connecting rail.
+/// Vertical timeline: marker column with a connecting rail.
 class CgTimeline extends StatelessWidget {
   final List<CgTimelineItem> items;
   const CgTimeline(this.items, {super.key});
@@ -519,38 +448,38 @@ class CgTimeline extends StatelessWidget {
                 width: 28,
                 height: 28,
                 decoration: BoxDecoration(
-                  color: item.current ? CgColors.card : c.soft,
+                  color: c.soft,
                   shape: BoxShape.circle,
-                  border: Border.all(color: item.current ? CgColors.primary : CgColors.card, width: 2),
-                  boxShadow: [BoxShadow(color: c.border, spreadRadius: 1)],
+                  border: Border.all(color: item.current ? c.fg : c.border, width: item.current ? 1.6 : 1),
                 ),
                 child: Icon(item.icon, size: 14, color: c.fg),
               ),
-              if (!last) Expanded(child: Container(width: 2, margin: const EdgeInsets.symmetric(vertical: 2), color: CgColors.border)),
+              if (!last) Expanded(child: Container(width: 1.5, margin: const EdgeInsets.symmetric(vertical: 3), color: CgColors.border)),
             ],
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: CgSpace.sm),
           Expanded(
             child: Padding(
-              padding: EdgeInsets.only(top: 4, bottom: last ? 0 : 18),
+              padding: EdgeInsets.only(top: 4, bottom: last ? 0 : CgSpace.md),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Wrap(
-                    spacing: 8,
-                    crossAxisAlignment: WrapCrossAlignment.center,
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(item.title,
-                          style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13.5,
-                              color: item.current ? CgColors.primaryDeep : CgColors.text)),
-                      if (item.time != null)
-                        Text(item.time!, style: const TextStyle(fontSize: 12, color: CgColors.textMuted, fontFeatures: [FontFeature.tabularFigures()])),
+                      Expanded(
+                        child: Text(item.title,
+                            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5, height: 1.4, color: item.current ? c.fg : CgColors.text)),
+                      ),
+                      if (item.time != null) ...[
+                        const SizedBox(width: CgSpace.xs),
+                        Text(item.time!,
+                            style: const TextStyle(fontSize: 12, height: 1.6, color: CgColors.textMuted, fontFeatures: [FontFeature.tabularFigures()])),
+                      ],
                     ],
                   ),
                   if (item.body != null) ...[
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 1),
                     Text(item.body!, style: const TextStyle(fontSize: 12.5, color: CgColors.textMuted, height: 1.4)),
                   ],
                 ],
@@ -563,7 +492,7 @@ class CgTimeline extends StatelessWidget {
   }
 }
 
-/// A list row inside a card (cg-table row on mobile): leading, title/subtitle, trailing.
+/// A list row inside a card: leading, title/subtitle, trailing; hover highlight when tappable.
 class CgRow extends StatelessWidget {
   final Widget? leading;
   final String title;
@@ -576,26 +505,27 @@ class CgRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) => InkWell(
         onTap: onTap,
+        hoverColor: CgColors.surface2.withValues(alpha: 0.6),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 11),
-          decoration: BoxDecoration(border: divider ? const Border(bottom: BorderSide(color: Color(0xCCE3E9F2))) : null),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(border: divider ? const Border(bottom: BorderSide(color: CgColors.border)) : null),
           child: Row(
             children: [
-              if (leading != null) ...[leading!, const SizedBox(width: 12)],
+              if (leading != null) ...[leading!, const SizedBox(width: CgSpace.sm)],
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: CgColors.text)),
+                    Text(title, style: CgText.bodyStrong),
                     if (subtitle != null) ...[
                       const SizedBox(height: 2),
-                      Text(subtitle!, style: const TextStyle(fontSize: 12.5, color: CgColors.textMuted, height: 1.35)),
+                      Text(subtitle!, style: const TextStyle(fontSize: 12.5, color: CgColors.textMuted, height: 1.4)),
                     ],
                   ],
                 ),
               ),
-              if (trailing != null) ...[const SizedBox(width: 8), trailing!],
-              if (onTap != null) const Icon(Icons.chevron_right_rounded, color: CgColors.textMuted2, size: 20),
+              if (trailing != null) ...[const SizedBox(width: CgSpace.xs), trailing!],
+              if (onTap != null) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.chevron_right_rounded, color: CgColors.textMuted2, size: 20)),
             ],
           ),
         ),
@@ -644,7 +574,7 @@ class CgAsyncState<T> extends State<CgAsync<T>> {
   }
 }
 
-/// Pickup state chip, matching the Admin Web's _PickupStateBadge.
+/// Pickup state chip, matching the Admin Web wording.
 class CgPickupStateBadge extends StatelessWidget {
   final String state;
   const CgPickupStateBadge(this.state, {super.key});

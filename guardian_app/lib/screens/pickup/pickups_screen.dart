@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/formatters.dart';
+import '../../core/responsive.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../models/portal_models.dart';
@@ -45,53 +46,51 @@ class _PickupsScreenState extends State<PickupsScreen> {
           builder: (context, pickups, reload) {
             final pending = pickups.where((p) => p.state == 'Pending').length;
             final done = pickups.where((p) => p.state == 'Approved').length;
-            return RefreshIndicator(
+            return CgPage(
+              maxWidth: CgWidths.list,
+              top: widget.embedded ? (context.isCompact ? 12 : 24) : CgSpace.lg,
               onRefresh: reload,
-              child: ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: EdgeInsets.fromLTRB(16, widget.embedded ? 8 : 0, 16, 110),
-                children: [
-                  if (widget.embedded)
-                    const CgPageHead(title: 'Pickups', subtitle: 'Every pickup attempt for your children and its outcome.'),
-                  CgCard(
-                    padding: const EdgeInsets.fromLTRB(16, 2, 12, 2),
-                    child: CgRow(
-                      divider: false,
-                      leading: const CgIconTile(icon: Icons.badge_rounded, color: CgColors.guardianText, background: CgColors.guardianSoft, size: 40),
-                      title: 'Temporary pickup guardians',
-                      subtitle: 'Authorise someone else to collect for up to 24 hours',
-                      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TemporaryPickupsScreen())),
-                    ),
+              children: [
+                if (widget.embedded) const CgPageHead(title: 'Pickups', subtitle: 'Every pickup attempt for your children and its outcome.'),
+                CgCard(
+                  padding: const EdgeInsets.fromLTRB(CgSpace.md, 0, CgSpace.sm, 0),
+                  child: CgRow(
+                    divider: false,
+                    leading: const CgIconTile(icon: Icons.badge_rounded, color: CgColors.guardianText, background: CgColors.guardianSoft, size: 36),
+                    title: 'Temporary pickup guardians',
+                    subtitle: 'Authorise someone else to collect for up to 24 hours',
+                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TemporaryPickupsScreen())),
                   ),
-                  CgKpiGrid(children: [
-                    CgKpi(label: 'Awaiting approval', value: '$pending', icon: Icons.hourglass_top_rounded,
-                        tone: pending > 0 ? CgTone.warning : CgTone.neutral),
-                    CgKpi(label: 'Completed pickups', value: '$done', icon: Icons.check_circle_rounded, tone: CgTone.success,
-                        note: 'Last $_days days'),
-                  ]),
-                  const SizedBox(height: 14),
-                  _filters(students),
-                  const SizedBox(height: 14),
-                  if (pickups.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 24),
-                      child: CgEmptyState(
-                        icon: Icons.how_to_reg_rounded,
-                        title: 'No pickups in this period',
-                        message: 'When someone is verified at the school desk to collect your child, it appears here.',
-                      ),
-                    )
-                  else
-                    CgCard(
-                      title: 'History',
-                      subtitle: '${pickups.length} attempt${pickups.length == 1 ? '' : 's'}',
-                      padding: const EdgeInsets.fromLTRB(16, 2, 16, 2),
-                      child: Column(children: [
-                        for (final (i, p) in pickups.indexed) _row(p, last: i == pickups.length - 1),
-                      ]),
+                ),
+                CgKpiGrid(children: [
+                  CgKpi(
+                      label: 'Awaiting approval',
+                      value: '$pending',
+                      icon: Icons.hourglass_top_rounded,
+                      tone: pending > 0 ? CgTone.warning : CgTone.neutral),
+                  CgKpi(label: 'Completed pickups', value: '$done', icon: Icons.check_circle_rounded, tone: CgTone.success, note: 'Last $_days days'),
+                ]),
+                const SizedBox(height: CgSpace.md),
+                _filters(students),
+                const SizedBox(height: CgSpace.md),
+                if (pickups.isEmpty)
+                  const CgCard(
+                    child: CgEmptyState(
+                      icon: Icons.how_to_reg_rounded,
+                      title: 'No pickups in this period',
+                      message: 'When someone is verified at the school desk to collect your child, it appears here.',
                     ),
-                ],
-              ),
+                  )
+                else
+                  CgCard(
+                    title: 'History',
+                    subtitle: '${pickups.length} attempt${pickups.length == 1 ? '' : 's'}',
+                    padding: const EdgeInsets.fromLTRB(CgSpace.md, 0, CgSpace.md, 0),
+                    child: Column(children: [
+                      for (final (i, p) in pickups.indexed) _row(p, last: i == pickups.length - 1),
+                    ]),
+                  ),
+              ],
             );
           },
         ),
@@ -115,15 +114,26 @@ class _PickupsScreenState extends State<PickupsScreen> {
             onChanged: (v) => _set(() => _days = v),
           ),
           if (students.length > 1)
-            DropdownButtonHideUnderline(
-              child: DropdownButton<int?>(
-                value: _studentId,
-                borderRadius: BorderRadius.circular(14),
-                items: [
-                  const DropdownMenuItem(value: null, child: Text('All children')),
-                  for (final s in students) DropdownMenuItem(value: s.studentId, child: Text(s.fullName)),
-                ],
-                onChanged: (v) => _set(() => _studentId = v),
+            Container(
+              height: 38,
+              padding: const EdgeInsets.symmetric(horizontal: CgSpace.sm),
+              decoration: BoxDecoration(
+                color: CgColors.card,
+                borderRadius: BorderRadius.circular(CgRadius.md),
+                border: Border.all(color: CgColors.border),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<int?>(
+                  value: _studentId,
+                  style: CgText.bodyStrong.copyWith(fontSize: 13.5),
+                  icon: const Icon(Icons.expand_more_rounded, size: 18),
+                  borderRadius: BorderRadius.circular(CgRadius.md),
+                  items: [
+                    const DropdownMenuItem(value: null, child: Text('All children')),
+                    for (final s in students) DropdownMenuItem(value: s.studentId, child: Text(s.fullName)),
+                  ],
+                  onChanged: (v) => _set(() => _studentId = v),
+                ),
               ),
             ),
         ],
@@ -135,7 +145,7 @@ class _PickupsScreenState extends State<PickupsScreen> {
           icon: p.isTemporary ? Icons.badge_rounded : Icons.face_rounded,
           color: p.isTemporary ? CgColors.guardianText : CgColors.primaryDeep,
           background: p.isTemporary ? CgColors.guardianSoft : CgColors.primarySoft,
-          size: 38,
+          size: 36,
         ),
         title: p.studentName,
         subtitle: [

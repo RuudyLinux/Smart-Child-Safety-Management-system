@@ -7,6 +7,7 @@ import '../../models/models.dart';
 import '../../providers/auth_provider.dart';
 import '../home/home_shell.dart';
 import 'first_login_password_screen.dart';
+import '../../widgets/cg_auth_layout.dart';
 
 /// Step 2 of Guardian sign-in. Reached only after credentials validate, and the
 /// server is what decides whether the next screen is the dashboard or the
@@ -96,69 +97,51 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     final codeLength = challenge?.codeLength ?? 6;
     final expired = _expiresIn == 0;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Verify OTP'),
-        leading: BackButton(onPressed: () {
-          context.read<AuthProvider>().clearAuthFlow();
-          Navigator.of(context).pop();
-        }),
-      ),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(24),
-          children: [
-            Text(
-                challenge?.maskedEmail != null
-                    ? 'Enter the code we sent to your registered email (${challenge!.maskedEmail}).'
-                    : 'Enter the code we sent to your registered email address.',
-                style: const TextStyle(color: CgColors.textMuted)),
-            const SizedBox(height: 20),
-            if (auth.lastError != null)
-              Container(
-                padding: const EdgeInsets.all(12),
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(color: CgColors.errorBg, borderRadius: BorderRadius.circular(8)),
-                child: Text(auth.lastError!, style: const TextStyle(color: CgColors.errorText)),
-              ),
-            if (expired && auth.lastError == null)
-              Container(
-                padding: const EdgeInsets.all(12),
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(color: CgColors.errorBg, borderRadius: BorderRadius.circular(8)),
-                child: const Text('This code has expired. Request a new one.',
-                    style: TextStyle(color: CgColors.errorText)),
-              ),
-            TextField(
-              controller: _codeCtrl,
-              keyboardType: TextInputType.number,
-              maxLength: codeLength,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: InputDecoration(
-                labelText: 'OTP',
-                counterText: '',
-                helperText: expired ? null : 'Expires in ${_formatSeconds(_expiresIn)}',
-              ),
+    return CgAuthLayout(
+      title: 'Check your email',
+      subtitle: challenge?.maskedEmail != null
+          ? 'Enter the code we sent to your registered email (${challenge!.maskedEmail}).'
+          : 'Enter the code we sent to your registered email address.',
+      showBack: true,
+      onBack: () {
+        context.read<AuthProvider>().clearAuthFlow();
+        Navigator.of(context).pop();
+      },
+      error: auth.lastError ?? (expired ? 'This code has expired. Request a new one.' : null),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextField(
+            controller: _codeCtrl,
+            keyboardType: TextInputType.number,
+            maxLength: codeLength,
+            autofocus: true,
+            autofillHints: const [AutofillHints.oneTimeCode],
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600, letterSpacing: 10, fontFeatures: [FontFeature.tabularFigures()]),
+            onSubmitted: (_) => _loading ? null : _verify(),
+            decoration: InputDecoration(
+              labelText: 'OTP',
+              counterText: '',
+              helperText: expired ? null : 'Expires in ${_formatSeconds(_expiresIn)}',
             ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _loading ? null : _verify,
-              child: _loading
-                  ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Text('Verify OTP'),
-            ),
-            const SizedBox(height: 8),
-            TextButton(
-              onPressed: (_loading || _resendIn > 0 || challenge == null) ? null : _resend,
-              child: Text(_resendIn > 0 ? 'Resend OTP in ${_formatSeconds(_resendIn)}' : 'Resend OTP'),
-            ),
-            if (challenge != null)
-              Center(
-                child: Text('${challenge.resendsRemaining} resend(s) remaining',
-                    style: const TextStyle(color: CgColors.textMuted, fontSize: 12)),
-              ),
-          ],
-        ),
+          ),
+          const SizedBox(height: CgSpace.lg),
+          ElevatedButton(
+            onPressed: _loading ? null : _verify,
+            child: _loading
+                ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Text('Verify OTP'),
+          ),
+          const SizedBox(height: CgSpace.xs),
+          TextButton(
+            onPressed: (_loading || _resendIn > 0 || challenge == null) ? null : _resend,
+            child: Text(_resendIn > 0 ? 'Resend OTP in ${_formatSeconds(_resendIn)}' : 'Resend OTP'),
+          ),
+          if (challenge != null)
+            Center(child: Text('${challenge.resendsRemaining} resend(s) remaining', style: CgText.caption.copyWith(fontWeight: FontWeight.w400))),
+        ],
       ),
     );
   }

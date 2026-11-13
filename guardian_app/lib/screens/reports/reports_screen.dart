@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/formatters.dart';
+import '../../core/responsive.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../models/portal_models.dart';
@@ -45,8 +46,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
       body: SafeArea(
         bottom: false,
         child: students.isEmpty
-            ? ListView(children: const [
-                SizedBox(height: 80),
+            ? const CgPage(children: [
                 CgEmptyState(
                   icon: Icons.insights_rounded,
                   title: 'No reports yet',
@@ -64,116 +64,123 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 },
                 builder: (context, data, reload) {
                   final (report, journey) = data;
-                  return RefreshIndicator(
+                  return CgPage(
+                    maxWidth: CgWidths.dashboard,
+                    top: widget.embedded ? (context.isCompact ? 12 : 24) : CgSpace.lg,
                     onRefresh: reload,
-                    child: ListView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: EdgeInsets.fromLTRB(16, widget.embedded ? 8 : 0, 16, 110),
-                      children: [
-                        if (widget.embedded)
-                          const CgPageHead(title: 'Reports', subtitle: 'Attendance, punctuality and bus trips by date range.'),
-                        if (students.length > 1) ...[
-                          SizedBox(
-                            height: 40,
-                            child: ListView(
-                              scrollDirection: Axis.horizontal,
-                              children: [
-                                for (final s in students)
-                                  CgChildChip(
-                                    student: s,
-                                    selected: s.studentId == _studentId,
-                                    photoUrl: s.hasPhoto ? auth.api.studentPhotoUrl(s.studentId) : null,
-                                    photoHeaders: auth.photoHeaders,
-                                    onTap: () => _set(() => _studentId = s.studentId),
-                                  ),
-                              ],
-                            ),
+                    children: [
+                      if (widget.embedded) const CgPageHead(title: 'Reports', subtitle: 'Attendance, punctuality and bus trips by date range.'),
+                      if (students.length > 1) ...[
+                        SizedBox(
+                          height: 40,
+                          child: ListView(
+                            scrollDirection: Axis.horizontal,
+                            children: [
+                              for (final s in students)
+                                CgChildChip(
+                                  student: s,
+                                  selected: s.studentId == _studentId,
+                                  photoUrl: s.hasPhoto ? auth.api.studentPhotoUrl(s.studentId) : null,
+                                  photoHeaders: auth.photoHeaders,
+                                  onTap: () => _set(() => _studentId = s.studentId),
+                                ),
+                            ],
                           ),
-                          const SizedBox(height: 12),
-                        ],
-                        Wrap(
-                          spacing: 12,
-                          runSpacing: 8,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [
-                            CgSegment<int>(
-                              options: const [(7, '7 days'), (30, '30 days'), (90, '90 days')],
-                              value: _days,
-                              onChanged: (v) => _set(() => _days = v),
-                            ),
-                            Text('${CgFormat.shortDate(from)} – ${CgFormat.shortDate(to)}',
-                                style: const TextStyle(fontSize: 12, color: CgColors.textMuted)),
-                          ],
                         ),
-                        const SizedBox(height: 14),
-                        CgKpiGrid(children: [
-                          CgKpi(
-                            label: 'Attendance rate',
-                            value: report.presentRate.toStringAsFixed(report.presentRate % 1 == 0 ? 0 : 1),
-                            unit: '%',
-                            icon: Icons.donut_large_rounded,
-                            tone: report.presentRate >= 90 ? CgTone.success : (report.presentRate >= 75 ? CgTone.warning : CgTone.danger),
-                            note: '${report.daysPresent} of ${report.schoolDaysObserved} school days',
-                          ),
-                          CgKpi(
-                            label: 'Late arrivals',
-                            value: '${report.daysLate}',
-                            icon: Icons.schedule_rounded,
-                            tone: report.daysLate == 0 ? CgTone.success : CgTone.warning,
-                            note: 'Checked in after the late cutoff',
-                          ),
-                          CgKpi(
-                            label: 'Bus trips',
-                            value: '${report.busBoardings + report.busDropoffs}',
-                            icon: Icons.directions_bus_rounded,
-                            tone: CgTone.info,
-                            note: '${report.busBoardings} boardings · ${report.busDropoffs} drop-offs',
-                          ),
-                          CgKpi(
-                            label: 'Approved pickups',
-                            value: '${report.pickupsApproved}',
-                            icon: Icons.how_to_reg_rounded,
-                            tone: CgTone.primary,
-                            note: 'Face-verified handovers',
-                          ),
-                        ]),
-                        const SizedBox(height: 16),
-                        CgCard(
-                          title: 'Daily attendance',
-                          subtitle: report.days.isEmpty ? 'No school days recorded in this range' : '${report.days.length} day${report.days.length == 1 ? '' : 's'} with activity',
-                          padding: const EdgeInsets.fromLTRB(16, 2, 16, 2),
-                          child: report.days.isEmpty
-                              ? const Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 14),
-                                  child: Text('Nothing recorded for this period.', style: TextStyle(color: CgColors.textMuted)),
-                                )
-                              : Column(children: [
-                                  for (final (i, d) in report.days.indexed)
-                                    CgRow(
-                                      divider: i != report.days.length - 1,
-                                      title: CgFormat.date(d.date),
-                                      subtitle: [
-                                        'In ${formatCheckInTime(d.checkIn) ?? '—'}',
-                                        'Out ${formatCheckInTime(d.checkOut) ?? '—'}',
-                                        if (d.busBoardingAt != null) 'Bus ${CgFormat.time(d.busBoardingAt!)}',
-                                      ].join(' · '),
-                                      trailing: d.checkIn == null
-                                          ? CgBadge.neutral('Bus only')
-                                          : d.late
-                                              ? CgBadge.warning('Late')
-                                              : CgBadge.success('On time'),
-                                    ),
-                                ]),
-                        ),
-                        CgCard(
-                          title: 'Journey history',
-                          subtitle: '${journey.length} checkpoint${journey.length == 1 ? '' : 's'}',
-                          child: journey.isEmpty
-                              ? const Text('No checkpoints in this period.', style: TextStyle(color: CgColors.textMuted))
-                              : CgTimeline(CgFormat.timeline(journey.take(60).toList(), withDate: true)),
-                        ),
+                        const SizedBox(height: 12),
                       ],
-                    ),
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 8,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          CgSegment<int>(
+                            options: const [(7, '7 days'), (30, '30 days'), (90, '90 days')],
+                            value: _days,
+                            onChanged: (v) => _set(() => _days = v),
+                          ),
+                          Text('${CgFormat.shortDate(from)} – ${CgFormat.shortDate(to)}', style: CgText.caption),
+                        ],
+                      ),
+                      const SizedBox(height: CgSpace.md),
+                      CgKpiGrid(children: [
+                        CgKpi(
+                          label: 'Attendance rate',
+                          value: report.presentRate.toStringAsFixed(report.presentRate % 1 == 0 ? 0 : 1),
+                          unit: '%',
+                          icon: Icons.donut_large_rounded,
+                          tone: report.presentRate >= 90 ? CgTone.success : (report.presentRate >= 75 ? CgTone.warning : CgTone.danger),
+                          note: '${report.daysPresent} of ${report.schoolDaysObserved} school days',
+                        ),
+                        CgKpi(
+                          label: 'Late arrivals',
+                          value: '${report.daysLate}',
+                          icon: Icons.schedule_rounded,
+                          tone: report.daysLate == 0 ? CgTone.success : CgTone.warning,
+                          note: 'Checked in after the late cutoff',
+                        ),
+                        CgKpi(
+                          label: 'Bus trips',
+                          value: '${report.busBoardings + report.busDropoffs}',
+                          icon: Icons.directions_bus_rounded,
+                          tone: CgTone.info,
+                          note: '${report.busBoardings} boardings · ${report.busDropoffs} drop-offs',
+                        ),
+                        CgKpi(
+                          label: 'Approved pickups',
+                          value: '${report.pickupsApproved}',
+                          icon: Icons.how_to_reg_rounded,
+                          tone: CgTone.primary,
+                          note: 'Face-verified handovers',
+                        ),
+                      ]),
+                      const SizedBox(height: CgSpace.lg),
+                      CgSplit(
+                        breakAt: 900,
+                        primaryFlex: 1,
+                        secondaryFlex: 1,
+                        primary: [
+                          CgCard(
+                            title: 'Daily attendance',
+                            subtitle: report.days.isEmpty
+                                ? 'No school days recorded in this range'
+                                : '${report.days.length} day${report.days.length == 1 ? '' : 's'} with activity',
+                            padding: const EdgeInsets.fromLTRB(CgSpace.md, 0, CgSpace.md, 0),
+                            child: report.days.isEmpty
+                                ? const Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 14),
+                                    child: Text('Nothing recorded for this period.', style: CgText.small),
+                                  )
+                                : Column(children: [
+                                    for (final (i, d) in report.days.indexed)
+                                      CgRow(
+                                        divider: i != report.days.length - 1,
+                                        title: CgFormat.date(d.date),
+                                        subtitle: [
+                                          'In ${formatCheckInTime(d.checkIn) ?? '—'}',
+                                          'Out ${formatCheckInTime(d.checkOut) ?? '—'}',
+                                          if (d.busBoardingAt != null) 'Bus ${CgFormat.time(d.busBoardingAt!)}',
+                                        ].join(' · '),
+                                        trailing: d.checkIn == null
+                                            ? CgBadge.neutral('Bus only')
+                                            : d.late
+                                                ? CgBadge.warning('Late')
+                                                : CgBadge.success('On time'),
+                                      ),
+                                  ]),
+                          ),
+                        ],
+                        secondary: [
+                          CgCard(
+                            title: 'Journey history',
+                            subtitle: '${journey.length} checkpoint${journey.length == 1 ? '' : 's'}',
+                            child: journey.isEmpty
+                                ? const Text('No checkpoints in this period.', style: CgText.small)
+                                : CgTimeline(CgFormat.timeline(journey.take(60).toList(), withDate: true)),
+                          ),
+                        ],
+                      ),
+                    ],
                   );
                 },
               ),

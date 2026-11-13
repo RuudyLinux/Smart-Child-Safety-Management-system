@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../core/api_client.dart';
+import '../../core/responsive.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../providers/auth_provider.dart';
@@ -88,7 +89,10 @@ class _NewTemporaryPickupScreenState extends State<NewTemporaryPickupScreen> {
     }
     final studentId = _studentId ?? students.first.studentId;
 
-    setState(() { _saving = true; _error = null; });
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
     try {
       await context.read<AuthProvider>().api.createTemporaryPickup(
             studentId: studentId,
@@ -105,28 +109,37 @@ class _NewTemporaryPickupScreenState extends State<NewTemporaryPickupScreen> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Request sent. The school will review it.')));
       Navigator.of(context).pop(true);
     } on ApiException catch (e) {
-      if (mounted) setState(() { _error = e.message; _saving = false; });
+      if (mounted) {
+        setState(() {
+          _error = e.message;
+          _saving = false;
+        });
+      }
     } catch (_) {
-      if (mounted) setState(() { _error = 'Could not reach the server. Check your connection and try again.'; _saving = false; });
+      if (mounted) {
+        setState(() {
+          _error = 'Could not reach the server. Check your connection and try again.';
+          _saving = false;
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final students = (context.watch<AuthProvider>().profile?.students ?? const <StudentSummary>[])
-        .where((s) => s.isAuthorizedForPickup)
-        .toList();
+    final students = (context.watch<AuthProvider>().profile?.students ?? const <StudentSummary>[]).where((s) => s.isAuthorizedForPickup).toList();
     _studentId ??= students.isEmpty ? null : students.first.studentId;
     final fmt = DateFormat('EEE d MMM, h:mm a');
     final hours = _until.difference(_from).inMinutes / 60;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('New temporary pickup')),
+      appBar: AppBar(title: const Text('Temporary pickup')),
       body: Form(
         key: _form,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
+        child: CgPage(
+          maxWidth: CgWidths.form,
           children: [
+            const CgPageHead(title: 'New temporary pickup', subtitle: 'The school reviews every request before it can be used.'),
             if (_error != null) CgAlert(tone: CgTone.danger, title: 'Could not send the request', message: _error),
             CgCard(
               title: 'Child',
@@ -223,7 +236,12 @@ class _NewTemporaryPickupScreenState extends State<NewTemporaryPickupScreen> {
               child: Column(children: [
                 _timeRow('Starts', fmt.format(_from), () async {
                   final t = await _pick(_from);
-                  if (t != null) setState(() { _from = t; if (!_until.isAfter(_from)) _until = _from.add(const Duration(hours: 3)); });
+                  if (t != null) {
+                    setState(() {
+                      _from = t;
+                      if (!_until.isAfter(_from)) _until = _from.add(const Duration(hours: 3));
+                    });
+                  }
                 }),
                 const SizedBox(height: 10),
                 _timeRow('Ends', fmt.format(_until), () async {

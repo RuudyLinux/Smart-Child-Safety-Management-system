@@ -146,6 +146,8 @@ void main() {
 
       // Quick action: Pickup status, then back.
       await t.scrollUntilVisible(find.text('Pickup status'), 300, scrollable: find.byType(Scrollable).first);
+      await t.ensureVisible(find.text('Pickup status').first);
+      await settle(t, 300);
       await t.tap(find.text('Pickup status').first);
       await settle(t);
       expect(calls, contains('GET /api/me/pickups'));
@@ -154,6 +156,8 @@ void main() {
 
       // The child card opens student details.
       await t.scrollUntilVisible(find.text('Mira Rao'), 300, scrollable: find.byType(Scrollable).first);
+      await t.ensureVisible(find.text('Mira Rao').first);
+      await settle(t, 300);
       await t.tap(find.text('Mira Rao').first);
       await settle(t, 2000);
       expect(calls, contains('GET /api/me/students/4'));

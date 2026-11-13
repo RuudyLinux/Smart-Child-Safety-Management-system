@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/api_client.dart';
 import '../../providers/auth_provider.dart';
+import '../../core/theme.dart';
+import '../../widgets/cg_auth_layout.dart';
+import '../../widgets/cg_ui.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -58,32 +61,56 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Forgot Password')),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            if (_message != null) Padding(padding: const EdgeInsets.only(bottom: 16), child: Text(_message!)),
-            TextField(controller: _emailCtrl, decoration: const InputDecoration(labelText: 'Email'), enabled: !_requested),
-            const SizedBox(height: 14),
-            if (!_requested)
-              ElevatedButton(
-                onPressed: _loading ? null : _requestToken,
-                child: const Text('Send Reset Token'),
-              )
-            else ...[
-              TextField(controller: _tokenCtrl, decoration: const InputDecoration(labelText: 'Reset Token')),
-              const SizedBox(height: 14),
-              TextField(controller: _newPasswordCtrl, decoration: const InputDecoration(labelText: 'New Password'), obscureText: true),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: _loading ? null : _resetPassword,
-                child: const Text('Reset Password'),
+    return CgAuthLayout(
+      title: 'Reset your password',
+      subtitle: _requested
+          ? 'Enter the reset token from your email and choose a new password.'
+          : 'Enter the email on your account and we will send you a reset token.',
+      showBack: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (_message != null) CgAlert(tone: _requested ? CgTone.info : CgTone.neutral, title: _message!),
+          TextField(
+            controller: _emailCtrl,
+            enabled: !_requested,
+            keyboardType: TextInputType.emailAddress,
+            autofillHints: const [AutofillHints.email],
+            decoration: const InputDecoration(labelText: 'Email', prefixIcon: Icon(Icons.mail_outline_rounded)),
+          ),
+          const SizedBox(height: CgSpace.md),
+          if (!_requested)
+            ElevatedButton(
+              onPressed: _loading ? null : _requestToken,
+              child: _loading
+                  ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Text('Send reset token'),
+            )
+          else ...[
+            TextField(
+              controller: _tokenCtrl,
+              decoration: const InputDecoration(labelText: 'Reset token', prefixIcon: Icon(Icons.key_outlined)),
+            ),
+            const SizedBox(height: CgSpace.md),
+            TextField(
+              controller: _newPasswordCtrl,
+              obscureText: true,
+              autofillHints: const [AutofillHints.newPassword],
+              decoration: const InputDecoration(
+                labelText: 'New password',
+                helperText: 'At least 8 characters, one uppercase, one digit',
+                prefixIcon: Icon(Icons.lock_outline_rounded),
               ),
-            ],
+            ),
+            const SizedBox(height: CgSpace.xl),
+            ElevatedButton(
+              onPressed: _loading ? null : _resetPassword,
+              child: _loading
+                  ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Text('Reset password'),
+            ),
           ],
-        ),
+        ],
       ),
     );
   }

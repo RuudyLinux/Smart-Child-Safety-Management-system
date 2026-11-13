@@ -1,99 +1,144 @@
 import 'package:flutter/material.dart';
 
-/// ChildGuard design system · Light Glass — shared visual language with the
-/// Admin Web. Off-white canvas with faint blue/lavender ambient light, frosted
-/// white surfaces, one brand blue. Light only. Status always pairs a colour
-/// with a label or icon, never colour alone. Every colour used for text keeps
-/// 4.5:1 on white and on its own soft tint (WCAG AA).
+/// ChildGuard design system.
+///
+/// Calm, trustworthy and plain: an off-white canvas, solid white surfaces with a hairline border and a
+/// barely-there shadow, one brand blue, and status colours that always pair with a label or an icon.
+/// Every colour used for text keeps at least 4.5:1 on white and on its own soft tint (WCAG AA).
+///
+/// Tokens live here (colour, type, spacing, radius, elevation, motion); layout rules live in
+/// `responsive.dart`; components live in `widgets/`.
 class CgColors {
-  static const primary = Color(0xFF3978D5);
-  static const primaryDark = Color(0xFF2F68C0); // solid buttons + links (5.4:1 with white)
-  static const primaryDeep = Color(0xFF2558A6); // text on soft blue tints
-  static const primarySoft = Color(0xFFEEF5FF);
-  static const primarySoft2 = Color(0xFFDCEBFF);
-  static const primaryBorder = Color(0xFFC4DAF8);
+  // Brand
+  static const primary = Color(0xFF2F6FDB);
+  static const primaryDark = Color(0xFF1F5BC4); // solid buttons, links (5.9:1 with white)
+  static const primaryDeep = Color(0xFF1A4A9E); // text on soft blue tints
+  static const primarySoft = Color(0xFFEFF4FE);
+  static const primarySoft2 = Color(0xFFDDE8FC);
+  static const primaryBorder = Color(0xFFC5D7F7);
 
-  static const lavender = Color(0xFF8B7FE8);
-  static const lavenderSoft = Color(0xFFEFEDFD);
-
-  /// Kept for older call sites: now a deep text tone, never a surface.
-  static const navy = Color(0xFF172B4D);
-  static const navy2 = Color(0xFF23395E);
-
-  static const background = Color(0xFFF7F9FC);
-  static const card = Color(0xFFFFFFFF);
-  static const glass = Color(0xBDFFFFFF); // rgba(255,255,255,.74)
-  static const glassStrong = Color(0xE0FFFFFF); // .88
-  static const glassBorder = Color(0xD9FFFFFF); // .85
-  static const glassEdge = Color(0x12172B4D); // hairline outline
-  static const surface2 = Color(0xFFF3F6FB);
-  static const surface3 = Color(0xFFE6ECF5);
-
-  static const text = Color(0xFF172B4D);
-  static const text2 = Color(0xFF3A4F72);
-  static const textMuted = Color(0xFF5E6D84);
-  static const textMuted2 = Color(0xFF8A97AB);
-  static const border = Color(0xFFE3E9F2);
-  static const borderStrong = Color(0xFFCDD6E4);
-
-  static const success = Color(0xFF16A36A);
-  static const successText = Color(0xFF0F7A4F);
-  static const successSoft = Color(0xFFECF9F2);
-  static const successBorder = Color(0xFFBDE9D3);
-
-  static const warning = Color(0xFF9A5B0B); // warning text
-  static const warningAccent = Color(0xFFE99A32); // warning fill
-  static const warningSoft = Color(0xFFFFF6EA);
-  static const warningBorder = Color(0xFFF8DDB4);
-
-  static const error = Color(0xFFDC5252);
-  static const errorText = Color(0xFFB53434);
-  static const errorSoft = Color(0xFFFDF0F0);
-  static const errorBorder = Color(0xFFF6CACA);
-
-  static const info = Color(0xFF2B8FC9);
-  static const infoText = Color(0xFF1D6A99);
-  static const infoSoft = Color(0xFFEDF7FD);
-  static const infoBorder = Color(0xFFBFE2F5);
-
+  /// Secondary accent, used only to tell other people (co-guardians, temporary pickups) apart from you.
+  static const lavender = Color(0xFF6E62D9);
+  static const lavenderSoft = Color(0xFFF1EFFD);
   static const guardianSoft = lavenderSoft;
-  static const guardianText = Color(0xFF5146B8);
+  static const guardianText = Color(0xFF4F44B5);
 
-  // Backward-compatible aliases used by not-yet-migrated screens.
+  // Neutrals
+  static const navy = Color(0xFF101828);
+  static const navy2 = Color(0xFF1D2939);
+  static const background = Color(0xFFF5F7FA);
+  static const card = Color(0xFFFFFFFF);
+  static const surface2 = Color(0xFFF2F4F7);
+  static const surface3 = Color(0xFFE4E8EE);
+  static const text = Color(0xFF101828);
+  static const text2 = Color(0xFF344054);
+  static const textMuted = Color(0xFF5B677A);
+  static const textMuted2 = Color(0xFF8B95A5); // decorative only (icons, dividers), never body text
+  static const border = Color(0xFFE4E8EE);
+  static const borderStrong = Color(0xFFD0D5DD);
+
+  // Status
+  static const success = Color(0xFF12A15E);
+  static const successText = Color(0xFF0B7443);
+  static const successSoft = Color(0xFFECF8F1);
+  static const successBorder = Color(0xFFBCE6CF);
+
+  static const warning = Color(0xFF93530A); // warning text
+  static const warningAccent = Color(0xFFE49A2E); // warning fill
+  static const warningSoft = Color(0xFFFFF6E9);
+  static const warningBorder = Color(0xFFF6DDB5);
+
+  static const error = Color(0xFFD94848);
+  static const errorText = Color(0xFFB42318);
+  static const errorSoft = Color(0xFFFEF2F1);
+  static const errorBorder = Color(0xFFF6CBC7);
+
+  static const info = Color(0xFF2483C5);
+  static const infoText = Color(0xFF175F93);
+  static const infoSoft = Color(0xFFEDF6FC);
+  static const infoBorder = Color(0xFFC2E0F3);
+
+  // Former "glass" names, kept so every call site resolves: surfaces are now solid.
+  static const glass = card;
+  static const glassStrong = card;
+  static const glassBorder = border;
+  static const glassEdge = border;
+
+  // Older aliases.
   static const primaryLight = primarySoft;
   static const successBg = successSoft;
   static const warningBg = warningSoft;
   static const errorBg = errorSoft;
 
+  /// The brand mark only. Two close blues, so it reads as one colour with a little depth.
   static const brandGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [Color(0xFF4A88E3), primary, Color(0xFF6F7EE6)],
-    stops: [0, 0.45, 1],
+    colors: [Color(0xFF3A7BE6), primaryDark],
   );
 }
 
-/// Shared shadows: soft, blue-tinted, never grey-black. Painted only OUTSIDE
-/// the shape (BlurStyle.outer), so translucent glass never shows a shadow
-/// through its own fill.
+/// Spacing scale (4-point). Use these instead of ad-hoc numbers.
+class CgSpace {
+  static const double xxs = 4;
+  static const double xs = 8;
+  static const double sm = 12;
+  static const double md = 16;
+  static const double lg = 20;
+  static const double xl = 24;
+  static const double xxl = 32;
+  static const double xxxl = 48;
+}
+
+/// Corner radius scale: one value per kind of element, used everywhere.
+class CgRadius {
+  static const double xs = 6; // badges inside rows, small marks
+  static const double sm = 8; // icon tiles, segment items
+  static const double md = 10; // inputs, buttons
+  static const double lg = 14; // cards, panels
+  static const double xl = 18; // sheets, dialogs
+  static const double pill = 999;
+
+  static BorderRadius get card => BorderRadius.circular(lg);
+  static BorderRadius get control => BorderRadius.circular(md);
+}
+
+/// Type scale. Roboto, tight headings, comfortable body.
+class CgText {
+  static const display = TextStyle(fontSize: 28, height: 1.2, fontWeight: FontWeight.w700, letterSpacing: -0.6, color: CgColors.text);
+  static const h1 = TextStyle(fontSize: 24, height: 1.25, fontWeight: FontWeight.w700, letterSpacing: -0.45, color: CgColors.text);
+  static const h2 = TextStyle(fontSize: 18, height: 1.3, fontWeight: FontWeight.w700, letterSpacing: -0.2, color: CgColors.text);
+  static const h3 = TextStyle(fontSize: 15, height: 1.35, fontWeight: FontWeight.w600, letterSpacing: -0.1, color: CgColors.text);
+  static const body = TextStyle(fontSize: 14, height: 1.5, fontWeight: FontWeight.w400, color: CgColors.text2);
+  static const bodyStrong = TextStyle(fontSize: 14, height: 1.45, fontWeight: FontWeight.w600, color: CgColors.text);
+  static const small = TextStyle(fontSize: 13, height: 1.45, fontWeight: FontWeight.w400, color: CgColors.textMuted);
+  static const caption = TextStyle(fontSize: 12, height: 1.4, fontWeight: FontWeight.w500, color: CgColors.textMuted);
+  static const overline =
+      TextStyle(fontSize: 11.5, height: 1.3, fontWeight: FontWeight.w600, letterSpacing: 0.7, color: CgColors.textMuted);
+  static const metric = TextStyle(
+      fontSize: 26, height: 1.15, fontWeight: FontWeight.w700, letterSpacing: -0.7, color: CgColors.text, fontFeatures: [FontFeature.tabularFigures()]);
+}
+
+/// Elevation: neutral and very soft. Cards rely on their border; the shadow only lifts them off the canvas.
 class CgShadows {
+  static const none = <BoxShadow>[];
   static const sm = [
-    BoxShadow(color: Color(0x0F172B4D), blurRadius: 3, blurStyle: BlurStyle.outer),
-    BoxShadow(color: Color(0x1A294880), blurRadius: 18, blurStyle: BlurStyle.outer),
+    BoxShadow(color: Color(0x0A101828), blurRadius: 2, offset: Offset(0, 1)),
+    BoxShadow(color: Color(0x08101828), blurRadius: 6, offset: Offset(0, 2), spreadRadius: -1),
   ];
   static const md = [
-    BoxShadow(color: Color(0x12172B4D), blurRadius: 5, blurStyle: BlurStyle.outer),
-    BoxShadow(color: Color(0x2E294880), blurRadius: 30, blurStyle: BlurStyle.outer),
+    BoxShadow(color: Color(0x0D101828), blurRadius: 4, offset: Offset(0, 2), spreadRadius: -1),
+    BoxShadow(color: Color(0x14101828), blurRadius: 16, offset: Offset(0, 8), spreadRadius: -4),
   ];
   static List<BoxShadow> glow([Color color = CgColors.primary]) =>
-      [BoxShadow(color: color.withValues(alpha: 0.40), blurRadius: 18, offset: const Offset(0, 6), spreadRadius: -4)];
+      [BoxShadow(color: color.withValues(alpha: 0.22), blurRadius: 10, offset: const Offset(0, 3), spreadRadius: -3)];
 }
 
 /// Motion tokens: quick, eased out, never in the way.
 class CgMotion {
-  static const fast = Duration(milliseconds: 160);
-  static const base = Duration(milliseconds: 260);
-  static const slow = Duration(milliseconds: 480);
+  static const fast = Duration(milliseconds: 140);
+  static const base = Duration(milliseconds: 220);
+  static const slow = Duration(milliseconds: 320);
   static const ease = Curves.easeOutCubic;
 }
 
@@ -149,6 +194,13 @@ class CgSafety {
         CgSafetyStatus.noActivity => CgColors.surface2,
       };
 
+  static Color borderColor(CgSafetyStatus s) => switch (s) {
+        CgSafetyStatus.atSchool || CgSafetyStatus.droppedOff => CgColors.successBorder,
+        CgSafetyStatus.onBus => CgColors.infoBorder,
+        CgSafetyStatus.leftSchool => CgColors.warningBorder,
+        CgSafetyStatus.noActivity => CgColors.border,
+      };
+
   static IconData icon(CgSafetyStatus s) => switch (s) {
         CgSafetyStatus.onBus => Icons.directions_bus_rounded,
         CgSafetyStatus.atSchool => Icons.verified_user_rounded,
@@ -158,25 +210,19 @@ class CgSafety {
       };
 }
 
-/// Fade-through page transition. Scaffolds are transparent so the ambient
-/// canvas shows through; the outgoing page fades out before the incoming one
-/// rises in, so two translucent pages never overlap.
+/// Fade-through page transition: the incoming page fades in with a short rise.
 class CgPageTransitionsBuilder extends PageTransitionsBuilder {
   const CgPageTransitionsBuilder();
 
   @override
   Widget buildTransitions<T>(PageRoute<T> route, BuildContext context, Animation<double> animation,
       Animation<double> secondaryAnimation, Widget child) {
-    final incoming = CurvedAnimation(parent: animation, curve: const Interval(0.3, 1, curve: Curves.easeOutCubic));
-    final outgoing = CurvedAnimation(parent: secondaryAnimation, curve: const Interval(0, 0.35, curve: Curves.easeIn));
+    final incoming = CurvedAnimation(parent: animation, curve: const Interval(0.2, 1, curve: Curves.easeOutCubic));
     return FadeTransition(
-      opacity: ReverseAnimation(outgoing),
-      child: FadeTransition(
-        opacity: incoming,
-        child: SlideTransition(
-          position: Tween(begin: const Offset(0, 0.035), end: Offset.zero).animate(incoming),
-          child: child,
-        ),
+      opacity: incoming,
+      child: SlideTransition(
+        position: Tween(begin: const Offset(0, 0.015), end: Offset.zero).animate(incoming),
+        child: child,
       ),
     );
   }
@@ -185,11 +231,11 @@ class CgPageTransitionsBuilder extends PageTransitionsBuilder {
 ThemeData buildCgTheme() {
   final base = ThemeData(useMaterial3: true, fontFamily: 'Roboto');
   OutlineInputBorder field(Color c, [double w = 1]) =>
-      OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: c, width: w));
+      OutlineInputBorder(borderRadius: CgRadius.control, borderSide: BorderSide(color: c, width: w));
+  final controlShape = RoundedRectangleBorder(borderRadius: CgRadius.control);
 
   return base.copyWith(
-    // Transparent: the ambient canvas (CgAmbientBackground) lives behind every page.
-    scaffoldBackgroundColor: Colors.transparent,
+    scaffoldBackgroundColor: CgColors.background,
     canvasColor: CgColors.background,
     colorScheme: ColorScheme.fromSeed(
       seedColor: CgColors.primary,
@@ -198,7 +244,8 @@ ThemeData buildCgTheme() {
       surface: CgColors.card,
       error: CgColors.errorText,
       brightness: Brightness.light,
-    ).copyWith(surfaceTint: Colors.transparent),
+    ).copyWith(surfaceTint: Colors.transparent, outline: CgColors.borderStrong, outlineVariant: CgColors.border),
+    textTheme: base.textTheme.apply(bodyColor: CgColors.text2, displayColor: CgColors.text),
     pageTransitionsTheme: const PageTransitionsTheme(builders: {
       TargetPlatform.android: CgPageTransitionsBuilder(),
       TargetPlatform.iOS: CgPageTransitionsBuilder(),
@@ -207,122 +254,172 @@ ThemeData buildCgTheme() {
       TargetPlatform.linux: CgPageTransitionsBuilder(),
     }),
     appBarTheme: const AppBarTheme(
-      backgroundColor: Colors.transparent,
+      backgroundColor: CgColors.card,
       surfaceTintColor: Colors.transparent,
       foregroundColor: CgColors.text,
       elevation: 0,
       scrolledUnderElevation: 0,
       centerTitle: false,
-      titleTextStyle: TextStyle(color: CgColors.text, fontSize: 19, fontWeight: FontWeight.w800, letterSpacing: -0.3),
+      toolbarHeight: 60,
+      shape: Border(bottom: BorderSide(color: CgColors.border)),
+      titleTextStyle: TextStyle(color: CgColors.text, fontSize: 17, fontWeight: FontWeight.w700, letterSpacing: -0.2),
       iconTheme: IconThemeData(color: CgColors.text2),
     ),
     cardTheme: CardThemeData(
-      color: CgColors.glass,
+      color: CgColors.card,
       elevation: 0,
-      shadowColor: const Color(0x33294880),
       surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: const BorderSide(color: CgColors.glassBorder),
-      ),
-      margin: const EdgeInsets.symmetric(vertical: 6),
+      shape: RoundedRectangleBorder(borderRadius: CgRadius.card, side: const BorderSide(color: CgColors.border)),
+      margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: const Color(0xD9FFFFFF),
-      labelStyle: const TextStyle(color: CgColors.textMuted),
-      floatingLabelStyle: const TextStyle(color: CgColors.primaryDark, fontWeight: FontWeight.w700),
-      hintStyle: const TextStyle(color: CgColors.textMuted2),
+      fillColor: CgColors.card,
+      labelStyle: const TextStyle(color: CgColors.textMuted, fontSize: 14),
+      floatingLabelStyle: const TextStyle(color: CgColors.primaryDark, fontWeight: FontWeight.w600),
+      hintStyle: const TextStyle(color: CgColors.textMuted2, fontSize: 14),
+      helperStyle: const TextStyle(color: CgColors.textMuted, fontSize: 12),
       prefixIconColor: CgColors.textMuted,
       suffixIconColor: CgColors.textMuted,
       border: field(CgColors.borderStrong),
-      enabledBorder: field(CgColors.border),
-      focusedBorder: field(CgColors.primary, 1.8),
+      enabledBorder: field(CgColors.borderStrong),
+      focusedBorder: field(CgColors.primary, 1.6),
       errorBorder: field(CgColors.error),
-      focusedErrorBorder: field(CgColors.error, 1.8),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+      focusedErrorBorder: field(CgColors.error, 1.6),
+      disabledBorder: field(CgColors.border),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      isDense: false,
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
         backgroundColor: CgColors.primaryDark,
         foregroundColor: Colors.white,
-        disabledBackgroundColor: CgColors.primary.withValues(alpha: 0.35),
+        disabledBackgroundColor: CgColors.primary.withValues(alpha: 0.38),
         disabledForegroundColor: Colors.white,
         elevation: 0,
-        shadowColor: CgColors.primary.withValues(alpha: 0.5),
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15.5, letterSpacing: 0.1),
+        minimumSize: const Size(64, 46),
+        padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 20),
+        shape: controlShape,
+        textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14.5, letterSpacing: 0.1),
       ).copyWith(
-        elevation: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.disabled) ? 0 : (s.contains(WidgetState.pressed) ? 0 : 2)),
+        overlayColor: WidgetStatePropertyAll(Colors.white.withValues(alpha: 0.08)),
       ),
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
         backgroundColor: CgColors.primaryDark,
         foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+        minimumSize: const Size(64, 46),
+        padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 20),
+        shape: controlShape,
+        textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14.5),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
-        foregroundColor: CgColors.primaryDark,
-        backgroundColor: const Color(0xB3FFFFFF),
-        side: const BorderSide(color: CgColors.border),
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 18),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5),
+        foregroundColor: CgColors.text,
+        backgroundColor: CgColors.card,
+        side: const BorderSide(color: CgColors.borderStrong),
+        minimumSize: const Size(64, 46),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        shape: controlShape,
+        textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
       ),
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
         foregroundColor: CgColors.primaryDark,
-        textStyle: const TextStyle(fontWeight: FontWeight.w700),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(CgRadius.sm)),
       ),
     ),
-    listTileTheme: const ListTileThemeData(iconColor: CgColors.primary, textColor: CgColors.text),
-    bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-      backgroundColor: Colors.transparent,
-      selectedItemColor: CgColors.primaryDark,
-      unselectedItemColor: CgColors.textMuted,
-      type: BottomNavigationBarType.fixed,
+    iconButtonTheme: IconButtonThemeData(
+      style: IconButton.styleFrom(foregroundColor: CgColors.text2, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(CgRadius.md))),
+    ),
+    floatingActionButtonTheme: FloatingActionButtonThemeData(
+      backgroundColor: CgColors.primaryDark,
+      foregroundColor: Colors.white,
+      elevation: 2,
+      highlightElevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(CgRadius.lg)),
+      extendedTextStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14.5),
+    ),
+    listTileTheme: const ListTileThemeData(iconColor: CgColors.primaryDark, textColor: CgColors.text),
+    navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: CgColors.card,
+      surfaceTintColor: Colors.transparent,
+      indicatorColor: CgColors.primarySoft2,
       elevation: 0,
-      selectedLabelStyle: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800),
-      unselectedLabelStyle: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
+      height: 66,
+      labelTextStyle: WidgetStateProperty.resolveWith((s) => TextStyle(
+            fontSize: 12,
+            fontWeight: s.contains(WidgetState.selected) ? FontWeight.w700 : FontWeight.w500,
+            color: s.contains(WidgetState.selected) ? CgColors.primaryDeep : CgColors.textMuted,
+          )),
+      iconTheme: WidgetStateProperty.resolveWith(
+          (s) => IconThemeData(size: 23, color: s.contains(WidgetState.selected) ? CgColors.primaryDeep : CgColors.textMuted)),
+    ),
+    navigationRailTheme: const NavigationRailThemeData(
+      backgroundColor: CgColors.card,
+      indicatorColor: CgColors.primarySoft2,
+      selectedIconTheme: IconThemeData(color: CgColors.primaryDeep, size: 23),
+      unselectedIconTheme: IconThemeData(color: CgColors.textMuted, size: 23),
+      selectedLabelTextStyle: TextStyle(color: CgColors.primaryDeep, fontWeight: FontWeight.w700, fontSize: 12),
+      unselectedLabelTextStyle: TextStyle(color: CgColors.textMuted, fontWeight: FontWeight.w500, fontSize: 12),
+    ),
+    tabBarTheme: const TabBarThemeData(
+      labelColor: CgColors.primaryDeep,
+      unselectedLabelColor: CgColors.textMuted,
+      dividerColor: CgColors.border,
+      indicatorSize: TabBarIndicatorSize.label,
+      indicator: UnderlineTabIndicator(
+        borderSide: BorderSide(width: 2.5, color: CgColors.primaryDark),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(2)),
+      ),
+      labelStyle: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+      unselectedLabelStyle: TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
     ),
     dividerTheme: const DividerThemeData(color: CgColors.border, thickness: 1, space: 1),
     snackBarTheme: SnackBarThemeData(
-      backgroundColor: CgColors.card,
-      contentTextStyle: const TextStyle(color: CgColors.text, fontSize: 13.5, fontWeight: FontWeight.w600),
-      actionTextColor: CgColors.primaryDark,
+      backgroundColor: CgColors.navy2,
+      contentTextStyle: const TextStyle(color: Colors.white, fontSize: 13.5, fontWeight: FontWeight.w500),
+      actionTextColor: CgColors.primarySoft2,
       behavior: SnackBarBehavior.floating,
-      elevation: 8,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: const BorderSide(color: CgColors.border),
-      ),
+      width: null,
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(CgRadius.md)),
     ),
     dialogTheme: DialogThemeData(
-      backgroundColor: CgColors.glassStrong,
+      backgroundColor: CgColors.card,
       surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(CgRadius.xl)),
+      titleTextStyle: CgText.h2,
+      contentTextStyle: CgText.body,
     ),
     bottomSheetTheme: const BottomSheetThemeData(
-      backgroundColor: CgColors.glassStrong,
+      backgroundColor: CgColors.card,
       surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(26))),
+      constraints: BoxConstraints(maxWidth: 560),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(CgRadius.xl))),
     ),
+    dropdownMenuTheme: const DropdownMenuThemeData(textStyle: CgText.bodyStrong),
     progressIndicatorTheme: const ProgressIndicatorThemeData(color: CgColors.primary, linearTrackColor: CgColors.surface3),
     textSelectionTheme: const TextSelectionThemeData(cursorColor: CgColors.primary, selectionHandleColor: CgColors.primary),
     checkboxTheme: CheckboxThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5))),
+    tooltipTheme: TooltipThemeData(
+      decoration: BoxDecoration(color: CgColors.navy2, borderRadius: BorderRadius.circular(CgRadius.xs)),
+      textStyle: const TextStyle(color: Colors.white, fontSize: 12),
+    ),
+    scrollbarTheme: ScrollbarThemeData(
+      thumbColor: WidgetStatePropertyAll(CgColors.textMuted2.withValues(alpha: 0.5)),
+      radius: const Radius.circular(8),
+      thickness: const WidgetStatePropertyAll(6),
+    ),
   );
 }
 
-/// Status pill matching the Admin Web's cg-badge component. Always icon/dot + text.
+/// Status pill. Always icon/dot + text, never colour alone.
 class CgBadge extends StatelessWidget {
   final String text;
   final Color fg;
@@ -342,18 +439,18 @@ class CgBadge extends StatelessWidget {
   factory CgBadge.neutral(String text, {IconData? icon}) =>
       CgBadge(text, fg: CgColors.text2, bg: CgColors.surface2, borderColor: CgColors.border, icon: icon);
   factory CgBadge.primary(String text, {IconData? icon}) =>
-      CgBadge(text, fg: CgColors.primaryDeep, bg: CgColors.primarySoft2, borderColor: CgColors.primaryBorder, icon: icon);
+      CgBadge(text, fg: CgColors.primaryDeep, bg: CgColors.primarySoft, borderColor: CgColors.primaryBorder, icon: icon);
 
   factory CgBadge.safety(CgSafetyStatus status) => CgBadge(CgSafety.label(status),
-      fg: CgSafety.textColor(status), bg: CgSafety.soft(status), icon: CgSafety.icon(status));
+      fg: CgSafety.textColor(status), bg: CgSafety.soft(status), borderColor: CgSafety.borderColor(status), icon: CgSafety.icon(status));
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3.5),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(CgRadius.pill),
         border: Border.all(color: borderColor ?? fg.withValues(alpha: 0.18)),
       ),
       child: Row(
@@ -361,12 +458,13 @@ class CgBadge extends StatelessWidget {
         children: [
           if (icon != null) ...[
             Icon(icon, size: 13, color: fg),
-            const SizedBox(width: 5),
+            const SizedBox(width: 4),
           ],
           Flexible(
             child: Text(text,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: fg, fontSize: 12.5, fontWeight: FontWeight.w700)),
+                maxLines: 1,
+                style: TextStyle(color: fg, fontSize: 12, height: 1.35, fontWeight: FontWeight.w600)),
           ),
         ],
       ),

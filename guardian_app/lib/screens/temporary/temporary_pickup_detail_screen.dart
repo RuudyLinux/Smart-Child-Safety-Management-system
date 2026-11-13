@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../core/api_client.dart';
 import '../../core/formatters.dart';
+import '../../core/responsive.dart';
 import '../../core/theme.dart';
 import '../../models/portal_models.dart';
 import '../../providers/auth_provider.dart';
@@ -49,7 +50,12 @@ class _TemporaryPickupDetailScreenState extends State<TemporaryPickupDetailScree
     setState(() => _busy = true);
     try {
       await context.read<AuthProvider>().api.cancelTemporaryPickup(p.id, reason: reason.text.trim().isEmpty ? null : reason.text.trim());
-      if (mounted) setState(() { _busy = false; _key = UniqueKey(); });
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _key = UniqueKey();
+        });
+      }
     } on ApiException catch (e) {
       if (mounted) {
         setState(() => _busy = false);
@@ -68,70 +74,83 @@ class _TemporaryPickupDetailScreenState extends State<TemporaryPickupDetailScree
         load: () => auth.api.getTemporaryPickup(widget.id),
         builder: (context, d, reload) {
           final p = d.pickup;
-          return RefreshIndicator(
+          return CgPage(
+            maxWidth: CgWidths.detail,
             onRefresh: reload,
-            child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
-              children: [
-                CgPageHead(
-                  title: p.fullName,
-                  subtitle: '${p.relationship} · collecting ${p.studentName}',
-                  leading: CgAvatar(
-                    name: p.fullName,
-                    photoUrl: p.hasPhoto ? auth.api.temporaryPickupPhotoUrl(p.id) : null,
-                    headers: auth.photoHeaders,
-                    size: 56,
-                    guardian: true,
+            children: [
+              CgPageHead(
+                title: p.fullName,
+                subtitle: '${p.relationship} · collecting ${p.studentName}',
+                leading: CgAvatar(
+                  name: p.fullName,
+                  photoUrl: p.hasPhoto ? auth.api.temporaryPickupPhotoUrl(p.id) : null,
+                  headers: auth.photoHeaders,
+                  size: 52,
+                  guardian: true,
+                ),
+                actions: [TemporaryStateBadge(p.state)],
+              ),
+              if (p.state == 'Rejected' || p.state == 'Revoked')
+                CgAlert(
+                  tone: CgTone.danger,
+                  title: p.state == 'Rejected' ? 'The school did not approve this' : 'The school revoked this pickup',
+                  message: p.decisionNote,
+                ),
+              if (p.state == 'PendingApproval')
+                const CgAlert(
+                    tone: CgTone.warning,
+                    title: 'Waiting for the school',
+                    message: 'You will get a notification as soon as it is approved or declined.'),
+              CgSplit(
+                breakAt: 820,
+                primaryFlex: 3,
+                secondaryFlex: 2,
+                primary: [
+                  CgCard(
+                    title: 'Details',
+                    child: CgDefList([
+                      CgDefList.text('Child', p.studentName),
+                      CgDefList.text('Person', p.fullName),
+                      CgDefList.text('Relationship', p.relationship),
+                      CgDefList.text('Contact', p.phone),
+                      CgDefList.text('Aadhaar card number', p.identityNote),
+                      CgDefList.text('From', CgFormat.dayTime(p.validFrom)),
+                      CgDefList.text('Until', CgFormat.dayTime(p.validUntil)),
+                      CgDefList.text('Requested by', p.requestedByYou ? 'You' : p.requestedByName),
+                      if (p.notes != null) CgDefList.text('Note', p.notes),
+                      if (p.completedAt != null) CgDefList.text('Picked up', CgFormat.dayTime(p.completedAt!)),
+                    ]),
                   ),
-                ),
-                Padding(padding: const EdgeInsets.only(bottom: 14), child: Align(alignment: Alignment.centerLeft, child: TemporaryStateBadge(p.state))),
-                if (p.state == 'Rejected' || p.state == 'Revoked')
-                  CgAlert(tone: CgTone.danger, title: p.state == 'Rejected' ? 'The school did not approve this' : 'The school revoked this pickup', message: p.decisionNote),
-                if (p.state == 'PendingApproval')
-                  const CgAlert(tone: CgTone.warning, title: 'Waiting for the school', message: 'You will get a notification as soon as it is approved or declined.'),
-                if (p.qrAvailable) _QrCard(id: p.id, api: auth.api),
-                CgCard(
-                  title: 'Details',
-                  child: CgDefList([
-                    CgDefList.text('Child', p.studentName),
-                    CgDefList.text('Person', p.fullName),
-                    CgDefList.text('Relationship', p.relationship),
-                    CgDefList.text('Contact', p.phone),
-                    CgDefList.text('Aadhaar card number', p.identityNote),
-                    CgDefList.text('From', CgFormat.dayTime(p.validFrom)),
-                    CgDefList.text('Until', CgFormat.dayTime(p.validUntil)),
-                    CgDefList.text('Requested by', p.requestedByYou ? 'You' : p.requestedByName),
-                    if (p.notes != null) CgDefList.text('Note', p.notes),
-                    if (p.completedAt != null) CgDefList.text('Picked up', CgFormat.dayTime(p.completedAt!)),
-                  ]),
-                ),
-                CgCard(
-                  title: 'Activity',
-                  subtitle: 'Everything recorded for this pickup',
-                  child: d.audit.isEmpty
-                      ? const Text('Nothing recorded yet.', style: TextStyle(color: CgColors.textMuted))
-                      : CgTimeline([
-                          for (final (i, a) in d.audit.indexed)
-                            CgTimelineItem(
-                              title: _actionLabel(a.action),
-                              time: CgFormat.dayTime(a.at),
-                              body: _actionBody(a),
-                              icon: _actionIcon(a.action),
-                              tone: _actionTone(a.action),
-                              current: i == d.audit.length - 1,
-                            ),
-                        ]),
-                ),
-                if (p.canCancel)
-                  OutlinedButton.icon(
-                    onPressed: _busy ? null : () => _cancel(p),
-                    style: OutlinedButton.styleFrom(foregroundColor: CgColors.errorText, side: const BorderSide(color: CgColors.errorBorder)),
-                    icon: const Icon(Icons.cancel_outlined),
-                    label: Text(_busy ? 'Cancelling…' : 'Cancel this pickup'),
+                  CgCard(
+                    title: 'Activity',
+                    subtitle: 'Everything recorded for this pickup',
+                    child: d.audit.isEmpty
+                        ? const Text('Nothing recorded yet.', style: CgText.small)
+                        : CgTimeline([
+                            for (final (i, a) in d.audit.indexed)
+                              CgTimelineItem(
+                                title: _actionLabel(a.action),
+                                time: CgFormat.dayTime(a.at),
+                                body: _actionBody(a),
+                                icon: _actionIcon(a.action),
+                                tone: _actionTone(a.action),
+                                current: i == d.audit.length - 1,
+                              ),
+                          ]),
                   ),
-              ],
-            ),
+                ],
+                secondary: [
+                  if (p.qrAvailable) _QrCard(id: p.id, api: auth.api),
+                  if (p.canCancel)
+                    OutlinedButton.icon(
+                      onPressed: _busy ? null : () => _cancel(p),
+                      style: OutlinedButton.styleFrom(foregroundColor: CgColors.errorText, side: const BorderSide(color: CgColors.errorBorder)),
+                      icon: const Icon(Icons.cancel_outlined, size: 18),
+                      label: Text(_busy ? 'Cancelling…' : 'Cancel this pickup'),
+                    ),
+                ],
+              ),
+            ],
           );
         },
       ),
@@ -197,8 +216,9 @@ class _QrCard extends StatelessWidget {
             return Column(children: [
               Container(
                 padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18), border: Border.all(color: CgColors.border)),
-                child: QrImageView(data: qr.token, size: 220, backgroundColor: Colors.white, semanticsLabel: 'Temporary pickup QR code'),
+                decoration:
+                    BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(CgRadius.lg), border: Border.all(color: CgColors.border)),
+                child: QrImageView(data: qr.token, size: 200, backgroundColor: Colors.white, semanticsLabel: 'Temporary pickup QR code'),
               ),
               const SizedBox(height: 10),
               Text('Valid ${CgFormat.dayTime(qr.validFrom)} – ${CgFormat.dayTime(qr.validUntil)}',

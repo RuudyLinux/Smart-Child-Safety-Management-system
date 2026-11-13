@@ -1,169 +1,106 @@
-import 'dart:ui' show ImageFilter;
-
 import 'package:flutter/material.dart';
 import '../core/theme.dart';
 
-/// The app canvas: off-white with two faint, slowly drifting light washes
-/// (blue top-left, lavender top-right). Painted once behind the Navigator, so
-/// every page shares it and scrolling never repaints it.
-class CgAmbientBackground extends StatefulWidget {
+// Base surfaces and small building blocks. (The file keeps its old name so imports stay stable; the
+// translucent "glass" look is gone: surfaces are solid white with a hairline border.)
+
+/// The app canvas behind every route: one flat off-white colour.
+class CgAmbientBackground extends StatelessWidget {
   final Widget child;
   const CgAmbientBackground({required this.child, super.key});
 
   @override
-  State<CgAmbientBackground> createState() => _CgAmbientBackgroundState();
+  Widget build(BuildContext context) => ColoredBox(color: CgColors.background, child: child);
 }
 
-class _CgAmbientBackgroundState extends State<CgAmbientBackground> with SingleTickerProviderStateMixin {
-  late final AnimationController _drift =
-      AnimationController(vsync: this, duration: const Duration(seconds: 18))..repeat(reverse: true);
-
-  @override
-  void dispose() {
-    _drift.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final still = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
-    return ColoredBox(
-      color: CgColors.background,
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: RepaintBoundary(
-              child: AnimatedBuilder(
-                animation: _drift,
-                builder: (context, _) {
-                  final t = still ? 0.0 : Curves.easeInOut.transform(_drift.value);
-                  return CustomPaint(painter: _AmbientPainter(t));
-                },
-              ),
-            ),
-          ),
-          widget.child,
-        ],
-      ),
-    );
-  }
-}
-
-class _AmbientPainter extends CustomPainter {
-  final double t;
-  _AmbientPainter(this.t);
-
-  void _orb(Canvas canvas, Offset c, double r, Color color) {
-    final paint = Paint()
-      ..shader = RadialGradient(colors: [color, color.withValues(alpha: 0)]).createShader(Rect.fromCircle(center: c, radius: r));
-    canvas.drawCircle(c, r, paint);
-  }
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width, h = size.height;
-    _orb(canvas, Offset(w * (0.05 + 0.08 * t), -h * 0.04 + 30 * t), w * 0.95, const Color(0x293978D5));
-    _orb(canvas, Offset(w * (1.0 - 0.1 * t), h * (0.12 + 0.04 * t)), w * 0.8, const Color(0x248B7FE8));
-    _orb(canvas, Offset(w * 0.5, h * (1.05 - 0.04 * t)), w * 0.9, const Color(0x143978D5));
-  }
-
-  @override
-  bool shouldRepaint(_AmbientPainter old) => old.t != t;
-}
-
-/// Frosted white surface: translucent fill, white rim, hairline outline and a
-/// soft tinted shadow. [blur] adds a real backdrop blur — keep it for chrome
-/// that floats over content (nav bar, sheets), not for long lists.
+/// A surface: white, hairline border, soft shadow. [strong] adds a slightly stronger lift (used for
+/// floating panels such as the sign-in card). [gradient] is honoured for the rare tinted panel.
 class CgGlass extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
   final double radius;
-  final bool blur;
+  final bool blur; // kept for call-site compatibility; surfaces are opaque, nothing to blur
   final bool strong;
   final Gradient? gradient;
+  final Color? color;
+  final Color? borderColor;
   final List<BoxShadow>? shadow;
 
   const CgGlass({
     required this.child,
-    this.padding = const EdgeInsets.all(16),
-    this.radius = 20,
+    this.padding = const EdgeInsets.all(CgSpace.md),
+    this.radius = CgRadius.lg,
     this.blur = false,
     this.strong = false,
     this.gradient,
+    this.color,
+    this.borderColor,
     this.shadow,
     super.key,
   });
 
   @override
-  Widget build(BuildContext context) {
-    final r = BorderRadius.circular(radius);
-    Widget surface = Container(
-      padding: padding,
-      decoration: BoxDecoration(
-        color: gradient == null ? (strong ? CgColors.glassStrong : CgColors.glass) : null,
-        gradient: gradient,
-        borderRadius: r,
-        border: Border.all(color: CgColors.glassBorder),
-      ),
-      child: child,
-    );
-    if (blur) {
-      surface = ClipRRect(
-        borderRadius: r,
-        child: BackdropFilter(filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18), child: surface),
+  Widget build(BuildContext context) => Container(
+        padding: padding,
+        decoration: BoxDecoration(
+          color: gradient == null ? (color ?? CgColors.card) : null,
+          gradient: gradient,
+          borderRadius: BorderRadius.circular(radius),
+          border: Border.all(color: borderColor ?? CgColors.border),
+          boxShadow: shadow ?? (strong ? CgShadows.md : CgShadows.sm),
+        ),
+        child: child,
       );
-    }
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: r,
-        boxShadow: shadow ?? CgShadows.sm,
-        border: Border.all(color: CgColors.glassEdge, width: 0.6),
-      ),
-      child: surface,
-    );
-  }
 }
 
-/// Scales down a touch while pressed — tactile feedback for custom cards.
+/// Tappable wrapper for custom cards: ink ripple, pointer cursor, and a gentle lift on hover (desktop).
 class CgPressable extends StatefulWidget {
   final Widget child;
   final VoidCallback? onTap;
   final double radius;
-  const CgPressable({required this.child, this.onTap, this.radius = 20, super.key});
+  const CgPressable({required this.child, this.onTap, this.radius = CgRadius.lg, super.key});
 
   @override
   State<CgPressable> createState() => _CgPressableState();
 }
 
 class _CgPressableState extends State<CgPressable> {
-  bool _down = false;
+  bool _hover = false;
 
   @override
-  Widget build(BuildContext context) => AnimatedScale(
-        scale: _down ? 0.975 : 1,
+  Widget build(BuildContext context) {
+    if (widget.onTap == null) return widget.child;
+    final r = BorderRadius.circular(widget.radius);
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: AnimatedContainer(
         duration: CgMotion.fast,
         curve: CgMotion.ease,
+        transform: Matrix4.translationValues(0, _hover ? -1 : 0, 0),
+        decoration: BoxDecoration(borderRadius: r, boxShadow: _hover ? CgShadows.md : CgShadows.none),
         child: Material(
           type: MaterialType.transparency,
           child: InkWell(
-            borderRadius: BorderRadius.circular(widget.radius),
+            borderRadius: r,
             onTap: widget.onTap,
-            onHighlightChanged: (v) => setState(() => _down = v),
-            splashColor: CgColors.primary.withValues(alpha: 0.08),
-            highlightColor: CgColors.primary.withValues(alpha: 0.04),
+            splashColor: CgColors.primary.withValues(alpha: 0.06),
+            highlightColor: CgColors.primary.withValues(alpha: 0.03),
+            hoverColor: Colors.transparent,
             child: widget.child,
           ),
         ),
-      );
+      ),
+    );
+  }
 }
 
-/// Fades and lifts its child into place once, after [index] × 60 ms — used to
-/// cascade a screen's sections on first build.
+/// Fades its child in once, after [index] × 40 ms — a light cascade for a screen's first build.
 class CgFadeIn extends StatefulWidget {
   final Widget child;
   final int index;
   final double offset;
-  const CgFadeIn({required this.child, this.index = 0, this.offset = 16, super.key});
+  const CgFadeIn({required this.child, this.index = 0, this.offset = 6, super.key});
 
   @override
   State<CgFadeIn> createState() => _CgFadeInState();
@@ -176,7 +113,7 @@ class _CgFadeInState extends State<CgFadeIn> with SingleTickerProviderStateMixin
   @override
   void initState() {
     super.initState();
-    final delay = Duration(milliseconds: 60 * widget.index.clamp(0, 8));
+    final delay = Duration(milliseconds: 40 * widget.index.clamp(0, 6));
     Future.delayed(delay, () {
       if (mounted) _c.forward();
     });
@@ -205,148 +142,76 @@ class _CgFadeInState extends State<CgFadeIn> with SingleTickerProviderStateMixin
       );
 }
 
-/// The ChildGuard mark: shield on the brand gradient.
+/// The ChildGuard mark: a white shield on brand blue.
 class CgBrandMark extends StatelessWidget {
   final double size;
-  const CgBrandMark({this.size = 56, super.key});
+  final bool onDark;
+  const CgBrandMark({this.size = 40, this.onDark = false, super.key});
 
   @override
   Widget build(BuildContext context) => Container(
         width: size,
         height: size,
         decoration: BoxDecoration(
-          gradient: CgColors.brandGradient,
-          borderRadius: BorderRadius.circular(size * 0.3),
-          boxShadow: CgShadows.glow(),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
+          gradient: onDark ? null : CgColors.brandGradient,
+          color: onDark ? Colors.white.withValues(alpha: 0.14) : null,
+          borderRadius: BorderRadius.circular(size * 0.28),
+          border: onDark ? Border.all(color: Colors.white.withValues(alpha: 0.22)) : null,
         ),
-        child: Icon(Icons.shield_rounded, color: Colors.white, size: size * 0.54),
+        child: Icon(Icons.shield_rounded, color: Colors.white, size: size * 0.55),
       );
 }
 
-/// Round frosted icon tile used for leading icons in cards.
+/// Brand mark plus the product name, for headers and the sidebar.
+class CgBrandLockup extends StatelessWidget {
+  final double markSize;
+  final String? caption;
+  final bool onDark;
+  const CgBrandLockup({this.markSize = 34, this.caption, this.onDark = false, super.key});
+
+  @override
+  Widget build(BuildContext context) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CgBrandMark(size: markSize, onDark: onDark),
+          const SizedBox(width: 10),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('ChildGuard',
+                  style: TextStyle(
+                      fontSize: 16.5, fontWeight: FontWeight.w700, letterSpacing: -0.3, color: onDark ? Colors.white : CgColors.text)),
+              if (caption != null)
+                Text(caption!,
+                    style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w500, color: onDark ? Colors.white70 : CgColors.textMuted)),
+            ],
+          ),
+        ],
+      );
+}
+
+/// Square tinted icon tile used for leading icons in rows and cards.
 class CgIconTile extends StatelessWidget {
   final IconData icon;
   final Color color;
   final Color background;
   final double size;
-  const CgIconTile({required this.icon, required this.color, required this.background, this.size = 44, super.key});
+  const CgIconTile({required this.icon, required this.color, required this.background, this.size = 40, super.key});
 
   @override
   Widget build(BuildContext context) => Container(
         width: size,
         height: size,
-        decoration: BoxDecoration(
-          color: background,
-          borderRadius: BorderRadius.circular(size * 0.32),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.9)),
-          boxShadow: [BoxShadow(color: color.withValues(alpha: 0.18), blurRadius: 12, offset: const Offset(0, 4), spreadRadius: -4)],
-        ),
+        decoration: BoxDecoration(color: background, borderRadius: BorderRadius.circular(size * 0.26)),
         child: Icon(icon, color: color, size: size * 0.5),
       );
 }
 
+/// One destination in the app's main navigation.
 class CgNavItem {
   final IconData icon;
   final IconData activeIcon;
   final String label;
   const CgNavItem(this.icon, this.activeIcon, this.label);
-}
-
-/// Floating frosted bottom navigation with a sliding highlight pill.
-class CgGlassNavBar extends StatelessWidget {
-  final int index;
-  final ValueChanged<int> onTap;
-  final List<CgNavItem> items;
-  const CgGlassNavBar({required this.index, required this.onTap, required this.items, super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      top: false,
-      minimum: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-      child: CgGlass(
-        blur: true,
-        strong: true,
-        radius: 26,
-        padding: const EdgeInsets.all(6),
-        shadow: CgShadows.md,
-        child: LayoutBuilder(
-          builder: (context, c) {
-            final slot = c.maxWidth / items.length;
-            return SizedBox(
-              height: 60,
-              child: Stack(
-                children: [
-                  AnimatedPositioned(
-                    duration: CgMotion.base,
-                    curve: Curves.easeOutBack,
-                    left: slot * index + 4,
-                    top: 2,
-                    bottom: 2,
-                    width: slot - 8,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(colors: [Color(0xFFDCEBFF), Color(0xFFEFEDFD)]),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: Colors.white),
-                        boxShadow: [BoxShadow(color: CgColors.primary.withValues(alpha: 0.18), blurRadius: 12, offset: const Offset(0, 4))],
-                      ),
-                    ),
-                  ),
-                  Row(
-                    children: [
-                      for (var i = 0; i < items.length; i++)
-                        Expanded(child: _NavButton(item: items[i], selected: i == index, onTap: () => onTap(i))),
-                    ],
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-}
-
-class _NavButton extends StatelessWidget {
-  final CgNavItem item;
-  final bool selected;
-  final VoidCallback onTap;
-  const _NavButton({required this.item, required this.selected, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final color = selected ? CgColors.primaryDeep : CgColors.textMuted;
-    return Semantics(
-      button: true,
-      selected: selected,
-      label: item.label,
-      excludeSemantics: true,
-      child: InkResponse(
-        onTap: onTap,
-        radius: 32,
-        highlightShape: BoxShape.rectangle,
-        containedInkWell: false,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            AnimatedScale(
-              scale: selected ? 1.12 : 1,
-              duration: CgMotion.base,
-              curve: Curves.easeOutBack,
-              child: Icon(selected ? item.activeIcon : item.icon, color: color, size: 23),
-            ),
-            const SizedBox(height: 3),
-            AnimatedDefaultTextStyle(
-              duration: CgMotion.fast,
-              style: TextStyle(fontSize: 11, fontWeight: selected ? FontWeight.w800 : FontWeight.w600, color: color),
-              child: Text(item.label, maxLines: 1, overflow: TextOverflow.fade, softWrap: false),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/formatters.dart';
+import '../../core/responsive.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../models/portal_models.dart';
@@ -31,60 +32,67 @@ class TransportScreen extends StatelessWidget {
           final (detail, events) = data;
           final t = detail.transport;
           final bus = events.where((e) => e.eventType == 'BusBoarding' || e.eventType == 'BusDropoff').toList();
-          return RefreshIndicator(
+          return CgPage(
+            maxWidth: CgWidths.detail,
             onRefresh: reload,
-            child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
-              children: [
-                CgPageHead(
-                  title: t?.busNumber ?? 'No bus assigned',
-                  subtitle: t == null
-                      ? '${student.fullName} has no active bus assignment.'
-                      : '${student.fullName}${t.routeName == null ? '' : ' · ${t.routeName}'}',
-                  leading: const CgIconTile(icon: Icons.directions_bus_rounded, color: CgColors.infoText, background: CgColors.infoSoft, size: 48),
+            children: [
+              CgPageHead(
+                title: t?.busNumber ?? 'No bus assigned',
+                subtitle: t == null
+                    ? '${student.fullName} has no active bus assignment.'
+                    : '${student.fullName}${t.routeName == null ? '' : ' · ${t.routeName}'}',
+                leading: const CgIconTile(icon: Icons.directions_bus_rounded, color: CgColors.infoText, background: CgColors.infoSoft, size: 44),
+              ),
+              if (t == null)
+                const CgAlert(
+                  tone: CgTone.info,
+                  title: 'No bus on record',
+                  message: 'If your child should travel by school bus, contact the school office to have a bus assigned.',
+                )
+              else
+                Padding(
+                  padding: const EdgeInsets.only(bottom: CgSpace.md),
+                  child: CgGrid(minItemWidth: 260, maxColumns: 3, children: [
+                    CgCard(
+                      bottomSpacing: 0,
+                      title: 'Bus',
+                      child: CgDefList([
+                        CgDefList.text('Bus number', t.busNumber),
+                        CgDefList.text('Capacity', '${t.capacity} seats'),
+                        CgDefList.text('Assigned', t.assignedAt == null ? null : CgFormat.date(t.assignedAt!)),
+                      ]),
+                    ),
+                    CgCard(
+                      bottomSpacing: 0,
+                      title: 'Route',
+                      child: CgDefList([
+                        CgDefList.text('Name', t.routeName),
+                        CgDefList.text('Description', t.routeDescription),
+                      ]),
+                    ),
+                    CgCard(
+                      bottomSpacing: 0,
+                      title: 'Driver',
+                      child: CgDefList([
+                        CgDefList.text('Name', t.driverName),
+                        (
+                          'Phone',
+                          t.driverPhone == null || t.driverPhone!.isEmpty
+                              ? const Text('—')
+                              : SelectableText(t.driverPhone!, style: const TextStyle(fontWeight: FontWeight.w700, color: CgColors.primaryDeep))
+                        ),
+                      ]),
+                    ),
+                  ]),
                 ),
-                if (t == null)
-                  const CgAlert(
-                    tone: CgTone.info,
-                    title: 'No bus on record',
-                    message: 'If your child should travel by school bus, contact the school office to have a bus assigned.',
-                  )
-                else ...[
-                  CgCard(
-                    title: 'Bus',
-                    child: CgDefList([
-                      CgDefList.text('Bus number', t.busNumber),
-                      CgDefList.text('Capacity', '${t.capacity} seats'),
-                      CgDefList.text('Assigned', t.assignedAt == null ? null : CgFormat.date(t.assignedAt!)),
-                    ]),
-                  ),
-                  CgCard(
-                    title: 'Route',
-                    child: CgDefList([
-                      CgDefList.text('Name', t.routeName),
-                      CgDefList.text('Description', t.routeDescription),
-                    ]),
-                  ),
-                  CgCard(
-                    title: 'Driver',
-                    child: CgDefList([
-                      CgDefList.text('Name', t.driverName),
-                      ('Phone', t.driverPhone == null || t.driverPhone!.isEmpty
-                          ? const Text('—')
-                          : SelectableText(t.driverPhone!, style: const TextStyle(fontWeight: FontWeight.w700, color: CgColors.primaryDeep))),
-                    ]),
-                  ),
-                ],
-                CgCard(
-                  title: 'Bus checkpoints',
-                  subtitle: 'Last 7 days',
-                  child: bus.isEmpty
-                      ? const Text('No bus boardings or drop-offs recorded.', style: TextStyle(color: CgColors.textMuted))
-                      : CgTimeline(CgFormat.timeline(bus, withDate: true)),
-                ),
-              ],
-            ),
+              CgCard(
+                title: 'Bus checkpoints',
+                subtitle: 'Last 7 days',
+                child: bus.isEmpty
+                    ? const Text('No bus boardings or drop-offs recorded.', style: CgText.small)
+                    : CgTimeline(CgFormat.timeline(bus, withDate: true)),
+              ),
+            ],
           );
         },
       ),

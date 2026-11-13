@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/api_client.dart';
 import '../../providers/auth_provider.dart';
+import '../../core/responsive.dart';
+import '../../core/theme.dart';
+import '../../widgets/cg_glass.dart';
+import '../../widgets/cg_ui.dart';
 
 class ChangePasswordScreen extends StatefulWidget {
   const ChangePasswordScreen({super.key});
@@ -42,23 +46,46 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Change Password')),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            if (_error != null)
-              Padding(padding: const EdgeInsets.only(bottom: 16), child: Text(_error!, style: const TextStyle(color: Colors.red))),
-            TextField(controller: _currentCtrl, decoration: const InputDecoration(labelText: 'Current Password'), obscureText: true),
-            const SizedBox(height: 14),
-            TextField(controller: _newCtrl, decoration: const InputDecoration(labelText: 'New Password', helperText: 'At least 8 characters, one uppercase, one digit'), obscureText: true),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: _loading ? null : _submit,
-              child: _loading ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Update Password'),
+      appBar: AppBar(title: const Text('Change password')),
+      body: CgPage(
+        maxWidth: CgWidths.auth + 80,
+        children: [
+          const CgPageHead(title: 'Change password', subtitle: 'Enter your current password, then choose a new one.'),
+          CgGlass(
+            padding: const EdgeInsets.all(CgSpace.xl),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (_error != null) CgAlert(tone: CgTone.danger, title: _error!),
+                TextField(
+                  controller: _currentCtrl,
+                  obscureText: true,
+                  autofillHints: const [AutofillHints.password],
+                  decoration: const InputDecoration(labelText: 'Current password', prefixIcon: Icon(Icons.lock_outline_rounded)),
+                ),
+                const SizedBox(height: CgSpace.md),
+                TextField(
+                  controller: _newCtrl,
+                  obscureText: true,
+                  autofillHints: const [AutofillHints.newPassword],
+                  onSubmitted: (_) => _loading ? null : _submit(),
+                  decoration: const InputDecoration(
+                    labelText: 'New password',
+                    helperText: 'At least 8 characters, one uppercase, one digit',
+                    prefixIcon: Icon(Icons.lock_reset_rounded),
+                  ),
+                ),
+                const SizedBox(height: CgSpace.xl),
+                ElevatedButton(
+                  onPressed: _loading ? null : _submit,
+                  child: _loading
+                      ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Text('Update password'),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

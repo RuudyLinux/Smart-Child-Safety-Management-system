@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../core/theme.dart';
 import '../../providers/auth_provider.dart';
 import 'login_screen.dart';
+import '../../widgets/cg_auth_layout.dart';
 
 /// Mandatory reset of the admin-supplied default password. Reachable only with a
 /// reset ticket issued after OTP verification; the server rejects the submission
@@ -60,45 +61,38 @@ class _FirstLoginPasswordScreenState extends State<FirstLoginPasswordScreen> {
     final auth = context.watch<AuthProvider>();
     final error = _validationError ?? auth.lastError;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Set a New Password'), automaticallyImplyLeading: false),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(24),
-          children: [
-            const Text('You signed in with a default password. Choose your own password to continue.',
-                style: TextStyle(color: CgColors.textMuted)),
-            const SizedBox(height: 20),
-            if (error != null)
-              Container(
-                padding: const EdgeInsets.all(12),
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(color: CgColors.errorBg, borderRadius: BorderRadius.circular(8)),
-                child: Text(error, style: const TextStyle(color: CgColors.errorText)),
-              ),
-            TextField(
-              controller: _newPasswordCtrl,
-              obscureText: true,
-              decoration: const InputDecoration(
-                labelText: 'New Password',
-                helperText: 'At least 8 characters, one uppercase, one digit',
-              ),
+    return CgAuthLayout(
+      title: 'Set a new password',
+      subtitle: 'You signed in with a default password. Choose your own password to continue.',
+      error: error,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextField(
+            controller: _newPasswordCtrl,
+            obscureText: true,
+            autofillHints: const [AutofillHints.newPassword],
+            decoration: const InputDecoration(
+              labelText: 'New password',
+              helperText: 'At least 8 characters, one uppercase, one digit',
+              prefixIcon: Icon(Icons.lock_outline_rounded),
             ),
-            const SizedBox(height: 14),
-            TextField(
-              controller: _confirmCtrl,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'Confirm Password'),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: _loading ? null : _submit,
-              child: _loading
-                  ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Text('Submit'),
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(height: CgSpace.md),
+          TextField(
+            controller: _confirmCtrl,
+            obscureText: true,
+            onSubmitted: (_) => _loading ? null : _submit(),
+            decoration: const InputDecoration(labelText: 'Confirm password', prefixIcon: Icon(Icons.lock_outline_rounded)),
+          ),
+          const SizedBox(height: CgSpace.xl),
+          ElevatedButton(
+            onPressed: _loading ? null : _submit,
+            child: _loading
+                ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Text('Save and continue'),
+          ),
+        ],
       ),
     );
   }

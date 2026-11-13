@@ -4,9 +4,8 @@ import '../models/models.dart';
 import 'cg_avatar.dart';
 import 'cg_glass.dart';
 
-/// A child's live safety picture in one tappable card: photo, name, current
-/// status, check-in time and bus — the core unit of the Guardian app's home
-/// and children screens.
+/// A child's live safety picture in one tappable card: photo, name, current status, check-in time and
+/// bus — the core unit of the dashboard and the children screen.
 class CgChildCard extends StatelessWidget {
   final StudentSummary student;
   final String? photoUrl;
@@ -28,57 +27,63 @@ class CgChildCard extends StatelessWidget {
       onTap: onTap,
       child: CgGlass(
         padding: EdgeInsets.zero,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              CgAvatar(
-                name: student.fullName,
-                photoUrl: photoUrl,
-                headers: photoHeaders,
-                size: 58,
-                square: true,
-                statusDot: CgSafety.color(status),
-              ),
-              const SizedBox(width: 13),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(CgSpace.md, CgSpace.md, CgSpace.sm, CgSpace.sm),
+              child: Row(
+                children: [
+                  CgAvatar(
+                    name: student.fullName,
+                    photoUrl: photoUrl,
+                    headers: photoHeaders,
+                    size: 48,
+                    square: true,
+                    statusDot: CgSafety.color(status),
+                  ),
+                  const SizedBox(width: CgSpace.sm),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Text(student.fullName,
-                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: CgColors.text, letterSpacing: -0.2)),
-                        ),
-                        const Icon(Icons.chevron_right_rounded, color: CgColors.textMuted2, size: 20),
+                        Text(student.fullName, maxLines: 1, overflow: TextOverflow.ellipsis, style: CgText.h3),
+                        const SizedBox(height: 1),
+                        Text(student.grade == null ? 'No grade on file' : 'Grade ${student.grade}', style: CgText.caption.copyWith(fontWeight: FontWeight.w400)),
                       ],
                     ),
-                    const SizedBox(height: 3),
-                    Text(
-                      student.grade ?? 'No grade on file',
-                      style: const TextStyle(color: CgColors.textMuted, fontSize: 12.5),
-                    ),
-                    const SizedBox(height: 10),
-                    CgBadge.safety(status),
-                    const SizedBox(height: 8),
-                    _factRow(
-                      Icons.event_available_rounded,
-                      student.presentToday && student.checkInTime != null
-                          ? 'Checked in at ${formatCheckInTime(student.checkInTime)}'
-                          : 'Not checked in today',
-                    ),
-                    if (student.busNumber != null) ...[
-                      const SizedBox(height: 3),
-                      _factRow(Icons.directions_bus_rounded,
-                          student.routeName != null ? '${student.busNumber} · ${student.routeName}' : student.busNumber!),
-                    ],
-                  ],
-                ),
+                  ),
+                  if (onTap != null) const Icon(Icons.chevron_right_rounded, color: CgColors.textMuted2, size: 20),
+                ],
               ),
-            ],
-          ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: CgSpace.md),
+              child: Align(alignment: Alignment.centerLeft, child: CgBadge.safety(status)),
+            ),
+            const SizedBox(height: CgSpace.sm),
+            Container(
+              padding: const EdgeInsets.fromLTRB(CgSpace.md, 10, CgSpace.md, 12),
+              decoration: const BoxDecoration(border: Border(top: BorderSide(color: CgColors.border))),
+              child: Column(
+                children: [
+                  _factRow(
+                    Icons.event_available_rounded,
+                    student.presentToday && student.checkInTime != null
+                        ? 'Checked in at ${formatCheckInTime(student.checkInTime)}${student.lateToday ? ' (late)' : ''}'
+                        : 'Not checked in today',
+                  ),
+                  const SizedBox(height: 4),
+                  _factRow(
+                    Icons.directions_bus_rounded,
+                    student.busNumber == null
+                        ? 'No bus assigned'
+                        : (student.routeName != null ? '${student.busNumber} · ${student.routeName}' : student.busNumber!),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -86,16 +91,14 @@ class CgChildCard extends StatelessWidget {
 
   Widget _factRow(IconData icon, String text) => Row(
         children: [
-          Icon(icon, size: 14, color: CgColors.textMuted2),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(text, style: const TextStyle(color: CgColors.text2, fontSize: 12.5), overflow: TextOverflow.ellipsis),
-          ),
+          Icon(icon, size: 15, color: CgColors.textMuted2),
+          const SizedBox(width: CgSpace.xs),
+          Expanded(child: Text(text, style: const TextStyle(color: CgColors.text2, fontSize: 13), overflow: TextOverflow.ellipsis)),
         ],
       );
 }
 
-/// Compact horizontal variant for a multi-child switcher strip.
+/// Compact chip for a multi-child switcher strip.
 class CgChildChip extends StatelessWidget {
   final StudentSummary student;
   final String? photoUrl;
@@ -113,34 +116,35 @@ class CgChildChip extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) => GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: CgMotion.base,
-          curve: CgMotion.ease,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          margin: const EdgeInsets.only(right: 8),
-          decoration: BoxDecoration(
-            color: selected ? null : CgColors.glassStrong,
-            gradient: selected ? CgColors.brandGradient : null,
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: selected ? Colors.white.withValues(alpha: 0.4) : CgColors.border),
-            boxShadow: selected ? CgShadows.glow() : CgShadows.sm,
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(right: CgSpace.xs),
+        child: Material(
+          color: selected ? CgColors.primarySoft : CgColors.card,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(CgRadius.pill),
+            side: BorderSide(color: selected ? CgColors.primaryBorder : CgColors.border),
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CgAvatar(name: student.fullName, photoUrl: photoUrl, headers: photoHeaders, size: 22),
-              const SizedBox(width: 7),
-              Text(
-                student.fullName.split(' ').first,
-                style: TextStyle(
-                  color: selected ? Colors.white : CgColors.text2,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13,
-                ),
+          child: InkWell(
+            onTap: onTap,
+            customBorder: const StadiumBorder(),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(6, 5, 14, 5),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CgAvatar(name: student.fullName, photoUrl: photoUrl, headers: photoHeaders, size: 24),
+                  const SizedBox(width: CgSpace.xs),
+                  Text(
+                    student.fullName.split(' ').first,
+                    style: TextStyle(
+                      color: selected ? CgColors.primaryDeep : CgColors.text2,
+                      fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                      fontSize: 13.5,
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       );

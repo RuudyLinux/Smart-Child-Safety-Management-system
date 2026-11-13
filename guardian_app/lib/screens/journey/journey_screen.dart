@@ -6,6 +6,8 @@ import '../../providers/auth_provider.dart';
 import '../../widgets/cg_child_card.dart';
 import '../../widgets/cg_journey_timeline.dart';
 import '../../widgets/cg_states.dart';
+import '../../core/responsive.dart';
+import '../../widgets/cg_ui.dart';
 
 class JourneyScreen extends StatefulWidget {
   const JourneyScreen({super.key});
@@ -51,37 +53,43 @@ class _JourneyScreenState extends State<JourneyScreen> {
               title: 'No children linked yet',
               message: 'Journeys will appear here once a child is linked to your account.',
             )
-          : Column(
+          : CgPage(
+              maxWidth: CgWidths.reading,
+              onRefresh: () => _load(_selectedStudentId!),
               children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
-                  child: SizedBox(
-                    height: 40,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      children: students
-                          .map((s) => CgChildChip(
-                                student: s,
-                                selected: s.studentId == _selectedStudentId,
-                                photoUrl: s.hasPhoto ? auth.api.studentPhotoUrl(s.studentId) : null,
-                                photoHeaders: auth.photoHeaders,
-                                onTap: () {
-                                  setState(() { _selectedStudentId = s.studentId; _events = null; });
-                                  _load(s.studentId);
-                                },
-                              ))
-                          .toList(),
+                const CgPageHead(
+                  title: 'Journeys',
+                  subtitle: 'Checkpoints recorded for your child — bus boarding, school arrival, departure and drop-off.',
+                ),
+                if (students.length > 1)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: CgSpace.md),
+                    child: Wrap(
+                      runSpacing: CgSpace.xs,
+                      children: [
+                        for (final s in students)
+                          CgChildChip(
+                            student: s,
+                            selected: s.studentId == _selectedStudentId,
+                            photoUrl: s.hasPhoto ? auth.api.studentPhotoUrl(s.studentId) : null,
+                            photoHeaders: auth.photoHeaders,
+                            onTap: () {
+                              setState(() { _selectedStudentId = s.studentId; _events = null; });
+                              _load(s.studentId);
+                            },
+                          ),
+                      ],
                     ),
                   ),
-                ),
-                if (selected != null)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
-                    child: Align(alignment: Alignment.centerLeft, child: CgBadge.safety(selected.safetyStatus)),
-                  ),
-                Expanded(
+                CgCard(
+                  title: selected?.fullName ?? 'Journey',
+                  subtitle: 'Most recent checkpoints',
+                  trailing: selected == null ? null : CgBadge.safety(selected.safetyStatus),
                   child: _loading
-                      ? const CgLoadingState()
+                      ? const Padding(
+                          padding: EdgeInsets.symmetric(vertical: CgSpace.xl),
+                          child: Center(child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4))),
+                        )
                       : _error != null
                           ? CgErrorState(message: _error!, onRetry: () => _load(_selectedStudentId!))
                           : (_events == null || _events!.isEmpty)
@@ -90,14 +98,7 @@ class _JourneyScreenState extends State<JourneyScreen> {
                                   title: 'No journey events yet',
                                   message: 'Checkpoint scans — bus boarding, school arrival, departure and drop-off — will appear here.',
                                 )
-                              : RefreshIndicator(
-                                  onRefresh: () => _load(_selectedStudentId!),
-                                  child: ListView(
-                                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                                    physics: const AlwaysScrollableScrollPhysics(),
-                                    children: [CgJourneyTimeline(events: _events!)],
-                                  ),
-                                ),
+                              : CgJourneyTimeline(events: _events!),
                 ),
               ],
             ),

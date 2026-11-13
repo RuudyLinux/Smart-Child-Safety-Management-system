@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/formatters.dart';
+import '../../core/responsive.dart';
 import '../../core/theme.dart';
 import '../../models/portal_models.dart';
 import '../../providers/auth_provider.dart';
@@ -66,38 +67,36 @@ class _TemporaryPickupsScreenState extends State<TemporaryPickupsScreen> {
         builder: (context, items, reload) {
           final open = items.where((p) => p.isOpen).toList();
           final past = items.where((p) => !p.isOpen).toList();
-          return RefreshIndicator(
+          return CgPage(
+            maxWidth: CgWidths.list,
+            bottom: 96,
             onRefresh: reload,
-            child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 110),
-              children: [
+            children: [
+              const CgPageHead(title: 'Temporary pickup', subtitle: 'People you have authorised to collect your child for a short window.'),
+              const CgAlert(
+                tone: CgTone.info,
+                title: 'How it works',
+                message: 'Ask the school to let someone else collect your child for up to 24 hours. '
+                    'The school must approve it. Share the QR code with that person; at the desk the QR is scanned and '
+                    "their face is checked against the photo you supply. A temporary pickup can't be used twice.",
+              ),
+              if (!canRequest)
                 const CgAlert(
-                  tone: CgTone.info,
-                  title: 'How it works',
-                  message: 'Ask the school to let someone else collect your child for up to 24 hours. '
-                      'The school must approve it. Share the QR code with that person; at the desk the QR is scanned and '
-                      "their face is checked against the photo you supply. A temporary pickup can't be used twice.",
+                  tone: CgTone.warning,
+                  title: 'Not available on this account',
+                  message: 'Only a guardian who is authorised to collect a child can arrange a temporary pickup.',
                 ),
-                if (!canRequest)
-                  const CgAlert(
-                    tone: CgTone.warning,
-                    title: 'Not available on this account',
-                    message: 'Only a guardian who is authorised to collect a child can arrange a temporary pickup.',
+              if (items.isEmpty)
+                const CgCard(
+                  child: CgEmptyState(
+                    icon: Icons.badge_rounded,
+                    title: 'No temporary pickups',
+                    message: 'When you arrange for someone to collect your child, it appears here with its status.',
                   ),
-                if (items.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.only(top: 24),
-                    child: CgEmptyState(
-                      icon: Icons.badge_rounded,
-                      title: 'No temporary pickups',
-                      message: 'When you arrange for someone to collect your child, it appears here with its status.',
-                    ),
-                  ),
-                if (open.isNotEmpty) _section('Current and upcoming', open),
-                if (past.isNotEmpty) _section('History', past),
-              ],
-            ),
+                ),
+              if (open.isNotEmpty) _section('Current and upcoming', open),
+              if (past.isNotEmpty) _section('History', past),
+            ],
           );
         },
       ),
@@ -106,12 +105,12 @@ class _TemporaryPickupsScreenState extends State<TemporaryPickupsScreen> {
 
   Widget _section(String title, List<TemporaryPickup> items) => CgCard(
         title: title,
-        padding: const EdgeInsets.fromLTRB(16, 2, 12, 2),
+        padding: const EdgeInsets.fromLTRB(CgSpace.md, 0, CgSpace.sm, 0),
         child: Column(children: [
           for (final (i, p) in items.indexed)
             CgRow(
               divider: i != items.length - 1,
-              leading: const CgIconTile(icon: Icons.badge_rounded, color: CgColors.guardianText, background: CgColors.guardianSoft, size: 40),
+              leading: const CgIconTile(icon: Icons.badge_rounded, color: CgColors.guardianText, background: CgColors.guardianSoft, size: 36),
               title: p.fullName,
               subtitle: '${p.studentName} · ${CgFormat.dayTime(p.validFrom)} – ${CgFormat.time(p.validUntil)}',
               trailing: TemporaryStateBadge(p.state),
