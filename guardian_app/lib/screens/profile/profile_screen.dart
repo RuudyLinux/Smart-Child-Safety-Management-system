@@ -8,6 +8,7 @@ import '../../widgets/cg_avatar.dart';
 import '../../widgets/cg_glass.dart';
 import '../../widgets/cg_states.dart';
 import '../../widgets/cg_ui.dart';
+import '../../widgets/photo_capture.dart';
 import '../face/face_registration_screen.dart';
 import '../notifications/notifications_screen.dart';
 import '../auth/login_screen.dart';
@@ -325,7 +326,7 @@ class _PhotoSourceSheet extends StatelessWidget {
                 leading: const Icon(Icons.camera_alt_rounded, color: CgColors.primary),
                 title: const Text('Take a photo'),
                 onTap: () async {
-                  final file = await ImagePicker().pickImage(source: ImageSource.camera, imageQuality: 85, maxWidth: 1024, maxHeight: 1024);
+                  final file = await pickPhoto(context, ImageSource.camera, preferredCamera: CameraDevice.front);
                   if (context.mounted) Navigator.pop(context, file);
                 },
               ),
@@ -333,7 +334,7 @@ class _PhotoSourceSheet extends StatelessWidget {
                 leading: const Icon(Icons.photo_library_rounded, color: CgColors.primary),
                 title: const Text('Choose from gallery'),
                 onTap: () async {
-                  final file = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 85, maxWidth: 1024, maxHeight: 1024);
+                  final file = await pickPhoto(context, ImageSource.gallery);
                   if (context.mounted) Navigator.pop(context, file);
                 },
               ),

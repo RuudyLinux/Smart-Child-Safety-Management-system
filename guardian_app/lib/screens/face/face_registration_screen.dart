@@ -8,6 +8,7 @@ import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/guardian_api_service.dart';
+import '../../widgets/photo_capture.dart';
 
 /// Face registration with several reference photos, from the camera or the gallery. Each photo is
 /// checked by the server first (one clear face, sharp, well lit, facing the camera) and can only be
@@ -54,13 +55,7 @@ class _FaceRegistrationScreenState extends State<FaceRegistrationScreen> {
 
   Future<void> _pick(ImageSource source) async {
     // 1280 px keeps the face sharp for recognition without uploading a full 12 MP photo.
-    final picked = await ImagePicker().pickImage(
-      source: source,
-      preferredCameraDevice: CameraDevice.front,
-      maxWidth: 1280,
-      maxHeight: 1280,
-      imageQuality: 90,
-    );
+    final picked = await pickPhoto(context, source, preferredCamera: CameraDevice.front, maxSize: 1280, quality: 90);
     if (picked == null) return;
     final bytes = await picked.readAsBytes();
     setState(() { _photo = picked; _bytes = bytes; _analysis = null; _error = null; });

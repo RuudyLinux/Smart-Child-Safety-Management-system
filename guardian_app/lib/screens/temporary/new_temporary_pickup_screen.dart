@@ -9,6 +9,7 @@ import '../../models/models.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/guardian_api_service.dart';
 import '../../widgets/cg_ui.dart';
+import '../../widgets/photo_capture.dart';
 
 /// Request form for a temporary pickup person. The photo is mandatory; the window is limited to 24 hours
 /// (the server enforces the same limits, this just fails early and says why).
@@ -63,7 +64,7 @@ class _NewTemporaryPickupScreenState extends State<NewTemporaryPickupScreen> {
   }
 
   Future<void> _choosePhoto(ImageSource source) async {
-    final file = await ImagePicker().pickImage(source: source, imageQuality: 85, maxWidth: 1024, maxHeight: 1024);
+    final file = await pickPhoto(context, source);
     if (file == null) return;
     final bytes = await file.readAsBytes();
     if (mounted) setState(() => _photoBytes = bytes);
