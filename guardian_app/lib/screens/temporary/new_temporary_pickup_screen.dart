@@ -165,7 +165,7 @@ class _NewTemporaryPickupScreenState extends State<NewTemporaryPickupScreen> {
                 TextFormField(
                   controller: _idNote,
                   maxLength: 100,
-                  decoration: const InputDecoration(labelText: 'ID hint (optional)', hintText: 'Driving licence ending 1234'),
+                  decoration: const InputDecoration(labelText: 'Aadhaar card number (optional)', hintText: 'Aadhaar card number'),
                 ),
               ]),
             ),

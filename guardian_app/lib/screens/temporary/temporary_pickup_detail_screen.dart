@@ -98,7 +98,7 @@ class _TemporaryPickupDetailScreenState extends State<TemporaryPickupDetailScree
                     CgDefList.text('Person', p.fullName),
                     CgDefList.text('Relationship', p.relationship),
                     CgDefList.text('Contact', p.phone),
-                    CgDefList.text('ID hint', p.identityNote),
+                    CgDefList.text('Aadhaar card number', p.identityNote),
                     CgDefList.text('From', CgFormat.dayTime(p.validFrom)),
                     CgDefList.text('Until', CgFormat.dayTime(p.validUntil)),
                     CgDefList.text('Requested by', p.requestedByYou ? 'You' : p.requestedByName),

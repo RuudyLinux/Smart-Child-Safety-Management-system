@@ -52,7 +52,7 @@
                     <dt>Person</dt><dd>@p.FullName</dd>
                     <dt>Relationship</dt><dd>@p.Relationship</dd>
                     <dt>Contact</dt><dd>@p.Phone</dd>
-                    <dt>ID hint</dt><dd>@(p.IdentityNote ?? "—")</dd>
+                    <dt>Aadhaar card number</dt><dd>@(p.IdentityNote ?? "—")</dd>
                     <dt>Student</dt><dd>@p.StudentName@(string.IsNullOrEmpty(p.StudentGrade) ? "" : $" ({p.StudentGrade})")</dd>
                     <dt>From</dt><dd>@p.ValidFromUtc.ToSchoolTime().ToString("ddd d MMM yyyy, HH:mm")</dd>
                     <dt>Until</dt><dd>@p.ValidUntilUtc.ToSchoolTime().ToString("ddd d MMM yyyy, HH:mm") <span class="cg-muted">(@((p.ValidUntilUtc - p.ValidFromUtc).TotalHours.ToString("0.#")) hours)</span></dd>
