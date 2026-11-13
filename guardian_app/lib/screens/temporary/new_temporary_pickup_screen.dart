@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show FilteringTextInputFormatter;
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -164,8 +165,15 @@ class _NewTemporaryPickupScreenState extends State<NewTemporaryPickupScreen> {
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _idNote,
-                  maxLength: 100,
+                  keyboardType: TextInputType.number,
+                  maxLength: 12,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   decoration: const InputDecoration(labelText: 'Aadhaar card number (optional)', hintText: 'Aadhaar card number'),
+                  // An Aadhaar number is exactly 12 digits; the field stays optional.
+                  validator: (v) {
+                    final value = (v ?? '').trim();
+                    return value.isEmpty || RegExp(r'^[0-9]{12}$').hasMatch(value) ? null : 'Aadhaar card number must be 12 digits';
+                  },
                 ),
               ]),
             ),
