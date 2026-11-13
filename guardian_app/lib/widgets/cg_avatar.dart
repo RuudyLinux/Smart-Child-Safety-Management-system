@@ -55,24 +55,30 @@ class CgAvatar extends StatelessWidget {
 
     if (photoUrl != null && photoUrl!.isNotEmpty) {
       final cachePx = (size * MediaQuery.devicePixelRatioOf(context)).round();
-      content = ClipRRect(
-        borderRadius: BorderRadius.circular(radius),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            content,
-            Image.network(
-              photoUrl!,
-              headers: headers,
-              width: size,
-              height: size,
-              fit: BoxFit.cover,
-              cacheWidth: cachePx,
-              cacheHeight: cachePx,
-              loadingBuilder: (context, child, progress) => progress == null ? child : const SizedBox.shrink(),
-              errorBuilder: (context, error, stack) => const SizedBox.shrink(),
-            ),
-          ],
+      // Fixed box: StackFit.expand has nothing to expand to inside a Row/Column (unbounded constraints), which
+      // made the whole screen render blank whenever a photo was present.
+      content = SizedBox(
+        width: size,
+        height: size,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(radius),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              content,
+              Image.network(
+                photoUrl!,
+                headers: headers,
+                width: size,
+                height: size,
+                fit: BoxFit.cover,
+                cacheWidth: cachePx,
+                cacheHeight: cachePx,
+                loadingBuilder: (context, child, progress) => progress == null ? child : const SizedBox.shrink(),
+                errorBuilder: (context, error, stack) => const SizedBox.shrink(),
+              ),
+            ],
+          ),
         ),
       );
     }
