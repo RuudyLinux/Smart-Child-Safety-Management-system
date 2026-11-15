@@ -12,6 +12,20 @@ namespace ChildGuard.Infrastructure.Postgres.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            // History table: RESTRICT instead of CASCADE. Done first because MySQL 8 refuses a CASCADE foreign key
+            // on StudentId once the stored ActiveStudentKey column (computed from it) exists.
+            migrationBuilder.DropForeignKey(
+                name: "FK_StudentBusAssignments_Students_StudentId",
+                table: "StudentBusAssignments");
+
+            migrationBuilder.AddForeignKey(
+                name: "FK_StudentBusAssignments_Students_StudentId",
+                table: "StudentBusAssignments",
+                column: "StudentId",
+                principalTable: "Students",
+                principalColumn: "StudentId",
+                onDelete: ReferentialAction.Restrict);
+
             migrationBuilder.DropIndex(
                 name: "IX_StudentBusAssignments_BusId",
                 table: "StudentBusAssignments");
@@ -199,6 +213,18 @@ namespace ChildGuard.Infrastructure.Postgres.Migrations
                 name: "IX_StudentBusAssignments_BusId",
                 table: "StudentBusAssignments",
                 column: "BusId");
+
+            migrationBuilder.DropForeignKey(
+                name: "FK_StudentBusAssignments_Students_StudentId",
+                table: "StudentBusAssignments");
+
+            migrationBuilder.AddForeignKey(
+                name: "FK_StudentBusAssignments_Students_StudentId",
+                table: "StudentBusAssignments",
+                column: "StudentId",
+                principalTable: "Students",
+                principalColumn: "StudentId",
+                onDelete: ReferentialAction.Cascade);
         }
     }
 }

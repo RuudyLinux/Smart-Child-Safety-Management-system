@@ -1526,7 +1526,7 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                     b.HasOne("ChildGuard.Domain.Entities.Student", "Student")
                         .WithMany("BusAssignments")
                         .HasForeignKey("StudentId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Bus");

@@ -65,7 +65,9 @@ public class StudentBusAssignmentConfiguration : IEntityTypeConfiguration<Studen
         b.HasOne(x => x.Student)
             .WithMany(x => x.BusAssignments)
             .HasForeignKey(x => x.StudentId)
-            .OnDelete(DeleteBehavior.Cascade);
+            // Historical record: RESTRICT, like every other history table. Also required by MySQL 8, which refuses
+            // CASCADE on a column that the stored ActiveStudentKey below is computed from.
+            .OnDelete(DeleteBehavior.Restrict);
 
         b.HasOne(x => x.Bus)
             .WithMany(x => x.StudentBusAssignments)
