@@ -14,6 +14,7 @@ REM with "address already in use" in its own window.
 set "API_RUNNING="
 set "WEB_RUNNING="
 set "FACE_RUNNING="
+set "FACE_TASK="
 call :is_listening 5275
 if not errorlevel 1 set "API_RUNNING=1"
 call :is_listening 5080
@@ -126,8 +127,16 @@ REM  4. Start Face Service (Python FastAPI, port 8001)
 REM ------------------------------------------------------------
 echo [4/6] Starting Face Recognition Service (Port 8001)...
 set "FACE_PY=%ROOT%face-service\.venv\Scripts\python.exe"
+REM On a PC with the "ChildGuard Face Service" scheduled task (the tunnel setup), that task owns the
+REM service. Its copy needs 10-15 s to load models before port 8001 opens, so a second copy started
+REM here would race it for the port. Start the task instead; it ignores the request if already running.
+schtasks /query /tn "ChildGuard Face Service" >nul 2>&1
+if not errorlevel 1 set "FACE_TASK=1"
 if defined FACE_RUNNING (
     echo       [SKIP] Already running on port 8001.
+) else if defined FACE_TASK (
+    schtasks /run /tn "ChildGuard Face Service" >nul 2>&1
+    echo       Started by the "ChildGuard Face Service" scheduled task.
 ) else if exist "%FACE_PY%" (
     start "ChildGuard-FaceService" cmd /k "title ChildGuard - Face Service [Port 8001] && cd /d "%ROOT%face-service" && .venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8001"
     echo       Launched.

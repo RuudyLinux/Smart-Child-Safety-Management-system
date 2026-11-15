@@ -7,7 +7,7 @@ async function guardianWithFace(data: Data, studentId: number) {
   const g = await data.guardian();
   await data.link(studentId, g.id, 'Mother', true);
   await data.setGuardianPassword(g.id, 'Pickup-Pass-1!');
-  const session = await guardianSession(g.contactNumber, 'Pickup-Pass-1!');
+  const session = await guardianSession(g.id, g.contactNumber, 'Pickup-Pass-1!');
   const reg = await session.api.post('/api/me/face-registration', { data: { imageBase64: Buffer.from('face').toString('base64') } });
   expect(reg.status(), await reg.text()).toBe(200);
   await session.api.dispose();
@@ -23,6 +23,46 @@ async function scanAt(page: import('@playwright/test').Page, cardUid: string, ch
   await page.getByRole('button', { name: 'Read card' }).click();
 }
 
+/**
+ * A camera whose frames are unique, like a real sensor's. Chromium's built-in fake camera repeats the same
+ * frames in every test, which the API rightly refuses as a replayed capture (REPLAYED_FRAME: the exact
+ * neutral frame was used before). Each page gets a random seed, and every frame also carries a timestamp
+ * and fresh noise.
+ */
+async function useUniqueCamera(page: import('@playwright/test').Page) {
+  await page.addInitScript(() => {
+    const seed = Math.random().toString(36).slice(2);
+    navigator.mediaDevices.getUserMedia = async () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 640; canvas.height = 480;
+      const ctx = canvas.getContext('2d')!;
+      const draw = () => {
+        ctx.fillStyle = '#6b7f99'; ctx.fillRect(0, 0, 640, 480);
+        for (let i = 0; i < 60; i++) {
+          ctx.fillStyle = `hsl(${Math.random() * 360},40%,${30 + Math.random() * 40}%)`;
+          ctx.fillRect(Math.random() * 640, Math.random() * 480, 24, 24);
+        }
+        ctx.fillStyle = '#fff'; ctx.font = '28px sans-serif';
+        ctx.fillText(`${seed} ${performance.now().toFixed(1)}`, 20, 460);
+        requestAnimationFrame(draw);
+      };
+      draw();
+      return canvas.captureStream(15);
+    };
+  });
+}
+
+/** Waits for the live check (challenge prompts, frames, server verdict) to finish. */
+async function runLiveCheck(page: import('@playwright/test').Page) {
+  await page.getByRole('button', { name: 'Start camera' }).click();
+  await expect(page.locator('#cameraBox video')).toBeVisible();
+  const begin = page.getByRole('button', { name: 'Begin live check' });
+  await expect(begin).toBeEnabled();
+  await begin.click();
+  // The prompts take about 5-8 s, then the server judges the burst.
+  await expect(page.locator('#livePrompt')).toBeHidden({ timeout: 30_000 });
+}
+
 test.describe('Pickup & Drop-off desk', () => {
   // Regression: without a camera the desk showed "Camera not started" forever, and
   // while the permission prompt was open it gave no feedback at all.
@@ -33,13 +73,14 @@ test.describe('Pickup & Drop-off desk', () => {
     const s = await data.student();
     const card = await data.card(s.id);
     await data.scan(card.cardUid, 'SchoolArrival');
-    await guardianWithFace(data, s.id);
+    const g = await guardianWithFace(data, s.id);
 
     await scanAt(page, card.cardUid, /School departure/);
-    await expect(page.locator('#guardianFaceBadge')).toContainText('Face registered');
+    await expect(page.locator('#guardianList')).toContainText(g.fullName);
+    await expect(page.locator('#guardianList')).toContainText('face photo');
     await page.getByRole('button', { name: 'Start camera' }).click();
     await expect(page.locator('#cameraBox')).toContainText('No camera was found');
-    await expect(page.getByRole('button', { name: 'Capture & verify' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Begin live check' })).toBeDisabled();
   });
 
   test('arrival scan records the checkpoint and attendance @smoke', async ({ page, data }) => {
@@ -91,6 +132,7 @@ test.describe('Pickup & Drop-off desk', () => {
   });
 
   test('pickup: face match, approve handover, student leaves with the guardian', async ({ page, data, api }) => {
+    await useUniqueCamera(page);
     // Regression BUG-001: the desk used to record the departure on the card read, so
     // the approval (the only intended writer) was refused as a duplicate.
     const s = await data.student();
@@ -101,18 +143,22 @@ test.describe('Pickup & Drop-off desk', () => {
 
     await scanAt(page, card.cardUid, /School departure/);
     await expect(page.locator('#studentName')).toHaveText(s.fullName);
-    await expect(page.locator('#guardianSelect')).toContainText(g.fullName);
-    await expect(page.locator('#guardianFaceBadge')).toContainText('Face registered');
     await expect(page.locator('#studentStatusBadge')).toContainText('Identified');
+    await expect(page.locator('#guardianList')).toContainText(g.fullName);
+    await expect(page.locator('#guardianAuthBadge')).toContainText('1 authorised');
     const departures = async () => ((await (await api.get(`/api/journey/${s.id}`)).json()) as { eventType: string }[])
       .filter(e => e.eventType === 'SchoolDeparture').length;
     expect(await departures(), 'nothing recorded before the guardian is verified').toBe(0);
 
-    await page.getByRole('button', { name: 'Start camera' }).click();
-    await expect(page.locator('#cameraBox video')).toBeVisible();
-    await page.getByRole('button', { name: 'Capture & verify' }).click();
-    await expect(page.locator('#faceResult')).toContainText('Face verified');
-    expect((await face.calls()).at(-1)).toMatchObject({ path: '/verify-face', hasImage: true });
+    await runLiveCheck(page);
+    const results = page.locator('#layerResults');
+    await expect(results).toContainText('All mandatory checks passed');
+    await expect(results).toContainText(g.fullName);
+    for (const layer of ['Image quality', 'Face detection', 'Identity', 'Authorisation', 'Liveness'])
+      await expect(results.locator('li', { hasText: layer }), layer).not.toContainText(/Fail|No match|Unauthorised|Not performed/);
+    const live = (await face.calls()).filter(c => c.path === '/liveness/analyze').at(-1);
+    expect(live).toMatchObject({ hasImage: true });
+    expect(live.frames, 'a burst of real camera frames was sent').toBeGreaterThan(3);
 
     await page.getByRole('button', { name: 'Approve handover' }).click();
     await expect(page.locator('#decisionResult')).toContainText('Handover approved');
@@ -127,7 +173,10 @@ test.describe('Pickup & Drop-off desk', () => {
     await expect(page.locator('main')).toContainText(/left school|departure/i);
   });
 
-  test('pickup: face does not match, approval stays locked, handover can be rejected', async ({ page, data }) => {
+    // Nobody recognised: the API keeps no verification record (a record always names a guardian; the face
+  // audit log keeps the attempt), so there is nothing to approve or reject. The student is simply not released.
+  test('pickup: face does not match, nothing can be approved and the student is not released', async ({ page, data, api }) => {
+    await useUniqueCamera(page);
     const s = await data.student();
     const card = await data.card(s.id);
     await data.scan(card.cardUid, 'SchoolArrival');
@@ -135,16 +184,15 @@ test.describe('Pickup & Drop-off desk', () => {
     await face.willMatch(false);
 
     await scanAt(page, card.cardUid, /School departure/);
-    await page.getByRole('button', { name: 'Start camera' }).click();
-    await page.getByRole('button', { name: 'Capture & verify' }).click();
-    await expect(page.locator('#faceResult')).toContainText('Face did not match');
+    await runLiveCheck(page);
+    await expect(page.locator('#layerResults')).toContainText('No matching guardian');
+    await expect(page.locator('#layerResults li', { hasText: 'Identity' })).toContainText('No match');
+    await expect(page.locator('#layerResults')).toContainText('Do not release the student');
     await expect(page.getByRole('button', { name: 'Approve handover' })).toBeDisabled();
-    await page.getByRole('button', { name: 'Reject' }).click();
-    await expect(page.locator('#decisionResult')).toContainText('Handover rejected');
-
-    await page.goto('/Verification/History');
-    await page.locator('[data-cg-filter="result"]').selectOption({ label: 'No match' });
-    await expect(page.locator('tr[data-row]:visible', { hasText: s.fullName })).toHaveCount(1);
+    await expect(page.getByRole('button', { name: 'Reject' })).toBeDisabled();
+    const departures = ((await (await api.get(`/api/journey/${s.id}`)).json()) as { eventType: string }[])
+      .filter(e => e.eventType === 'SchoolDeparture').length;
+    expect(departures).toBe(0);
   });
 
   // Regression: a guardian with no registered face could be "captured" and the desk then
@@ -158,18 +206,18 @@ test.describe('Pickup & Drop-off desk', () => {
     const before = (await face.calls()).length;
 
     await scanAt(page, card.cardUid, /School departure/);
-    await expect(page.locator('#guardianFaceBadge')).toContainText('No face registered');
-    await expect(page.locator('#faceResult')).toContainText('cannot be face-verified');
-    await expect(page.locator('#faceResult')).not.toContainText('did not match');
-    const link = page.locator('#faceResult a', { hasText: 'Register face on guardian page' });
-    await expect(link).toHaveAttribute('href', `/Guardians/Details/${g.id}#photo`);
-    await page.getByRole('button', { name: 'Start camera' }).click();
-    await expect(page.locator('#cameraBox video')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Capture & verify' })).toBeDisabled();
+    await expect(page.locator('#guardianList')).toContainText(g.fullName);
+    await expect(page.locator('#guardianList')).toContainText('No face registered');
+    await expect(page.locator('#layerResults')).toContainText('No face is registered for these guardians');
+    await expect(page.locator('#layerResults')).not.toContainText(/No match|did not match/i);
+    // Nothing to compare with, so no capture is offered at all.
+    await expect(page.locator('#methodBar')).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Approve handover' })).toBeDisabled();
     expect((await face.calls()).length, 'no comparison was attempted').toBe(before);
   });
 
   test('admin registers a guardian face in person, then the desk verifies them', async ({ page, data }) => {
+    await useUniqueCamera(page);
     const s = await data.student();
     const card = await data.card(s.id);
     await data.scan(card.cardUid, 'SchoolArrival');
@@ -179,22 +227,23 @@ test.describe('Pickup & Drop-off desk', () => {
     await page.goto(`/Guardians/Details/${g.id}#photo`);
     const enrol = page.locator('[data-cg-face-enrol]');
     await expect(enrol).toContainText('Not registered');
-    await enrol.getByRole('button', { name: 'Start camera' }).click();
-    await expect(enrol.locator('[data-cg-face-view] video')).toBeVisible();
+    await enrol.getByRole('button', { name: 'Use camera' }).click();
+    await expect(enrol.locator('video')).toBeVisible();
     await enrol.getByRole('button', { name: 'Capture' }).click();
-    await expect(enrol.locator('[data-cg-face-view] img')).toBeVisible();
-    await enrol.getByRole('button', { name: 'Register face' }).click();
+    // The server checks the image first; only an accepted image can be registered.
+    const register = enrol.getByRole('button', { name: 'Register face' });
+    await expect(register).toBeEnabled();
+    await register.click();
     await expect(page.locator('.cg-toast').first()).toContainText('Face registered');
     await expect(page.locator('[data-cg-face-enrol]')).toContainText('Registered');
-    await expect(page.locator('[data-cg-face-enrol]').getByRole('button', { name: 'Start camera' })).toBeVisible();
     expect((await face.calls()).filter(c => c.path === '/register-face').at(-1)).toMatchObject({ hasImage: true });
 
     await face.willMatch(true);
     await scanAt(page, card.cardUid, /School departure/);
-    await expect(page.locator('#guardianFaceBadge')).toContainText('Face registered');
-    await page.getByRole('button', { name: 'Start camera' }).click();
-    await page.getByRole('button', { name: 'Capture & verify' }).click();
-    await expect(page.locator('#faceResult')).toContainText('Face verified');
+    await expect(page.locator('#guardianList')).toContainText(g.fullName);
+    await runLiveCheck(page);
+    await expect(page.locator('#layerResults')).toContainText('All mandatory checks passed');
+    await expect(page.getByRole('button', { name: 'Approve handover' })).toBeEnabled();
   });
 
   test.describe('face registration refused', () => {
@@ -203,12 +252,14 @@ test.describe('Pickup & Drop-off desk', () => {
       const g = await data.guardian();
       await page.goto(`/Guardians/Details/${g.id}#photo`);
       const enrol = page.locator('[data-cg-face-enrol]');
-      await enrol.getByRole('button', { name: 'Start camera' }).click();
+      await enrol.getByRole('button', { name: 'Use camera' }).click();
       await enrol.getByRole('button', { name: 'Capture' }).click();
+      const register = enrol.getByRole('button', { name: 'Register face' });
+      await expect(register).toBeEnabled();
       await face.failNext('More than one face is in the photo.', 422);
-      await enrol.getByRole('button', { name: 'Register face' }).click();
+      await register.click();
       await expect(enrol.locator('[data-cg-face-result]')).toContainText('More than one face is in the photo.');
-      await expect(enrol.getByRole('button', { name: 'Retake' })).toBeEnabled();
+      await expect(register).toBeEnabled(); // the admin can try again
       await page.reload();
       await expect(page.locator('[data-cg-face-enrol]')).toContainText('Not registered');
     });
@@ -216,17 +267,21 @@ test.describe('Pickup & Drop-off desk', () => {
 
   test.describe('face service failure', () => {
     test.use({ allowErrors: [/status of 400|status of 502|status of 503|status of 500/] });
-    test('a face service error is reported and nothing is approved', async ({ page, data }) => {
+    test('a face service error is reported and nothing is approved', async ({ page, data, api }) => {
+    await useUniqueCamera(page);
       const s = await data.student();
       const card = await data.card(s.id);
       await data.scan(card.cardUid, 'SchoolArrival');
       await guardianWithFace(data, s.id);
-      await face.failNext('No face detected', 422);
       await scanAt(page, card.cardUid, /School departure/);
-      await page.getByRole('button', { name: 'Start camera' }).click();
-      await page.getByRole('button', { name: 'Capture & verify' }).click();
-      await expect(page.locator('#faceResult')).toContainText(/could not run|No face/i);
+      await face.failNext('No face detected', 422);
+      await runLiveCheck(page);
+      await expect(page.locator('#layerResults')).toContainText(/could not be completed|No face/i);
+      await expect(page.locator('#layerResults')).not.toContainText('All mandatory checks passed');
       await expect(page.getByRole('button', { name: 'Approve handover' })).toBeDisabled();
+      const departures = ((await (await api.get(`/api/journey/${s.id}`)).json()) as { eventType: string }[])
+        .filter(e => e.eventType === 'SchoolDeparture').length;
+      expect(departures).toBe(0);
     });
   });
 
@@ -237,8 +292,10 @@ test.describe('Pickup & Drop-off desk', () => {
     const g = await data.guardian();
     await data.link(s.id, g.id, 'Neighbour', false);
     await scanAt(page, card.cardUid, /School departure/);
-    await expect(page.locator('#faceResult')).toContainText('Nobody may collect this student');
-    await expect(page.locator('#guardianSelect')).toBeDisabled();
+    await expect(page.locator('#layerResults')).toContainText('Nobody may collect this student');
+    await expect(page.locator('#guardianAuthBadge')).toContainText('No authorised guardian');
+    await expect(page.locator('#methodBar')).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Approve handover' })).toBeDisabled();
   });
 
   test('New scan resets the desk', async ({ page, data }) => {

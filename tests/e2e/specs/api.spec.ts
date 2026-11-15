@@ -56,7 +56,7 @@ test.describe('API', () => {
     const g = await data.guardian();
     await data.link(mine.id, g.id);
     await data.setGuardianPassword(g.id, 'Scope-Pass-1!');
-    const session = await guardianSession(g.contactNumber, 'Scope-Pass-1!');
+    const session = await guardianSession(g.id, g.contactNumber, 'Scope-Pass-1!');
     expect((await session.api.get(`/api/me/students/${mine.id}/journey`)).status()).toBe(200);
     expect((await session.api.get(`/api/me/students/${other.id}/journey`)).status()).toBe(403);
     // Guardians cannot use admin endpoints.

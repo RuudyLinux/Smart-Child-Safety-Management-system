@@ -79,8 +79,10 @@ export class Data {
 /**
  * Guardian sign-in exactly as the app does it: password -> OTP -> (first login) reset.
  * The OTP is read from the test API's own log: Development logs it when email is off.
+ * The API logs it by guardian id ("Login OTP for guardian 42 (dev-only log): 123456"), never by
+ * phone number, so the id is needed to pick the right code while tests run in parallel.
  */
-export async function guardianSession(contactNumber: string, password: string): Promise<{ token: string; password: string; api: APIRequestContext }> {
+export async function guardianSession(guardianId: number, contactNumber: string, password: string): Promise<{ token: string; password: string; api: APIRequestContext }> {
   const anon = await pwRequest.newContext({ baseURL: URLS.api });
   const logPath = path.join(E2E_DIR, '.e2e', 'api.log');
 
@@ -90,7 +92,7 @@ export async function guardianSession(contactNumber: string, password: string): 
     let code: string | undefined;
     for (let i = 0; i < 40 && !code; i++) {
       const fresh = fs.readFileSync(logPath, 'utf8').slice(before);
-      code = [...fresh.matchAll(new RegExp(`login OTP for ${contactNumber} \\(dev-only log\\): (\\d+)`, 'gi'))].at(-1)?.[1];
+      code = [...fresh.matchAll(new RegExp(`Login OTP for guardian ${guardianId} \\(dev-only log\\): (\\d+)`, 'g'))].at(-1)?.[1];
       if (!code) await new Promise(r => setTimeout(r, 250));
     }
     if (!code) throw new Error('OTP not found in API log');

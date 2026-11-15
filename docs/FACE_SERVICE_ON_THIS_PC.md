@@ -27,6 +27,12 @@ Everything else in ChildGuard keeps working. Turn off sleep while on mains power
 1. Set the key once (PowerShell): generate 48 random bytes, base64, and store as the User variable `FACE_SERVICE_KEY`.
 2. `scripts/run-face-service.ps1` starts it and restarts it if it stops. `scripts/install-face-service-task.ps1`
    registers a Windows scheduled task so it starts when you sign in. Logs: `logs/face-service.log`.
+   - The task runs the watchdog in a **headless conhost**. Without that, Windows 11 hosts it in Windows Terminal, and
+     closing that Terminal window killed the watchdog (task result `0xC000013A`).
+   - The task also fires every 5 minutes; a dead watchdog is replaced, a running one ignores the extra start.
+   - If the face service is already answering on 8001, the watchdog watches it instead of starting a second copy
+     (two copies used to fight over the port). `start.bat` starts this task rather than its own copy.
+   - If the task was first created from an elevated PowerShell, re-running the installer needs one too.
 3. Funnel: install Tailscale, sign in, allow Funnel in the admin console, then
    `tailscale funnel --bg 8001`. The command prints the public `https://<machine>.<tailnet>.ts.net` address.
 4. In Render, on the API service set `FaceService__BaseUrl` (that address) and `FaceService__ApiKey` (the same key),

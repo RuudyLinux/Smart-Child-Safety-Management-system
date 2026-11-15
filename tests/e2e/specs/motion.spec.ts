@@ -18,11 +18,11 @@ test('every page renders with animations on and settles without errors @smoke', 
     await page.goto(url);
     await expect(page.locator('html'), url).toHaveClass(/cg-motion/);
     await expect(page.locator('.cg-content > *').first(), url).toBeVisible();
-    // Let entrance animations and counters finish.
-    await page.waitForTimeout(1300);
-    const hidden = await page.locator('.cg-content > *').evaluateAll(els =>
-      els.filter(e => getComputedStyle(e).opacity !== '1').length);
-    expect(hidden, `${url}: blocks still transparent after the entrance`).toBe(0);
+    // Wait for the entrance to finish (about 0.8 s once it starts) instead of sleeping a fixed time:
+    // under parallel load the animation can start late. A block that never becomes opaque still fails.
+    await expect.poll(() => page.locator('.cg-content > *').evaluateAll(els =>
+      els.filter(e => getComputedStyle(e).opacity !== '1').length),
+      { message: `${url}: blocks still transparent after the entrance`, timeout: 6_000 }).toBe(0);
   }
 });
 

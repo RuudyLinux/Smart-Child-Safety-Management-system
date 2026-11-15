@@ -113,7 +113,7 @@ test.describe('Guardians', () => {
     await expect(page).toHaveURL(new RegExp(`/Guardians/Details/${g.id}#account$`));
     await expect(page.locator('[data-cg-tab="account"]')).toHaveClass(/is-active/);
     // The issued password really works for the guardian sign-in (first step of OTP login).
-    const session = await guardianSession(g.contactNumber, 'Temp-Pass-123!');
+    const session = await guardianSession(g.id, g.contactNumber, 'Temp-Pass-123!');
     const profile = await (await session.api.get('/api/me/profile')).json();
     expect(profile.fullName ?? profile.FullName).toBe(g.fullName);
     await session.api.dispose();
