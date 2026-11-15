@@ -444,7 +444,8 @@ public class AuthService : IAuthService
             _otpOptions.CodeLength,
             Math.Max(0, (int)Math.Ceiling((challenge.LastSentAtUtc.AddSeconds(_otpOptions.ResendIntervalSeconds) - now).TotalSeconds)),
             Math.Max(0, _otpOptions.MaxResends - challenge.ResendCount),
-            EmailMasking.Mask(challenge.Guardian?.Email));
+            EmailMasking.Mask(challenge.Guardian?.Email),
+            Math.Max(0, (int)Math.Floor((challenge.ExpiresAtUtc - now).TotalSeconds)));
 
     private static string GenerateOtpCode(int length)
     {

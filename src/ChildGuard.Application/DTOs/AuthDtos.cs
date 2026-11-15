@@ -36,14 +36,19 @@ public enum GuardianAuthStage
     Authenticated = 3
 }
 
-/// <summary>Handle for an open OTP challenge. Carries no code. <c>MaskedEmail</c> (for example a***@gmail.com) says which inbox the code was sent to.</summary>
+/// <summary>
+/// Handle for an open OTP challenge. Carries no code. <c>MaskedEmail</c> (for example a***@gmail.com) says which inbox the code was sent to.
+/// <c>ExpiresInSeconds</c> is the time left on the server's clock when this response was built; clients count down from it
+/// rather than comparing <c>ExpiresAtUtc</c> with their own clock, which may be minutes off.
+/// </summary>
 public record GuardianOtpChallengeDto(
     Guid ChallengeToken,
     DateTime ExpiresAtUtc,
     int CodeLength,
     int ResendAvailableInSeconds,
     int ResendsRemaining,
-    string? MaskedEmail = null)
+    string? MaskedEmail = null,
+    int ExpiresInSeconds = 0)
 {
     public GuardianAuthStage Stage => GuardianAuthStage.OtpRequired;
 }

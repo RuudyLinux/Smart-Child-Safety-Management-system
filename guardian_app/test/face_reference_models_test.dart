@@ -64,6 +64,26 @@ void main() {
     expect(withEmail.maskedEmail, 'p***@gmail.com');
     expect(OtpChallenge.fromJson({'challengeToken': 't'}).maskedEmail, isNull);
   });
+
+  test('OTP countdown trusts the server, so a phone clock that is off does not show a valid code as expired', () {
+    // expiresAtUtc is far in the past by this device's clock (as on a phone set
+    // minutes or hours wrong), but the server says the code has 300 s left.
+    final c = OtpChallenge.fromJson({
+      'challengeToken': 't', 'expiresAtUtc': '2000-01-01T00:00:00Z', 'codeLength': 6,
+      'resendAvailableInSeconds': 60, 'resendsRemaining': 3, 'expiresInSeconds': 300,
+    });
+    expect(c.secondsUntilExpiry, inInclusiveRange(299, 300));
+  });
+
+  test('OTP countdown falls back to expiresAtUtc for an older server', () {
+    final c = OtpChallenge.fromJson({
+      'challengeToken': 't',
+      'expiresAtUtc': DateTime.now().toUtc().add(const Duration(minutes: 5)).toIso8601String(),
+    });
+    expect(c.expiresInSeconds, isNull);
+    expect(c.secondsUntilExpiry, inInclusiveRange(298, 300));
+    expect(OtpChallenge.fromJson({'challengeToken': 't', 'expiresAtUtc': '2000-01-01T00:00:00Z'}).secondsUntilExpiry, 0);
+  });
 }
 
 void trustedDeviceModelTests() {

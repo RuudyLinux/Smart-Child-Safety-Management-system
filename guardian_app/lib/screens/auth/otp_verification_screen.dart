@@ -48,9 +48,9 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       setState(() { _resendIn = 0; _expiresIn = 0; });
       return;
     }
-    final expiresIn = challenge.expiresAtUtc.difference(DateTime.now().toUtc()).inSeconds;
+    final expiresIn = challenge.secondsUntilExpiry;
     setState(() {
-      _expiresIn = expiresIn > 0 ? expiresIn : 0;
+      _expiresIn = expiresIn;
       if (_resendIn > 0) _resendIn--;
     });
   }

@@ -30,6 +30,12 @@ class OtpChallenge {
   final int resendsRemaining;
   /// The inbox the code was sent to, masked (a***@gmail.com). Null from an older server.
   final String? maskedEmail;
+  /// Seconds the code had left on the server's clock when it answered. Null from an older server.
+  final int? expiresInSeconds;
+
+  /// Started when this challenge was received. Measures elapsed time without
+  /// reading the phone's wall clock, which can be minutes off the server's.
+  final Stopwatch _sinceReceived = Stopwatch()..start();
 
   OtpChallenge({
     required this.challengeToken,
@@ -38,7 +44,19 @@ class OtpChallenge {
     required this.resendAvailableInSeconds,
     required this.resendsRemaining,
     this.maskedEmail,
+    this.expiresInSeconds,
   });
+
+  /// Seconds until the code expires. Uses the server-measured [expiresInSeconds]
+  /// minus time elapsed since receipt, so a wrong phone clock cannot make a
+  /// valid code look expired. Falls back to the wall clock for an older server.
+  int get secondsUntilExpiry {
+    final serverSeconds = expiresInSeconds;
+    final left = (serverSeconds != null && serverSeconds > 0)
+        ? serverSeconds - _sinceReceived.elapsed.inSeconds
+        : expiresAtUtc.difference(DateTime.now().toUtc()).inSeconds;
+    return left > 0 ? left : 0;
+  }
 
   factory OtpChallenge.fromJson(Map<String, dynamic> j) => OtpChallenge(
         challengeToken: j['challengeToken']?.toString() ?? '',
@@ -47,6 +65,7 @@ class OtpChallenge {
         resendAvailableInSeconds: j['resendAvailableInSeconds'] ?? 0,
         resendsRemaining: j['resendsRemaining'] ?? 0,
         maskedEmail: j['maskedEmail']?.toString(),
+        expiresInSeconds: (j['expiresInSeconds'] as num?)?.toInt(),
       );
 }
 

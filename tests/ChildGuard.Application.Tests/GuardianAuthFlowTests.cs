@@ -174,6 +174,32 @@ public class GuardianAuthFlowTests
         Assert.Equal("Invalid or expired OTP.", result.Error);
     }
 
+    // The app counts down from ExpiresInSeconds instead of comparing ExpiresAtUtc with the phone's own
+    // clock, so a phone whose clock is off from the server's no longer shows a valid code as expired.
+    [Fact]
+    public async Task Challenge_ReportsSecondsUntilExpiry_MeasuredOnServerClock()
+    {
+        var h = new Harness();
+        h.AddGuardian();
+
+        var challenge = (await h.LoginAsync(DefaultPassword)).Value!;
+
+        Assert.Equal(h.Options.ExpiryMinutes * 60, challenge.ExpiresInSeconds);
+    }
+
+    [Fact]
+    public async Task ResentChallenge_ReportsFullFreshExpiryWindow()
+    {
+        var h = new Harness();
+        h.AddGuardian();
+        var challenge = (await h.LoginAsync(DefaultPassword)).Value!;
+
+        h.Clock.Advance(TimeSpan.FromSeconds(h.Options.ResendIntervalSeconds + 1));
+        var resent = (await h.Service.ResendGuardianOtpAsync(new ResendGuardianOtpRequest(challenge.ChallengeToken))).Value!;
+
+        Assert.Equal(h.Options.ExpiryMinutes * 60, resent.ExpiresInSeconds);
+    }
+
     // 6. Resend issues a fresh code, and the old one stops working.
     [Fact]
     public async Task ResendOtp_IssuesNewCodeAndInvalidatesPrevious()
