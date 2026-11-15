@@ -1,6 +1,5 @@
 using ChildGuard.Application.Services;
 using ChildGuard.Domain.Enums;
-using Xunit;
 
 namespace ChildGuard.Application.Tests;
 

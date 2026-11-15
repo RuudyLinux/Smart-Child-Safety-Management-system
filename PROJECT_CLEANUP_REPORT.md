@@ -1,119 +1,95 @@
 # Project cleanup report
 
-Date: 2026-11-12. Scope: audit, dependency review, and the low-risk cleanup you approved (batches 1 and 2).
-Policy followed: zero regression. Anything not provably unused was left alone.
+Date: 2026-11-15. Branch: `chore/codebase-cleanup` (from `feature/production-free` at `df7bede`).
+Scope: full audit of the repository and the cleanup approved by the owner (stages A to E). Policy: nothing removed
+unless proven unused; no behaviour, architecture, database, API contract or UI change.
 
-## 1. Backup
+The previous cleanup (2026-11-12) left two backup branches that still exist locally:
+`backup/before-project-cleanup` and `backup/head-before-project-cleanup`
+(restore a file with `git checkout backup/before-project-cleanup -- <path>`).
 
-| Item | Value |
+## 1. Audit findings
+
+| Area | Finding |
 |---|---|
-| Snapshot of all uncommitted work | branch `backup/before-project-cleanup`, commit `ddf610f` (214 files, parent = your last commit) |
-| Your last commit | branch `backup/head-before-project-cleanup` |
-| How it was made | a temporary Git index, so your branch, index and working tree were never touched |
-| Secrets check before backing up | scanned all 214 files for secret literals and credential files: none |
+| Repository | 665 tracked files, 2.2 MB. No build output, logs, dumps or secrets tracked. |
+| .NET packages | All 15 runtime packages used. No known vulnerabilities (direct or transitive). |
+| C# types | No unused types. 28 apparent candidates are discovered at runtime (27 EF Core configurations via `ApplyConfigurationsFromAssembly`) or are extension classes (`ControllerExtensions`). |
+| C# members (compiler analyzers IDE0005/0051/0052/0060/0035) | 15 unnecessary `using` directives outside migrations, 1 unused parameter, 2 EF1002 raw-SQL warnings. |
+| Admin Web | Every view, partial and script referenced; every view has an action. 25 of 410 CSS classes unused. |
+| Guardian app (Flutter) | Every Dart file imported; every package used except `cupertino_icons`. |
+| Face service (Python) | All 8 requirements used at runtime (`uvicorn` runs the server; `cv2` is opencv-python; `PIL` is pillow). |
+| Database | No pending model changes on MySQL or PostgreSQL. Migrations untouched. |
 
-Restore any removed file with `git checkout backup/before-project-cleanup -- <path>`.
-No destructive Git command was run. Nothing was committed or staged by the cleanup.
+## 2. Files deleted
 
-## 2. Original project structure (tracked: 603 files)
+| File | Reason |
+|---|---|
+| `guardian_app/README.md` | Unmodified Flutter template ("A new Flutter project"), unchanged since the first commit; no project-specific content. The root README documents the app. |
+| `PROJECT_CLEANUP_REPORT.md` (2026-11-12 version) | Superseded by this report; its only still-relevant content (the backup branches) is carried over above. |
 
-| Area | Tracked files | Notes |
+## 3. Files modified
+
+| File | Change |
+|---|---|
+| 13 C# files (Api, AdminWeb, Application, tests) | 15 unnecessary `using` directives removed (compiler-confirmed). |
+| `Application/Services/VerificationSessionService.cs` | Unused `livenessScore` parameter of `ToDto` removed. The score is still stored on the verification record by `NewRecord`. |
+| `Infrastructure/Repositories/TransportationRepository.cs` | Row locks rewritten as `ExecuteSqlInterpolatedAsync`, like `JourneyRepository`. Same `SELECT … FOR UPDATE` statements, id still a parameter, same lock order and transaction; clears EF1002. |
+| `AdminWeb/wwwroot/css/site.css` | Rules for 25 unused classes removed, 3 rules trimmed of an unused selector, orphaned `@keyframes cg-shimmer` removed, 3 comments that described removed rules removed. |
+| `guardian_app/pubspec.yaml`, `pubspec.lock` | `cupertino_icons` removed; the lockfile lost only that entry. |
+| 2 test `.csproj` files | `coverlet.collector` removed. |
+
+## 4–8. Removed code, packages and duplicates
+
+- **NuGet:** `coverlet.collector` (both test projects). Only used for code-coverage runs; nothing runs coverage.
+- **Flutter:** `cupertino_icons`. No `CupertinoIcons` use anywhere.
+- **Python:** none (all used).
+- **CSS classes removed:** `cg-avatar-stack`, `cg-bar` (nth-child delays), `cg-card--flush`, `cg-card--hover`, `cg-chart__label`,
+  `cg-col`, `cg-dropdown__form`, `cg-dropdown__menu--left`, `cg-face-enrol`, `cg-face-enrol__view`, `cg-iconbtn--bordered`,
+  `cg-modal__panel--wide`, `cg-nav__count`, `cg-nav__count--alert`, `cg-search__empty`, `cg-skeleton` (+ `--circle`, `--text`,
+  `--title`), `cg-stack`, `cg-text-right`, `cg-th-sort__icon`, `cg-tick`, `cg-upload-progress`, `cg-upload-progress__fill`.
+  Checked against all views, scripts and C#, including classes built in code (e.g. `'cg-badge--' + kind`).
+- **Duplicates reviewed and kept:** `ReverseProxySettings` exists in both the API and AdminWeb with identical logic. AdminWeb
+  cannot reference the API project and the shared Application layer has no ASP.NET dependency, so merging them would change
+  the architecture.
+
+## 9. Local build output cleaned (not in git; regenerated automatically)
+
+`guardian_app/build` 2262 MB, `tests/e2e/.e2e` 59 MB, root `node_modules` 17 MB, `tests/e2e/test-results` and
+`playwright-report` 4 MB: about 2.3 GB. Each was confirmed git-ignored with no tracked files inside.
+
+## 10. Before and after
+
+| Measure | Before | After |
 |---|---|---|
-| `src/ChildGuard.AdminWeb` | 127 | MVC UI, `wwwroot` (css, 3 scripts, `lib/` 60 files) |
-| `src/ChildGuard.Application` / `Infrastructure` / `Domain` / `Api` | 61 / 54 / 19 / 23 | clean-architecture layers |
-| `guardian_app` | about 150 | Flutter app plus default platform scaffolding (android, ios, macos, linux, windows, web) |
-| `face-service` | 10 plus requirements | FastAPI service |
-| `tests` | 24 | unit and integration projects |
+| Tracked files | 665 | 663 |
+| `site.css` | 92,404 bytes, 410 classes | 89,214 bytes, 385 classes |
+| Test-project NuGet references | 9 | 7 |
+| Flutter direct dependencies | 12 | 11 |
+| Unnecessary `using` directives (outside migrations) | 15 | 0 |
+| Build warnings (normal build) | 0 | 0 |
 
-Large but git-ignored and regenerable (not part of the repository): `guardian_app/build` 3.0 GB, `face-service/.venv` 2.7 GB,
-`guardian_app/.dart_tool` 341 MB, `bin/obj` about 110 MB, `tests/e2e/node_modules` 23 MB.
+## 11. Verification (after every stage, and again at the end)
 
-## 3. Files removed and why
-
-| File(s) | Why it was safe |
+| Check | Result |
 |---|---|
-| `src/ChildGuard.AdminWeb/wwwroot/lib/` (Bootstrap, jQuery, jQuery-validation, jQuery-validation-unobtrusive; 60 files, 9.5 MB) | Default MVC template leftovers. No view, script or stylesheet loads any file in it (checked all `Views`, `wwwroot/js`, `wwwroot/css`, `Program.cs`, `.csproj`). After removal no page requests anything under `/lib/` and no request fails. |
-| `src/ChildGuard.AdminWeb/Views/Shared/_ValidationScriptsPartial.cshtml` | Referenced by no view or controller; it only pointed at the removed jQuery files. |
-| `PageHeader` class in `Models/ViewModels/UiModels.cs` | Declared, referenced nowhere in C# or Razor. |
+| `dotnet build` (solution) | 0 warnings, 0 errors |
+| Migration drift, MySQL and PostgreSQL | No pending model changes |
+| Unit tests | 356/356 |
+| Integration tests (real MariaDB; includes concurrent-assignment lock tests) | 281/281 |
+| Flutter `pub get`, `analyze`, `test`, `build web --release` | Clean, 21/21, web build OK |
+| Face service `pip check`, runtime imports, unit tests | OK, OK, 104/104 |
+| Playwright E2E (Chromium, Firefox, WebKit smoke, 5 responsive viewports, accessibility) | 163/163, after a full stack rebuild |
 
-## 4. Dependencies changed
+## 12. Kept on purpose, warnings and risks
 
-| Change | Reason |
-|---|---|
-| `python-multipart` removed from `face-service/requirements.txt` | The service only accepts JSON bodies (no `Form`, `File` or `UploadFile` anywhere). Verified by importing the whole app with the package blocked: all 6 POST routes register and all 92 Python tests pass. The installed virtualenv was not modified. |
-| `pillow==10.4.0` added to the same file | The image-quality code imports Pillow directly; it was only present as a transitive dependency of DeepFace. Pinned to the version already installed. |
-
-No NuGet or Flutter package was removed or upgraded.
-
-## 5. Code optimised / refactored
-
-Only the unused `PageHeader` class (above). No logic, naming or structure was changed.
-
-## 6. Assets cleaned
-
-The 9.5 MB `wwwroot/lib` folder. No images, fonts or icons were removed. All Flutter assets are in use (none are declared).
-
-## 7. Folder structure
-
-No folders were moved or renamed.
-
-## 8. Security observations
-
-- No secrets in tracked files. `appsettings*.json` contain no sensitive values. The only literal-looking hits were a secure-storage key name and a deliberately invalid dummy login on the diagnostics page.
-- No vulnerable NuGet packages (including transitive).
-- Startup warns (does not fail) when `Biometrics:EncryptionKey` is empty and `AllowedHosts` is `*`: set both in production.
-- `Verification:RequireLiveness` is `false` by your decision: a matched photo can be approved without a live check.
-- Nothing in authentication, authorisation or deployment configuration was changed.
-
-## 9. Before and after
-
-| Check | Before cleanup | After cleanup |
-|---|---|---|
-| .NET build | 0 warnings, 0 errors | 0 warnings, 0 errors |
-| Unit tests | 272 pass | 272 pass |
-| Integration tests (real API, throwaway MySQL) | 148 pass | 148 pass |
-| Python tests | 92 pass | 92 pass (with `python-multipart` blocked) |
-| Flutter | `analyze` clean, 8 tests pass | not affected by the cleanup; not re-run |
-| Admin pages crawled in a real browser (19 pages) | 200 on all | 200 on all |
-
-Pre-existing issue found and fixed first (not caused by cleanup): the integration test
-`TheStoredChallenge_IsAHash_NotTheToken` still expected two head-turn steps after head turns were made optional.
-One line changed in `tests/ChildGuard.Api.IntegrationTests/LayeredVerificationApiTests.cs`.
-
-Environment note: the integration tests need the local MySQL (XAMPP) running; with it stopped they all fail, which says nothing about the code.
-
-## 10. Features verified
-
-Browser crawl of all 19 reachable admin pages (every sidebar page, a student detail page, a guardian detail page, Diagnostics),
-original code versus cleaned code, same database:
-
-- identical page text, identical script and stylesheet lists, identical status codes;
-- identical console and network messages (the only ones are the Diagnostics page's intentional invalid-login probes, 401/400);
-- no horizontal overflow at 820 px (tablet) or 390 px (phone);
-- login and authenticated navigation worked;
-- the 4 "broken image" counts (student and guardian detail photo slots) are identical before and after.
-
-Not re-verified because the cleanup did not touch them: the Flutter app, the face service endpoints beyond the Python tests,
-the pickup desk camera flow.
-
-## 11. Retained because usage was uncertain or the gain is not worth the risk
-
-| Item | Why kept |
-|---|---|
-| `.github/modernize/java-upgrade/` | Untracked, ignored, from a Java-upgrade assistant, irrelevant to this .NET project. Left for you to decide. |
-| `cupertino_icons` (Flutter) | Template default with zero uses; removal gains nothing. |
-| 35 of 388 `cg-*` CSS classes with no static reference | Class names may be built dynamically; about 2 to 3 KB to gain. |
-| Duplicated JS helpers (`csrfToken`, `escapeHtml`, element builders) across `app.js`, `face-capture.js`, `face-enrol.js`, `verification.js` | Separate scripts without a module system; merging risks load-order breakage for a cosmetic gain. |
-| `ChildGuard_Master_Development_Task_Updated.md` | Your original spec (per `CLAUDE.md`). |
-| `tests/e2e/` (untracked, incl. a 5 MB `trace.zip`) | Your Playwright project; not touched. |
-| `coverlet.collector`, `xunit` v2 | Standard test tooling. xunit v2 is flagged "legacy" in favour of v3; informational. |
-
-## 12. Remaining recommendations
-
-1. Restart AdminWeb (`start.bat`) to pick up the removal; the running copy still serves the old build.
-2. Optional, about 3 GB: delete `guardian_app/build` and the `bin/obj` folders. They are ignored and rebuild on demand.
-3. Optional: replace the stock `guardian_app/README.md` (Flutter template text) with a short real one.
-4. Package updates are available (EF Core 9 to 11, FluentValidation 11 to 12, Flutter firebase packages, `intl` 0.19 to 0.20) but nothing is vulnerable;
-   treat them as planned migrations, not cleanup.
-5. Set `Biometrics__EncryptionKey` and a real `AllowedHosts` before production.
-6. Decide whether `Verification:RequireLiveness` should stay `false` for production.
+- `neon.ts`, root `package.json` / `package-lock.json`: Neon CLI branch-policy configuration. Not used by the application; kept
+  because it may be part of the database workflow. Delete together if the Neon CLI is not used.
+- Explicit `Microsoft.EntityFrameworkCore(.Relational)` 9.0.19 and `MySqlConnector` 2.6.2 references: deliberate pins to patched
+  versions (MySqlConnector for GHSA-473q-m89c-ghf8).
+- Major upgrades available (EF Core 11, ASP.NET 11 packages, FluentValidation 12, Npgsql 10, MySqlConnector 3) are not
+  compatible with the current stack (Pomelo MySQL is on EF Core 9) and are out of scope for a cleanup.
+- 14 unnecessary `using` directives remain inside applied migrations, which are never edited.
+- Flutter `linux/`, `macos/`, `windows/` folders kept: removing them drops platforms, a product decision.
+- Android and iOS were not built locally; the only Flutter change is removing an unused font package, and the web build passed.
+- Local only: `docs/ChildGuard-System-Overview.pdf` and `.claude/` are untracked and were left untouched.

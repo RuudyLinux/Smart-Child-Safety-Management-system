@@ -1,5 +1,4 @@
 using ChildGuard.Application.Common;
-using Xunit;
 
 namespace ChildGuard.Application.Tests;
 

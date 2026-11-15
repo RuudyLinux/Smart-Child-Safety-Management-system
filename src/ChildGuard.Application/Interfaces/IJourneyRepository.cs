@@ -1,5 +1,4 @@
 using ChildGuard.Domain.Entities;
-using ChildGuard.Domain.Enums;
 
 namespace ChildGuard.Application.Interfaces;
 

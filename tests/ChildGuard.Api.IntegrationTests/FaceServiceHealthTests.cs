@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Http.Json;
 using System.Text.Json;
 using ChildGuard.Api.IntegrationTests.Infrastructure;
 using ChildGuard.Infrastructure.FaceService;

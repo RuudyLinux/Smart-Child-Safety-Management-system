@@ -4,7 +4,6 @@ using ChildGuard.Domain.Entities;
 using ChildGuard.Domain.Enums;
 using ChildGuard.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace ChildGuard.Api.IntegrationTests;
 

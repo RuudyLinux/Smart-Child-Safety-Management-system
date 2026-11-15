@@ -150,7 +150,7 @@ public class VerificationSessionService : IVerificationSessionService
             verificationId is null ? null : $"verification={verificationId}");
 
         return Result<VerificationAttemptResultDto>.Success(ToDto(decision, quality, identity, authorisation, LivenessResult.NotPerformed,
-            match, identity.Reasons, quality.Messages, session, null, verificationId, expiresAt, LabelFor(match, identity)));
+            match, identity.Reasons, quality.Messages, session, verificationId, expiresAt, LabelFor(match, identity)));
     }
 
     // -------------------------------------------------------------- Challenge
@@ -311,7 +311,7 @@ public class VerificationSessionService : IVerificationSessionService
             ? FaceVerificationMessages.ForReasons(liveness.Reasons).ToList()
             : quality.Messages.ToList();
         return Result<VerificationAttemptResultDto>.Success(ToDto(decision, quality, identity, authorised.Authorisation, liveness.Result,
-            authorised.Match, reasons, failureMessages, session, liveness.Score, verificationId, expiresAt, LabelFor(authorised.Match, identity)));
+            authorised.Match, reasons, failureMessages, session, verificationId, expiresAt, LabelFor(authorised.Match, identity)));
     }
 
     // ---------------------------------------------------------------- helpers
@@ -371,7 +371,7 @@ public class VerificationSessionService : IVerificationSessionService
     private VerificationAttemptResultDto ToDto(
         VerificationDecision decision, QualityAssessment quality, IdentityAssessment? identity, AuthorisationResult authorisation,
         LivenessResult liveness, Candidate? match, IReadOnlyList<string>? reasons, IReadOnlyCollection<string> issueMessages,
-        VerificationSession session, double? livenessScore = null, int? verificationId = null, DateTime? expiresAt = null, string? label = null)
+        VerificationSession session, int? verificationId = null, DateTime? expiresAt = null, string? label = null)
     {
         var threshold = identity?.Threshold ?? 0;
         return new VerificationAttemptResultDto(

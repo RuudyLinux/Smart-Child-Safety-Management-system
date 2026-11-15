@@ -79,8 +79,8 @@ public class TransportationRepository : ITransportationRepository
         // READ COMMITTED so counts read after the lock see whatever the previous holder committed.
         await using var tx = await _db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
         // Fixed order (students, then buses, ascending ids) on every path, so two callers never deadlock.
-        foreach (var id in studentIds.Distinct().OrderBy(i => i)) await LockAsync("Students", "StudentId", id, ct);
-        foreach (var id in busIds.Distinct().OrderBy(i => i)) await LockAsync("Buses", "BusId", id, ct);
+        foreach (var id in studentIds.Distinct().OrderBy(i => i)) await LockStudentAsync(id, ct);
+        foreach (var id in busIds.Distinct().OrderBy(i => i)) await LockBusAsync(id, ct);
 
         var result = await work(ct);
         if (result.Succeeded) await tx.CommitAsync(ct);
@@ -92,12 +92,17 @@ public class TransportationRepository : ITransportationRepository
         return result;
     }
 
-    // Row lock held until commit (InnoDB / PostgreSQL). Table and column names are constants above,
-    // never input; the id is a parameter.
-    private Task LockAsync(string table, string key, int id, CancellationToken ct) =>
+    // Row locks held until commit (InnoDB / PostgreSQL), written like JourneyRepository's student lock:
+    // the SQL text is fixed and the id is sent as a parameter.
+    private Task LockStudentAsync(int id, CancellationToken ct) =>
         _db.Database.IsNpgsql()
-            ? _db.Database.ExecuteSqlRawAsync($"SELECT \"{key}\" FROM \"{table}\" WHERE \"{key}\" = {{0}} FOR UPDATE", new object[] { id }, ct)
-            : _db.Database.ExecuteSqlRawAsync($"SELECT {key} FROM {table} WHERE {key} = {{0}} FOR UPDATE", new object[] { id }, ct);
+            ? _db.Database.ExecuteSqlInterpolatedAsync($"SELECT \"StudentId\" FROM \"Students\" WHERE \"StudentId\" = {id} FOR UPDATE", ct)
+            : _db.Database.ExecuteSqlInterpolatedAsync($"SELECT StudentId FROM Students WHERE StudentId = {id} FOR UPDATE", ct);
+
+    private Task LockBusAsync(int id, CancellationToken ct) =>
+        _db.Database.IsNpgsql()
+            ? _db.Database.ExecuteSqlInterpolatedAsync($"SELECT \"BusId\" FROM \"Buses\" WHERE \"BusId\" = {id} FOR UPDATE", ct)
+            : _db.Database.ExecuteSqlInterpolatedAsync($"SELECT BusId FROM Buses WHERE BusId = {id} FOR UPDATE", ct);
 
     public Task<int> CountActiveAssignmentsAsync(int busId, CancellationToken ct = default) =>
         _db.StudentBusAssignments.CountAsync(a => a.BusId == busId && a.Status == RecordStatus.Active, ct);

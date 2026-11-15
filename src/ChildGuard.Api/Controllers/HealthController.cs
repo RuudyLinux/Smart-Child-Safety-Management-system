@@ -2,7 +2,6 @@ using ChildGuard.Application.Interfaces;
 using ChildGuard.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace ChildGuard.Api.Controllers;
 
