@@ -86,6 +86,8 @@ test.describe('Transportation', () => {
     const d = await data.driver();
     const r = await data.route();
     await page.goto('/Transportation');
+    // Record tables only: the audit table below also names the records it describes.
+    const rows = page.locator('main table:not([data-cg-transport-audit]) tr');
 
     await page.getByRole('button', { name: `Edit ${d.fullName}` }).click();
     const dm = page.locator(`#editDriver-${d.id}`);
@@ -94,13 +96,13 @@ test.describe('Transportation', () => {
     await dm.locator('input[name="phone"]').fill('9000011111');
     await dm.getByRole('button', { name: 'Save driver' }).click();
     await expect(page.locator('.cg-toast', { hasText: `Driver ${newName} updated` })).toBeVisible();
-    const driverRow = page.locator('main tr', { hasText: newName });
+    const driverRow = rows.filter({ hasText: newName });
     await expect(driverRow).toContainText('9000011111');
 
     page.once('dialog', dlg => dlg.accept());
     await driverRow.getByRole('button', { name: 'Deactivate' }).click();
     await expect(page.locator('.cg-toast', { hasText: 'Driver deactivated' })).toBeVisible();
-    await expect(page.locator('main tr', { hasText: newName })).toContainText('Inactive');
+    await expect(rows.filter({ hasText: newName })).toContainText('Inactive');
     // An inactive driver is not offered for a new bus.
     await expect(page.locator('#addBusModal select[name="driverId"] option', { hasText: newName })).toHaveCount(0);
 
@@ -111,9 +113,9 @@ test.describe('Transportation', () => {
     await rm.getByRole('button', { name: 'Save route' }).click();
     await expect(page.locator('.cg-toast', { hasText: `Route ${newRoute} updated` })).toBeVisible();
     page.once('dialog', dlg => dlg.accept());
-    await page.locator('main tr', { hasText: newRoute }).getByRole('button', { name: 'Deactivate' }).click();
+    await rows.filter({ hasText: newRoute }).getByRole('button', { name: 'Deactivate' }).click();
     await expect(page.locator('.cg-toast', { hasText: 'Route deactivated' })).toBeVisible();
-    await expect(page.locator('main tr', { hasText: newRoute })).toContainText('Inactive');
+    await expect(rows.filter({ hasText: newRoute })).toContainText('Inactive');
   });
 
   test('edit a bus, take it out of service and back', async ({ page, data }) => {
@@ -150,7 +152,8 @@ test.describe('Transportation', () => {
     const active = () => page.locator('tr[data-row]', { hasText: s.fullName }).filter({ hasText: 'Active' });
     await active().getByRole('button', { name: 'Change bus' }).click();
     const modal = page.locator('.cg-modal:not([hidden])');
-    await modal.locator('select[name="busId"]').selectOption({ label: bus2.busNumber });
+    // Options read "BUS-X — Route (n/40 seats)", so pick by id.
+    await modal.locator('select[name="busId"]').selectOption(String(bus2.id));
     await modal.getByRole('button', { name: 'Change bus' }).click();
     await expect(page.locator('.cg-toast', { hasText: 'Student assigned to bus' })).toBeVisible();
     await page.locator('[data-cg-search-scope="assignments"]').fill(s.fullName);
@@ -165,5 +168,35 @@ test.describe('Transportation', () => {
     await expect(page.locator('tr[data-row]', { hasText: s.fullName })).toHaveCount(2); // both kept as history
     // With no active bus the student can be assigned again.
     await expect(page.locator('#assignStudent option', { hasText: s.fullName })).toHaveCount(1);
+  });
+});
+
+test.describe('Transportation rules', () => {
+  test('a full bus shows Full, cannot be picked, and the change is audited', async ({ page, data, api }) => {
+    const route = await data.route();
+    const number = 'FULL-' + Math.random().toString(36).slice(2, 6).toUpperCase();
+    const created = await api.post('/api/transportation/buses', { data: { busNumber: number, capacity: 1, routeId: route.id } });
+    expect(created.ok()).toBeTruthy();
+    const bus = await created.json();
+    await data.bus(); // a second bus with free seats, so the Assign button is offered
+    const kid = await data.student();
+    await data.student(); // someone left to assign
+    const assigned = await api.post('/api/transportation/assignments', { data: { studentId: kid.id, busId: bus.busId } });
+    expect(assigned.ok()).toBeTruthy();
+
+    await page.goto('/Transportation');
+    const card = page.locator('.cg-personcard', { hasText: number });
+    await expect(card.locator('[data-cg-occupancy="full"]')).toHaveText('Full');
+    await expect(card).toContainText('1 of 1 seats used');
+
+    await page.getByRole('button', { name: 'Assign student' }).click();
+    const modal = page.locator('#assignStudentModal');
+    await expect(modal).toBeVisible();
+    await expect(modal.locator(`#assignBus option[value="${bus.busId}"]`)).toBeDisabled();
+    await expect(modal).toContainText("travels on the selected bus's route");
+    await expect(modal.locator('#assignRoute')).toHaveCount(0); // route override is off by default
+    await modal.getByRole('button', { name: 'Cancel' }).click();
+
+    await expect(page.locator('[data-cg-transport-audit]')).toContainText(`Assignment #`);
   });
 });

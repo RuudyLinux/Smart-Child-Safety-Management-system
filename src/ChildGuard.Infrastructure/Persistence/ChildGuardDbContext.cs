@@ -33,6 +33,8 @@ public class ChildGuardDbContext : DbContext
     public DbSet<TemporaryPickupAuthorization> TemporaryPickupAuthorizations => Set<TemporaryPickupAuthorization>();
     public DbSet<TemporaryPickupPhoto> TemporaryPickupPhotos => Set<TemporaryPickupPhoto>();
     public DbSet<TemporaryPickupAuditEntry> TemporaryPickupAuditEntries => Set<TemporaryPickupAuditEntry>();
+    public DbSet<DataImport> DataImports => Set<DataImport>();
+    public DbSet<TransportAuditEntry> TransportAuditEntries => Set<TransportAuditEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -49,6 +51,7 @@ public class ChildGuardDbContext : DbContext
     ///  * LONGTEXT/LONGBLOB column types become text/bytea.
     ///  * Student.DateOfBirth stays a plain (zone-less) timestamp: it is a calendar value, and a
     ///    timestamptz column would reject its Unspecified kind.
+    ///  * The computed one-active-bus-assignment key uses PostgreSQL identifier quoting.
     ///  * MySQL compares and sorts text case-insensitively (utf8mb4_unicode_ci); PostgreSQL does not.
     ///    Columns that are looked up by equality, are unique, or order a list use citext so logins,
     ///    uniqueness and list order behave the same on both engines.
@@ -77,6 +80,10 @@ public class ChildGuardDbContext : DbContext
         modelBuilder.Entity<Bus>().Property(x => x.BusNumber).HasColumnType("citext");
         modelBuilder.Entity<RfidCard>().Property(x => x.CardUid).HasColumnType("citext");
         modelBuilder.Entity<RfidDevice>().Property(x => x.DeviceLabel).HasColumnType("citext");
+
+        // Same one-active-assignment key as MySQL, in PostgreSQL's identifier quoting.
+        modelBuilder.Entity<StudentBusAssignment>().Property(x => x.ActiveStudentKey)
+            .HasComputedColumnSql("CASE WHEN \"Status\" = 1 THEN \"StudentId\" ELSE NULL END", stored: true);
     }
 
     /// <summary>

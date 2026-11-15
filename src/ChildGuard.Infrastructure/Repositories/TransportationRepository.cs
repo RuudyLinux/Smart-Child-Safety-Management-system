@@ -1,4 +1,7 @@
+using System.Data;
+using ChildGuard.Application.Common;
 using ChildGuard.Application.Interfaces;
+using ChildGuard.Domain.Enums;
 using ChildGuard.Domain.Entities;
 using ChildGuard.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -55,4 +58,71 @@ public class TransportationRepository : ITransportationRepository
         _db.StudentBusAssignments.FirstOrDefaultAsync(a => a.Id == id, ct);
 
     public Task SaveChangesAsync(CancellationToken ct = default) => _db.SaveChangesAsync(ct);
+
+    public async Task<bool> TrySaveChangesAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+            return true;
+        }
+        catch (DbUpdateException ex) when (DbErrors.IsUniqueViolation(ex))
+        {
+            _db.ChangeTracker.Clear();
+            return false;
+        }
+    }
+
+    public async Task<Result> RunLockedAsync(IReadOnlyCollection<int> studentIds, IReadOnlyCollection<int> busIds,
+        Func<CancellationToken, Task<Result>> work, CancellationToken ct = default)
+    {
+        // READ COMMITTED so counts read after the lock see whatever the previous holder committed.
+        await using var tx = await _db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
+        // Fixed order (students, then buses, ascending ids) on every path, so two callers never deadlock.
+        foreach (var id in studentIds.Distinct().OrderBy(i => i)) await LockAsync("Students", "StudentId", id, ct);
+        foreach (var id in busIds.Distinct().OrderBy(i => i)) await LockAsync("Buses", "BusId", id, ct);
+
+        var result = await work(ct);
+        if (result.Succeeded) await tx.CommitAsync(ct);
+        else
+        {
+            await tx.RollbackAsync(CancellationToken.None);
+            _db.ChangeTracker.Clear();
+        }
+        return result;
+    }
+
+    // Row lock held until commit (InnoDB / PostgreSQL). Table and column names are constants above,
+    // never input; the id is a parameter.
+    private Task LockAsync(string table, string key, int id, CancellationToken ct) =>
+        _db.Database.IsNpgsql()
+            ? _db.Database.ExecuteSqlRawAsync($"SELECT \"{key}\" FROM \"{table}\" WHERE \"{key}\" = {{0}} FOR UPDATE", new object[] { id }, ct)
+            : _db.Database.ExecuteSqlRawAsync($"SELECT {key} FROM {table} WHERE {key} = {{0}} FOR UPDATE", new object[] { id }, ct);
+
+    public Task<int> CountActiveAssignmentsAsync(int busId, CancellationToken ct = default) =>
+        _db.StudentBusAssignments.CountAsync(a => a.BusId == busId && a.Status == RecordStatus.Active, ct);
+
+    public Task<Dictionary<int, int>> GetActiveAssignmentCountsAsync(CancellationToken ct = default) =>
+        _db.StudentBusAssignments.AsNoTracking()
+            .Where(a => a.Status == RecordStatus.Active)
+            .GroupBy(a => a.BusId)
+            .Select(g => new { g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.Key, x => x.Count, ct);
+
+    public Task<StudentBusAssignment?> GetActiveAssignmentForStudentAsync(int studentId, CancellationToken ct = default) =>
+        _db.StudentBusAssignments.FirstOrDefaultAsync(a => a.StudentId == studentId && a.Status == RecordStatus.Active, ct);
+
+    public async Task AddAuditAsync(TransportAuditEntry entry, CancellationToken ct = default) =>
+        await _db.TransportAuditEntries.AddAsync(entry, ct);
+
+    public async Task<List<(TransportAuditEntry Entry, string? AdminName)>> GetAuditAsync(int take, CancellationToken ct = default)
+    {
+        var rows = await (from e in _db.TransportAuditEntries.AsNoTracking()
+                          join a in _db.Admins.AsNoTracking() on e.AdminId equals a.AdminId into admins
+                          from a in admins.DefaultIfEmpty()
+                          orderby e.OccurredAt descending, e.Id descending
+                          select new { Entry = e, AdminName = a == null ? null : a.FullName })
+            .Take(take).ToListAsync(ct);
+        return rows.Select(r => (r.Entry, (string?)r.AdminName)).ToList();
+    }
 }

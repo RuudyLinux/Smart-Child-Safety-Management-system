@@ -142,6 +142,14 @@
                         <span class="cg-nav__tip">Reports</span>
                     </li>
 
+                    <li class="cg-nav__section">Data</li>
+                    <li class="cg-nav__item">
+                        <a class="@NavClass("BulkImport")" href="/BulkImport">
+                            @await Html.PartialAsync("_Icon", "upload")<span class="cg-nav__label">Bulk Import</span>
+                        </a>
+                        <span class="cg-nav__tip">Bulk Import</span>
+                    </li>
+
                     <li class="cg-nav__section">System</li>
                     <li class="cg-nav__item">
                         <a class="@NavClass("Profile")" href="/Profile">
@@ -227,6 +235,7 @@
                             <a class="cg-dropdown__item" href="/Students/Create">@await Html.PartialAsync("_Icon", "students") Add student</a>
                             <a class="cg-dropdown__item" href="/Guardians/Create">@await Html.PartialAsync("_Icon", "guardians") Add guardian</a>
                             <a class="cg-dropdown__item" href="/Rfid">@await Html.PartialAsync("_Icon", "rfid") Assign RFID card</a>
+                            <a class="cg-dropdown__item" href="/BulkImport">@await Html.PartialAsync("_Icon", "upload") Bulk import</a>
                             <div class="cg-dropdown__sep"></div>
                             <a class="cg-dropdown__item" href="/Verification">@await Html.PartialAsync("_Icon", "pickup") Open pickup desk</a>
                         </div>
@@ -277,6 +286,8 @@
           {"title":"Transportation","url":"/Transportation","section":"Transport","keywords":"bus driver route assignment"},
           {"title":"RFID","url":"/Rfid","section":"Transport","keywords":"cards scanner uid"},
           {"title":"Reports","url":"/Reports","section":"Insights","keywords":"export analytics summary"},
+          {"title":"Bulk Import","url":"/BulkImport","section":"Data","keywords":"import upload excel csv xlsx bulk spreadsheet template"},
+          {"title":"Import History","url":"/BulkImport/History","section":"Data","keywords":"import history audit error report"},
           {"title":"Profile","url":"/Profile","section":"System","keywords":"account password"},
           {"title":"Settings","url":"/Settings","section":"System","keywords":"scanners devices environment"}
         ]

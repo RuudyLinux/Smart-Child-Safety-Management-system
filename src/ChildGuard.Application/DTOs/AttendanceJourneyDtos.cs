@@ -6,7 +6,10 @@ public record AttendanceRecordDto(
     int AttendanceId, int StudentId, string StudentName, string? Grade,
     AttendanceEventType EventType, DateOnly Date, TimeOnly Time, RecordStatus Status, bool IsLate);
 
-public record JourneyEventDto(int JourneyEventId, int StudentId, string StudentName, JourneyEventType EventType, DateTime Timestamp, EventSource Source);
+/// <param name="BusNumber">The bus the student was assigned to when the event was recorded (null if none).</param>
+/// <param name="RouteName">The route of that assignment at the time, unaffected by later bus edits.</param>
+public record JourneyEventDto(int JourneyEventId, int StudentId, string StudentName, JourneyEventType EventType, DateTime Timestamp, EventSource Source,
+    int? BusId = null, string? BusNumber = null, string? RouteName = null);
 
 /// <summary>
 /// One page of the journey report. <see cref="TotalCount"/> is the number of events

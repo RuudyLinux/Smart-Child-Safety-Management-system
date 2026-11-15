@@ -22,7 +22,7 @@ http.createServer((req, res) => {
     let body = {};
     try { body = raw ? JSON.parse(raw) : {}; } catch { return send(res, 400, { detail: 'invalid json' }); }
 
-    if (req.method === 'GET' && req.url === '/health') return send(res, 200, { status: 'ok', model: 'stub' });
+    if (req.method === 'GET' && req.url === '/health') return send(res, 200, { status: 'ok', model: 'stub', detector: 'stub', threshold: 0.4, anti_spoofing: true });
     if (req.method === 'POST' && req.url === '/__stub/verify') { verifyOutcome = { match: !!body.match, score: body.score ?? (body.match ? 0.93 : 0.21) }; return send(res, 200, verifyOutcome); }
     if (req.method === 'POST' && req.url === '/__stub/fail') { nextFailure = body; return send(res, 200, body); }
     if (req.method === 'GET' && req.url === '/__stub/calls') return send(res, 200, calls);

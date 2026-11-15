@@ -228,6 +228,7 @@ public class VerificationService : IVerificationService
                 Timestamp = now,
                 Source = EventSource.Manual
             };
+            await JourneyTransportSnapshot.StampAsync(_journey, created, lockCt);
             await _journey.AddJourneyEventAsync(created, lockCt);
 
             // Same reporting rule as an RFID departure: every recorded School

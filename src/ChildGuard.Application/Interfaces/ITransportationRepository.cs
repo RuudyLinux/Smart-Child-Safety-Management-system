@@ -1,3 +1,4 @@
+using ChildGuard.Application.Common;
 using ChildGuard.Domain.Entities;
 
 namespace ChildGuard.Application.Interfaces;
@@ -23,4 +24,28 @@ public interface ITransportationRepository
     Task<StudentBusAssignment?> GetAssignmentByIdAsync(int id, CancellationToken ct = default);
 
     Task SaveChangesAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Saves pending changes. Returns false, with nothing saved and the pending changes
+    /// discarded, when a unique index refused them (e.g. a second active assignment).
+    /// </summary>
+    Task<bool> TrySaveChangesAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Runs <paramref name="work"/> in one transaction while holding row locks on the given
+    /// students and buses (students first, then buses, each in id order, so two callers can
+    /// never deadlock). Two assignments to the last seat of a bus, or two changes for the same
+    /// student, are applied one after the other instead of both passing their checks.
+    /// The transaction commits only when <paramref name="work"/> succeeds; a failed result rolls
+    /// back everything it saved, so a move can never end the old assignment without the new one.
+    /// </summary>
+    Task<Result> RunLockedAsync(IReadOnlyCollection<int> studentIds, IReadOnlyCollection<int> busIds,
+        Func<CancellationToken, Task<Result>> work, CancellationToken ct = default);
+
+    Task<int> CountActiveAssignmentsAsync(int busId, CancellationToken ct = default);
+    Task<Dictionary<int, int>> GetActiveAssignmentCountsAsync(CancellationToken ct = default);
+    Task<StudentBusAssignment?> GetActiveAssignmentForStudentAsync(int studentId, CancellationToken ct = default);
+
+    Task AddAuditAsync(TransportAuditEntry entry, CancellationToken ct = default);
+    Task<List<(TransportAuditEntry Entry, string? AdminName)>> GetAuditAsync(int take, CancellationToken ct = default);
 }

@@ -32,6 +32,15 @@ public class TransportationController : ControllerBase
         _assignmentValidator = assignmentValidator;
     }
 
+    /// <summary>The school's transport policy, so the admin UI can show or lock the route picker.</summary>
+    [HttpGet("settings")]
+    public IActionResult GetSettings() => Ok(_service.GetSettings());
+
+    /// <summary>Most recent administrative transport changes (who, what, when), newest first.</summary>
+    [HttpGet("audit")]
+    public async Task<IActionResult> GetAudit([FromQuery] int take = 50, CancellationToken ct = default) =>
+        Ok(await _service.GetAuditAsync(take, ct));
+
     [HttpGet("drivers")]
     public async Task<IActionResult> GetDrivers(CancellationToken ct) => Ok(await _service.GetDriversAsync(ct));
 
@@ -39,7 +48,7 @@ public class TransportationController : ControllerBase
     public async Task<IActionResult> AddDriver(CreateDriverRequest request, CancellationToken ct)
     {
         await _driverValidator.ValidateAndThrowAsync(request, ct);
-        return Ok(await _service.AddDriverAsync(request, ct));
+        return Ok(await _service.AddDriverAsync(request, ct, this.GetUserId()));
     }
 
     [HttpGet("routes")]
@@ -49,7 +58,7 @@ public class TransportationController : ControllerBase
     public async Task<IActionResult> AddRoute(CreateRouteRequest request, CancellationToken ct)
     {
         await _routeValidator.ValidateAndThrowAsync(request, ct);
-        var result = await _service.AddRouteAsync(request, ct);
+        var result = await _service.AddRouteAsync(request, ct, this.GetUserId());
         return result.Succeeded ? Ok(result.Value) : BadRequest(new { message = result.Error });
     }
 
@@ -60,7 +69,7 @@ public class TransportationController : ControllerBase
     public async Task<IActionResult> AddBus(CreateBusRequest request, CancellationToken ct)
     {
         await _busValidator.ValidateAndThrowAsync(request, ct);
-        var result = await _service.AddBusAsync(request, ct);
+        var result = await _service.AddBusAsync(request, ct, this.GetUserId());
         return result.Succeeded ? Ok(result.Value) : BadRequest(new { message = result.Error });
     }
 
@@ -71,7 +80,7 @@ public class TransportationController : ControllerBase
     public async Task<IActionResult> AddAssignment(CreateStudentBusAssignmentRequest request, CancellationToken ct)
     {
         await _assignmentValidator.ValidateAndThrowAsync(request, ct);
-        var result = await _service.AddAssignmentAsync(request, ct);
+        var result = await _service.AddAssignmentAsync(request, ct, this.GetUserId());
         return result.Succeeded ? Ok(new { message = "Assignment created." }) : BadRequest(new { message = result.Error });
     }
 
@@ -82,7 +91,7 @@ public class TransportationController : ControllerBase
         [FromServices] IValidator<UpdateDriverRequest> validator, CancellationToken ct)
     {
         await validator.ValidateAndThrowAsync(request, ct);
-        return Answer(await _service.UpdateDriverAsync(id, request, ct), "Driver updated.");
+        return Answer(await _service.UpdateDriverAsync(id, request, ct, this.GetUserId()), "Driver updated.");
     }
 
     [HttpPatch("drivers/{id:int}/status")]
@@ -90,7 +99,7 @@ public class TransportationController : ControllerBase
         [FromServices] IValidator<UpdateTransportStatusRequest> validator, CancellationToken ct)
     {
         await validator.ValidateAndThrowAsync(request, ct);
-        return Answer(await _service.SetDriverStatusAsync(id, request.Status, ct), "Driver status updated.");
+        return Answer(await _service.SetDriverStatusAsync(id, request.Status, ct, this.GetUserId()), "Driver status updated.");
     }
 
     [HttpPut("routes/{id:int}")]
@@ -98,7 +107,7 @@ public class TransportationController : ControllerBase
         [FromServices] IValidator<UpdateRouteRequest> validator, CancellationToken ct)
     {
         await validator.ValidateAndThrowAsync(request, ct);
-        return Answer(await _service.UpdateRouteAsync(id, request, ct), "Route updated.");
+        return Answer(await _service.UpdateRouteAsync(id, request, ct, this.GetUserId()), "Route updated.");
     }
 
     [HttpPatch("routes/{id:int}/status")]
@@ -106,7 +115,7 @@ public class TransportationController : ControllerBase
         [FromServices] IValidator<UpdateTransportStatusRequest> validator, CancellationToken ct)
     {
         await validator.ValidateAndThrowAsync(request, ct);
-        return Answer(await _service.SetRouteStatusAsync(id, request.Status, ct), "Route status updated.");
+        return Answer(await _service.SetRouteStatusAsync(id, request.Status, ct, this.GetUserId()), "Route status updated.");
     }
 
     [HttpPut("buses/{id:int}")]
@@ -114,7 +123,7 @@ public class TransportationController : ControllerBase
         [FromServices] IValidator<UpdateBusRequest> validator, CancellationToken ct)
     {
         await validator.ValidateAndThrowAsync(request, ct);
-        return Answer(await _service.UpdateBusAsync(id, request, ct), "Bus updated.");
+        return Answer(await _service.UpdateBusAsync(id, request, ct, this.GetUserId()), "Bus updated.");
     }
 
     [HttpPatch("buses/{id:int}/status")]
@@ -122,7 +131,7 @@ public class TransportationController : ControllerBase
         [FromServices] IValidator<UpdateTransportStatusRequest> validator, CancellationToken ct)
     {
         await validator.ValidateAndThrowAsync(request, ct);
-        return Answer(await _service.SetBusStatusAsync(id, request.Status, ct), "Bus status updated.");
+        return Answer(await _service.SetBusStatusAsync(id, request.Status, ct, this.GetUserId()), "Bus status updated.");
     }
 
     [HttpPatch("assignments/{id:int}/status")]
@@ -130,7 +139,7 @@ public class TransportationController : ControllerBase
         [FromServices] IValidator<UpdateTransportStatusRequest> validator, CancellationToken ct)
     {
         await validator.ValidateAndThrowAsync(request, ct);
-        return Answer(await _service.SetAssignmentStatusAsync(id, request.Status, ct), "Assignment status updated.");
+        return Answer(await _service.SetAssignmentStatusAsync(id, request.Status, ct, this.GetUserId()), "Assignment status updated.");
     }
 
     // 404 for a missing record (its error ends in "not found."), 400 for any other refusal.

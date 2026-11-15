@@ -1,0 +1,294 @@
+@model List<ImportCategoryDto>
+@{
+    var recent = ViewBag.RecentImports as List<ImportHistoryItemDto> ?? new();
+    var icons = new Dictionary<ImportCategory, string>
+    {
+        [ImportCategory.Students] = "students",
+        [ImportCategory.Guardians] = "guardians",
+        [ImportCategory.Drivers] = "steering",
+        [ImportCategory.Routes] = "route",
+        [ImportCategory.Buses] = "bus",
+    };
+}
+
+<div class="cg-page-head">
+    <div class="cg-page-head__text">
+        <h1 class="cg-page-head__title">Bulk Import</h1>
+        <p class="cg-page-head__sub">Add many records at once from Excel, CSV or a quick-entry grid. Nothing is saved until you confirm.</p>
+    </div>
+    <div class="cg-page-head__actions">
+        <a class="cg-btn cg-btn--secondary" href="/BulkImport/History">@await Html.PartialAsync("_Icon", "clock") Import history</a>
+    </div>
+</div>
+
+@if (ViewBag.LoadError is string loadError)
+{
+    <div class="cg-alert cg-alert--danger" role="alert">
+        <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "alert-circle")</span>
+        <div class="cg-alert__body">@loadError</div>
+    </div>
+}
+
+<div class="cg-bi" data-cg-bulk-import data-initial-category="@ViewBag.InitialCategory">
+    <ol class="cg-stepper" aria-label="Import steps">
+        <li class="cg-step cg-step--active" data-bi-step="1">
+            <span class="cg-step__num">1</span>
+            <span class="cg-step__text"><span class="cg-step__label">Choose data</span><span class="cg-step__state" data-bi-step-state>What to import</span></span>
+        </li>
+        <li class="cg-step" data-bi-step="2">
+            <span class="cg-step__num">2</span>
+            <span class="cg-step__text"><span class="cg-step__label">Add rows</span><span class="cg-step__state" data-bi-step-state>Upload or type</span></span>
+        </li>
+        <li class="cg-step" data-bi-step="3">
+            <span class="cg-step__num">3</span>
+            <span class="cg-step__text"><span class="cg-step__label">Review</span><span class="cg-step__state" data-bi-step-state>Check and fix</span></span>
+        </li>
+        <li class="cg-step" data-bi-step="4">
+            <span class="cg-step__num">4</span>
+            <span class="cg-step__text"><span class="cg-step__label">Done</span><span class="cg-step__state" data-bi-step-state>Summary</span></span>
+        </li>
+    </ol>
+
+    @* ---------------- Step 1: category ---------------- *@
+    <section class="cg-card" data-bi-panel="1" aria-labelledby="biCategoryTitle">
+        <div class="cg-card__head">
+            <div>
+                <h2 class="cg-card__title" id="biCategoryTitle">What are you importing?</h2>
+                <div class="cg-card__sub">Import in this order when records refer to each other: guardians before students, drivers and routes before buses.</div>
+            </div>
+        </div>
+        <div class="cg-card__body">
+            <div class="cg-bi-cats" role="radiogroup" aria-labelledby="biCategoryTitle">
+                @foreach (var c in Model)
+                {
+                    <button type="button" class="cg-bi-cat" role="radio" aria-checked="false" data-bi-category="@c.Category">
+                        <span class="cg-kpi__icon cg-kpi__icon--info">@await Html.PartialAsync("_Icon", icons.GetValueOrDefault(c.Category, "layers"))</span>
+                        <span class="cg-bi-cat__body">
+                            <span class="cg-bi-cat__name">@c.Name</span>
+                            <span class="cg-bi-cat__desc">@c.Description</span>
+                            <span class="cg-bi-cat__meta">@c.Columns.Count(col => col.Required) required · @c.Columns.Count(col => !col.Required) optional columns · up to @c.MaxRows.ToString("N0") rows</span>
+                        </span>
+                    </button>
+                }
+            </div>
+        </div>
+    </section>
+
+    @* ---------------- Step 2: data ---------------- *@
+    <section class="cg-card" data-bi-panel="2" hidden aria-labelledby="biDataTitle">
+        <div class="cg-card__head">
+            <div>
+                <h2 class="cg-card__title" id="biDataTitle">Add <span data-bi-category-name></span></h2>
+                <div class="cg-card__sub">Download the template, fill it in and upload it, or type the rows straight into the grid.</div>
+            </div>
+            <button type="button" class="cg-btn cg-btn--ghost cg-btn--sm" data-bi-back="1">@await Html.PartialAsync("_Icon", "arrow-left") Change</button>
+        </div>
+        <div class="cg-card__body">
+            <div class="cg-bi-template">
+                <div>
+                    <div class="cg-strong">Template</div>
+                    <div class="cg-text-sm cg-muted">Keep the header row. Excel template includes an Instructions sheet; columns are formatted as text so phone numbers keep their digits.</div>
+                </div>
+                <div class="cg-btn-group">
+                    <a class="cg-btn cg-btn--secondary cg-btn--sm" data-bi-template="xlsx" href="#">@await Html.PartialAsync("_Icon", "download") Excel (.xlsx)</a>
+                    <a class="cg-btn cg-btn--secondary cg-btn--sm" data-bi-template="csv" href="#">@await Html.PartialAsync("_Icon", "download") CSV</a>
+                </div>
+            </div>
+
+            <details class="cg-bi-columns">
+                <summary>Column guide</summary>
+                <div class="cg-table-wrap">
+                    <table class="cg-table">
+                        <thead><tr><th>Column</th><th>Required</th><th>What to enter</th><th>Example</th></tr></thead>
+                        <tbody data-bi-columns></tbody>
+                    </table>
+                </div>
+                <ul class="cg-bi-notes cg-text-sm cg-muted" data-bi-notes></ul>
+            </details>
+
+            <div class="cg-tabs" role="tablist" aria-label="How to add rows">
+                <button type="button" class="cg-tab is-active" role="tab" aria-selected="true" aria-controls="biUpload" id="biUploadTab" data-bi-mode="upload">
+                    @await Html.PartialAsync("_Icon", "upload") Upload file
+                </button>
+                <button type="button" class="cg-tab" role="tab" aria-selected="false" aria-controls="biManual" id="biManualTab" data-bi-mode="manual">
+                    @await Html.PartialAsync("_Icon", "edit") Enter manually
+                </button>
+            </div>
+
+            <div class="cg-tabpanel cg-bi-mode is-active" id="biUpload" role="tabpanel" aria-labelledby="biUploadTab">
+                <label class="cg-dropzone" data-bi-dropzone>
+                    <input type="file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" data-bi-file aria-describedby="biFileHint" />
+                    @await Html.PartialAsync("_Icon", "upload")
+                    <span class="cg-dropzone__title">Drop your .xlsx or .csv file here, or click to choose</span>
+                    <span class="cg-dropzone__hint" id="biFileHint">Up to 5 MB · first worksheet is read · formulas are not accepted</span>
+                </label>
+                <div class="cg-bi-progress" data-bi-progress hidden>
+                    <div class="cg-row cg-row--between cg-text-sm"><span data-bi-progress-label>Uploading…</span><span data-bi-progress-pct>0%</span></div>
+                    <div class="cg-meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Upload progress">
+                        <div class="cg-meter__fill" data-bi-progress-bar style="width:0%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="cg-tabpanel cg-bi-mode" id="biManual" role="tabpanel" aria-labelledby="biManualTab" hidden>
+                <p class="cg-text-sm cg-muted">Type one record per row. You can paste cells copied from Excel straight into the grid.</p>
+                <div class="cg-table-wrap cg-bi-gridwrap">
+                    <table class="cg-table cg-bi-grid" data-bi-manual-grid>
+                        <thead></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div class="cg-row cg-row--between cg-row--wrap cg-mt-16">
+                    <div class="cg-btn-group">
+                        <button type="button" class="cg-btn cg-btn--secondary cg-btn--sm" data-bi-add-rows="1">@await Html.PartialAsync("_Icon", "plus") Add row</button>
+                        <button type="button" class="cg-btn cg-btn--secondary cg-btn--sm" data-bi-add-rows="10">Add 10 rows</button>
+                        <button type="button" class="cg-btn cg-btn--ghost cg-btn--sm" data-bi-clear-manual>Clear</button>
+                    </div>
+                    <button type="button" class="cg-btn cg-btn--primary" data-bi-validate-manual>@await Html.PartialAsync("_Icon", "check-circle") Validate rows</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    @* ---------------- Step 3: review ---------------- *@
+    <section class="cg-card" data-bi-panel="3" hidden aria-labelledby="biReviewTitle">
+        <div class="cg-card__head">
+            <div>
+                <h2 class="cg-card__title" id="biReviewTitle">Review <span data-bi-category-name></span></h2>
+                <div class="cg-card__sub" data-bi-source-label></div>
+            </div>
+            <button type="button" class="cg-btn cg-btn--ghost cg-btn--sm" data-bi-back="2">@await Html.PartialAsync("_Icon", "arrow-left") Back</button>
+        </div>
+        <div class="cg-card__body">
+            <div class="cg-grid cg-grid--3">
+                <article class="cg-kpi">
+                    <div class="cg-kpi__top"><div class="cg-kpi__label">Rows read</div><span class="cg-kpi__icon cg-kpi__icon--info">@await Html.PartialAsync("_Icon", "layers")</span></div>
+                    <div class="cg-kpi__value cg-kpi__value--sm" data-bi-total>0</div>
+                </article>
+                <article class="cg-kpi">
+                    <div class="cg-kpi__top"><div class="cg-kpi__label">Ready to import</div><span class="cg-kpi__icon cg-kpi__icon--success">@await Html.PartialAsync("_Icon", "check-circle")</span></div>
+                    <div class="cg-kpi__value cg-kpi__value--sm" data-bi-valid>0</div>
+                </article>
+                <article class="cg-kpi">
+                    <div class="cg-kpi__top"><div class="cg-kpi__label">Need attention</div><span class="cg-kpi__icon cg-kpi__icon--danger" data-bi-invalid-icon>@await Html.PartialAsync("_Icon", "alert-triangle")</span></div>
+                    <div class="cg-kpi__value cg-kpi__value--sm" data-bi-invalid>0</div>
+                    <div class="cg-kpi__note">Fix them in the table, or skip them</div>
+                </article>
+            </div>
+
+            <div class="cg-alert cg-alert--warning cg-mt-16" data-bi-warnings hidden role="status">
+                <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "info")</span>
+                <div class="cg-alert__body"><ul class="cg-bi-notes" data-bi-warning-list></ul></div>
+            </div>
+
+            <div class="cg-toolbar cg-mt-16">
+                <div class="cg-segment" role="group" aria-label="Show rows">
+                    <button type="button" class="cg-segment__btn is-active" data-bi-filter="all" aria-pressed="true">All</button>
+                    <button type="button" class="cg-segment__btn" data-bi-filter="invalid" aria-pressed="false">With errors</button>
+                    <button type="button" class="cg-segment__btn" data-bi-filter="valid" aria-pressed="false">Valid</button>
+                </div>
+                <span class="cg-toolbar__spacer"></span>
+                <button type="button" class="cg-btn cg-btn--ghost cg-btn--sm" data-bi-download-errors>@await Html.PartialAsync("_Icon", "download") Error report (CSV)</button>
+                <button type="button" class="cg-btn cg-btn--secondary cg-btn--sm" data-bi-revalidate>@await Html.PartialAsync("_Icon", "refresh") Re-check edited rows</button>
+            </div>
+
+            <div class="cg-table-wrap cg-bi-gridwrap">
+                <table class="cg-table cg-bi-grid cg-bi-preview" data-bi-preview-grid aria-describedby="biReviewTitle">
+                    <thead></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+            <div class="cg-row cg-row--between cg-row--wrap cg-mt-16">
+                <span class="cg-text-sm cg-muted" data-bi-page-label></span>
+                <div class="cg-btn-group">
+                    <button type="button" class="cg-btn cg-btn--secondary cg-btn--sm" data-bi-page="-1">@await Html.PartialAsync("_Icon", "chevron-left") Previous</button>
+                    <button type="button" class="cg-btn cg-btn--secondary cg-btn--sm" data-bi-page="1">Next @await Html.PartialAsync("_Icon", "chevron-right")</button>
+                </div>
+            </div>
+        </div>
+        <div class="cg-card__foot cg-row cg-row--between cg-row--wrap">
+            <label class="cg-check">
+                <input type="checkbox" data-bi-skip-invalid checked />
+                <span class="cg-check__text">Skip rows with errors and import the valid ones
+                    <span class="cg-check__sub">Untick to import only if every row is valid.</span>
+                </span>
+            </label>
+            <button type="button" class="cg-btn cg-btn--primary" data-bi-confirm-open>@await Html.PartialAsync("_Icon", "upload") <span data-bi-import-label>Import</span></button>
+        </div>
+    </section>
+
+    @* ---------------- Step 4: summary ---------------- *@
+    <section class="cg-card" data-bi-panel="4" hidden aria-labelledby="biDoneTitle" aria-live="polite">
+        <div class="cg-card__head">
+            <div>
+                <h2 class="cg-card__title" id="biDoneTitle">Import summary</h2>
+                <div class="cg-card__sub" data-bi-summary-message></div>
+            </div>
+            <span data-bi-summary-status></span>
+        </div>
+        <div class="cg-card__body">
+            <div class="cg-grid cg-grid--3">
+                <article class="cg-kpi"><div class="cg-kpi__label">Rows submitted</div><div class="cg-kpi__value cg-kpi__value--sm" data-bi-summary-total>0</div></article>
+                <article class="cg-kpi"><div class="cg-kpi__label">Inserted</div><div class="cg-kpi__value cg-kpi__value--sm" data-bi-summary-inserted>0</div></article>
+                <article class="cg-kpi"><div class="cg-kpi__label">Not inserted</div><div class="cg-kpi__value cg-kpi__value--sm" data-bi-summary-failed>0</div></article>
+            </div>
+            <div class="cg-alert cg-alert--warning cg-mt-16" data-bi-email-failures hidden role="alert">
+                <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "mail")</span>
+                <div class="cg-alert__body">
+                    <div class="cg-alert__title">Some credential emails were not delivered</div>
+                    <p class="cg-text-sm">These accounts were created. Issue a new password from each guardian's page.</p>
+                    <ul class="cg-bi-notes" data-bi-email-failure-list></ul>
+                </div>
+            </div>
+        </div>
+        <div class="cg-card__foot cg-row cg-row--end cg-row--wrap">
+            <a class="cg-btn cg-btn--ghost" data-bi-summary-errors href="#" hidden>@await Html.PartialAsync("_Icon", "download") Error report</a>
+            <a class="cg-btn cg-btn--secondary" data-bi-summary-details href="#">View import details</a>
+            <button type="button" class="cg-btn cg-btn--primary" data-bi-restart>@await Html.PartialAsync("_Icon", "plus") Start another import</button>
+        </div>
+    </section>
+
+    <div class="cg-modal" id="biConfirmModal" hidden role="dialog" aria-modal="true" aria-labelledby="biConfirmTitle">
+        <div class="cg-modal__panel">
+            <div class="cg-modal__head">
+                <div>
+                    <h2 class="cg-modal__title" id="biConfirmTitle">Confirm import</h2>
+                    <div class="cg-modal__sub">Rows are checked again on the server before anything is saved.</div>
+                </div>
+                <button type="button" class="cg-iconbtn" data-bi-confirm-close aria-label="Close">@await Html.PartialAsync("_Icon", "x")</button>
+            </div>
+            <div class="cg-modal__body">
+                <p data-bi-confirm-text></p>
+                <p class="cg-text-sm cg-muted" data-bi-confirm-extra></p>
+            </div>
+            <div class="cg-modal__foot">
+                <button type="button" class="cg-btn cg-btn--ghost" data-bi-confirm-close>Cancel</button>
+                <button type="button" class="cg-btn cg-btn--primary" data-bi-commit>Import now</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<section class="cg-card">
+    <div class="cg-card__head">
+        <div>
+            <h2 class="cg-card__title">Recent imports</h2>
+            <div class="cg-card__sub">The latest five. Every import is kept in the history with who ran it.</div>
+        </div>
+        <a class="cg-btn cg-btn--ghost cg-btn--sm" href="/BulkImport/History">All history @await Html.PartialAsync("_Icon", "arrow-right")</a>
+    </div>
+    @if (recent.Count == 0)
+    {
+        @await Html.PartialAsync("_EmptyState", ("layers", "No imports yet", "Your first import will appear here.", (string?)null, (string?)null))
+    }
+    else
+    {
+        @await Html.PartialAsync("_ImportHistoryTable", recent)
+    }
+</section>
+
+<script type="application/json" id="cgImportCategories">@Json.Serialize(Model)</script>
+
+@section Scripts {
+    <script src="~/js/bulk-import.js" asp-append-version="true"></script>
+}

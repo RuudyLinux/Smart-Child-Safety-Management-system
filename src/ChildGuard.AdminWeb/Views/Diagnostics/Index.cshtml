@@ -151,6 +151,7 @@
 
         var health = render(container, 'API reachable', 'pending', apiBase() + '/api/health');
         var db = render(container, 'Database', 'pending', 'reported by /api/health');
+        var face = render(container, 'Face service', 'pending', 'GET /api/health/face (checked by the API, the same way pickups use it)');
         var cors = render(container, 'CORS', 'pending', 'this origin allowed by the API');
         var login = render(container, 'Login endpoint', 'pending', 'POST /api/auth/guardian/login');
         var otp = render(container, 'OTP endpoint', 'pending', 'POST /api/auth/guardian/verify-otp');
@@ -161,6 +162,7 @@
         if (!h.ok) {
             setState(health, 'fail', unreachable(h));
             setState(db, 'fail', 'not checked — API unreachable');
+            setState(face, 'fail', 'not checked — API unreachable');
             setState(cors, 'fail', 'not checked — API unreachable');
             [login, otp, reset, guard].forEach(function (x) { setState(x, 'fail', 'not checked — API unreachable'); });
             return;
@@ -175,6 +177,25 @@
             dbText = 'database: ' + parsed.database;
         } catch (e) { dbText = 'unexpected body: ' + h.text; }
         setState(db, dbState, dbText);
+
+        // The browser cannot reach the face service itself (it is key-protected and, in production, behind a
+        // tunnel), so the API checks it and reports back. A cold face-service PC can take several seconds.
+        var f = await call('GET', '/api/health/face');
+        if (!f.ok) {
+            setState(face, 'fail', unreachable(f));
+        } else if (f.status === 404) {
+            setState(face, 'warn', 'HTTP 404 — this API version has no face check yet; deploy the latest API');
+        } else {
+            try {
+                var fh = JSON.parse(f.text);
+                var detail = fh.faceService + ' · ' + fh.latencyMs + ' ms'
+                    + (fh.antiSpoofing === true ? ' · liveness model loaded' : fh.antiSpoofing === false ? ' · liveness model NOT loaded' : '')
+                    + (fh.problem ? ' — ' + fh.problem : '');
+                setState(face, fh.faceService === 'ok' ? 'pass' : (fh.faceService === 'degraded' ? 'warn' : 'fail'), detail);
+            } catch (e) {
+                setState(face, 'fail', 'HTTP ' + f.status + ' unexpected body: ' + f.text);
+            }
+        }
 
         // Deliberately invalid input: a 401/400 proves the route exists and validates.
         var l = await call('POST', '/api/auth/guardian/login', { contactNumber: '0000000000', password: 'diagnostics-probe' });

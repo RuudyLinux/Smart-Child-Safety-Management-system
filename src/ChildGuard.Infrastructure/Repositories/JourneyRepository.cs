@@ -1,6 +1,7 @@
 using System.Data;
 using ChildGuard.Application.Interfaces;
 using ChildGuard.Domain.Entities;
+using ChildGuard.Domain.Enums;
 using ChildGuard.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -54,12 +55,20 @@ public class JourneyRepository : IJourneyRepository
     public async Task AddJourneyEventAsync(JourneyEvent journeyEvent, CancellationToken ct = default) =>
         await _db.JourneyEvents.AddAsync(journeyEvent, ct);
 
+    public Task<StudentBusAssignment?> GetActiveBusAssignmentAsync(int studentId, CancellationToken ct = default) =>
+        _db.StudentBusAssignments.AsNoTracking()
+            .Where(a => a.StudentId == studentId && a.Status == RecordStatus.Active)
+            .OrderByDescending(a => a.AssignedAt)
+            .FirstOrDefaultAsync(ct);
+
     public async Task AddAttendanceAsync(Attendance attendance, CancellationToken ct = default) =>
         await _db.AttendanceRecords.AddAsync(attendance, ct);
 
     public Task<List<JourneyEvent>> GetHistoryAsync(int studentId, CancellationToken ct = default) =>
         _db.JourneyEvents
             .Include(e => e.Student)
+            .Include(e => e.Bus)
+            .Include(e => e.Route)
             .Where(e => e.StudentId == studentId)
             .OrderByDescending(e => e.Timestamp)
             .ToListAsync(ct);
@@ -67,6 +76,8 @@ public class JourneyRepository : IJourneyRepository
     public Task<List<JourneyEvent>> GetRecentAsync(int take, CancellationToken ct = default) =>
         _db.JourneyEvents
             .Include(e => e.Student)
+            .Include(e => e.Bus)
+            .Include(e => e.Route)
             .OrderByDescending(e => e.Timestamp)
             .Take(take)
             .ToListAsync(ct);
@@ -83,6 +94,8 @@ public class JourneyRepository : IJourneyRepository
             ? new List<JourneyEvent>()
             : await query
                 .Include(e => e.Student)
+                .Include(e => e.Bus)
+                .Include(e => e.Route)
                 .OrderByDescending(e => e.Timestamp)
                 .ThenByDescending(e => e.JourneyEventId) // stable order across pages for equal timestamps
                 .Skip(skip)

@@ -52,5 +52,12 @@ public class JourneyEventConfiguration : IEntityTypeConfiguration<JourneyEvent>
             .WithMany(x => x.JourneyEvents)
             .HasForeignKey(x => x.RfidDeviceId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        // Transport snapshot: RESTRICT so the history can never lose (or silently null) the bus,
+        // route or assignment it was recorded against.
+        b.HasOne(x => x.Bus).WithMany().HasForeignKey(x => x.BusId).OnDelete(DeleteBehavior.Restrict);
+        b.HasOne(x => x.Route).WithMany().HasForeignKey(x => x.RouteId).OnDelete(DeleteBehavior.Restrict);
+        b.HasOne(x => x.StudentBusAssignment).WithMany(x => x.JourneyEvents)
+            .HasForeignKey(x => x.StudentBusAssignmentId).OnDelete(DeleteBehavior.Restrict);
     }
 }

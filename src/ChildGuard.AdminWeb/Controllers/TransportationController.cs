@@ -20,11 +20,15 @@ public class TransportationController : BaseAdminController
         var drivers = await Api.GetAsync<List<DriverDto>>("/api/transportation/drivers", ct);
         var assignments = await Api.GetAsync<List<StudentBusAssignmentDto>>("/api/transportation/assignments", ct);
         var students = await Api.GetAsync<List<StudentListItemDto>>("/api/students", ct);
+        var settings = await Api.GetAsync<TransportSettingsDto>("/api/transportation/settings", ct);
+        var audit = await Api.GetAsync<List<TransportAuditDto>>("/api/transportation/audit?take=15", ct);
 
         ViewBag.Routes = routes.Value ?? new();
         ViewBag.Drivers = drivers.Value ?? new();
         ViewBag.Assignments = assignments.Value ?? new();
         ViewBag.Students = students.Value ?? new();
+        ViewBag.Settings = settings.Value ?? new TransportSettingsDto(false);
+        ViewBag.Audit = audit.Value ?? new();
         return View(buses.Value ?? new());
     }
 

@@ -160,3 +160,21 @@ Adds three tables (`TemporaryPickupAuthorizations`, `TemporaryPickupPhotos`, `Te
 Adds one table, `GuardianTrustedDevices` (migration `AddGuardianTrustedDevices`): a create-table and two indexes, nothing dropped or rewritten. Back up, review and apply it like the temporary-pickup migration, **before** deploying the new API: an API that stores trusted devices without the table fails the OTP verify step.
 
 No existing guardian is marked trusted (that would need a bulk data change, and trust belongs to a phone, not an account). An already signed-in phone enrols itself on its next app start; every other phone asks for the emailed code once, then stops asking. Older app builds are unaffected: they never send a device token, so they keep the OTP on every sign-in. Rollback: `Otp__TrustedDeviceDays=0` switches the shortcut off at once; the migration's `Down()` drops only this table.
+
+## Transport integrity rules: rollout
+
+Migration `TransportIntegrityRules` adds a database key that allows only one active bus assignment per student,
+a unique index on route names, `EndedAt` on assignments, the bus/route/assignment snapshot on journey events, and the
+`TransportAuditEntries` table. Every change is additive, but the two unique indexes fail if existing data already breaks them.
+Back up first, then run these read-only checks (MySQL); both must return 0 before applying:
+
+```sql
+SELECT COUNT(*) FROM (SELECT StudentId FROM StudentBusAssignments WHERE Status = 1 GROUP BY StudentId HAVING COUNT(*) > 1) d;
+SELECT COUNT(*) FROM (SELECT TRIM(RouteName) FROM Routes GROUP BY TRIM(RouteName) HAVING COUNT(*) > 1) d;
+```
+
+If either is not 0, decide which rows to end or rename before migrating (nothing is changed automatically). Journey events
+recorded before the migration have no transport snapshot; only new events carry one.
+
+`Transport:AllowRouteOverride` (default `false`): a student's assignment always uses the bus's own route. Set it to `true`
+only if your buses serve several routes; an override must then name an active route.

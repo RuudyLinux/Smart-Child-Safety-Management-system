@@ -94,6 +94,10 @@ test.describe('Settings (scanner keys)', () => {
     await expect(conn.getByText('PASS').first()).toBeVisible();
     await expect(conn).not.toContainText('checking…', { timeout: 15_000 });
     await expect(conn).not.toContainText('FAIL');
+    // Checked by the API, which reaches the face service the way pickups do.
+    const face = conn.locator('.dg-row', { hasText: 'Face service' });
+    await expect(face).toContainText('PASS');
+    await expect(face).toContainText('liveness model loaded');
   });
   });
 

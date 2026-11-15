@@ -243,6 +243,7 @@ public class RfidService : IRfidService
                 Source = EventSource.Rfid,
                 ScanId = scanId
             };
+            await JourneyTransportSnapshot.StampAsync(_journey, created, lockCt);
             await _journey.AddJourneyEventAsync(created, lockCt);
 
             if (request.Checkpoint is JourneyEventType.SchoolArrival or JourneyEventType.SchoolDeparture)

@@ -21,5 +21,16 @@ public class JourneyEvent
     /// </summary>
     public string? ScanId { get; set; }
     public RecordStatus Status { get; set; } = RecordStatus.Active;
+
+    // Transport snapshot taken when the event was recorded: the student's bus assignment at
+    // that moment and the route it carried. Later edits to the bus (driver, route, service
+    // status) or the end of the assignment never change these, so history stays as it happened.
+    public int? BusId { get; set; }
+    public Bus? Bus { get; set; }
+    public int? RouteId { get; set; }
+    public Route? Route { get; set; }
+    public int? StudentBusAssignmentId { get; set; }
+    public StudentBusAssignment? StudentBusAssignment { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

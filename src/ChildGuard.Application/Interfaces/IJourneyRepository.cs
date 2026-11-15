@@ -25,6 +25,9 @@ public interface IJourneyRepository
     Task<JourneyEvent?> GetByScanIdAsync(int rfidDeviceId, string scanId, CancellationToken ct = default);
 
     Task AddJourneyEventAsync(JourneyEvent journeyEvent, CancellationToken ct = default);
+
+    /// <summary>The student's current (active) bus assignment, for the transport snapshot on a new event.</summary>
+    Task<StudentBusAssignment?> GetActiveBusAssignmentAsync(int studentId, CancellationToken ct = default);
     Task AddAttendanceAsync(Attendance attendance, CancellationToken ct = default);
     Task<List<JourneyEvent>> GetHistoryAsync(int studentId, CancellationToken ct = default);
     Task<List<JourneyEvent>> GetRecentAsync(int take, CancellationToken ct = default);

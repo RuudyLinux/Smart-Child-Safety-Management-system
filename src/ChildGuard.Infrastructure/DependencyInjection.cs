@@ -76,6 +76,7 @@ public static class DependencyInjection
         services.AddScoped<IGuardianService, GuardianService>();
         services.AddScoped<ITransportationRepository, TransportationRepository>();
         services.AddScoped<ITransportationService, TransportationService>();
+        services.AddSingleton(config.GetSection("Transport").Get<TransportOptions>() ?? new TransportOptions());
         services.AddScoped<IAttendanceJourneyService, AttendanceJourneyService>();
         services.AddScoped<INotificationService, NotificationService>();
 
@@ -109,9 +110,18 @@ public static class DependencyInjection
         services.AddScoped<IPhotoRepository, PhotoRepository>();
         services.AddScoped<IPhotoService, PhotoService>();
 
+        // Bulk import: one handler per category, resolved by the service from the set.
+        services.AddScoped<IBulkImportRepository, BulkImportRepository>();
+        services.AddScoped<ChildGuard.Application.Import.ImportHandler, ChildGuard.Application.Import.StudentImportHandler>();
+        services.AddScoped<ChildGuard.Application.Import.ImportHandler, ChildGuard.Application.Import.GuardianImportHandler>();
+        services.AddScoped<ChildGuard.Application.Import.ImportHandler, ChildGuard.Application.Import.DriverImportHandler>();
+        services.AddScoped<ChildGuard.Application.Import.ImportHandler, ChildGuard.Application.Import.RouteImportHandler>();
+        services.AddScoped<ChildGuard.Application.Import.ImportHandler, ChildGuard.Application.Import.BusImportHandler>();
+        services.AddScoped<IBulkImportService, BulkImportService>();
+
         var faceServiceBaseUrl = config["FaceService:BaseUrl"] ?? "http://localhost:8001";
         var faceServiceApiKey = config["FaceService:ApiKey"];
-        services.AddHttpClient<IFaceServiceClient, FaceServiceHttpClient>(client =>
+        void ConfigureFaceClient(HttpClient client)
         {
             client.BaseAddress = new Uri(faceServiceBaseUrl);
             client.Timeout = TimeSpan.FromSeconds(30);
@@ -119,7 +129,10 @@ public static class DependencyInjection
             // FACE_SERVICE_KEY is set on that side. Empty by default in dev.
             if (!string.IsNullOrWhiteSpace(faceServiceApiKey))
                 client.DefaultRequestHeaders.Add("X-Internal-Key", faceServiceApiKey);
-        });
+        }
+        services.AddHttpClient<IFaceServiceClient, FaceServiceHttpClient>(ConfigureFaceClient);
+        // Same address and key, so the diagnostics check follows the exact path real face calls take.
+        services.AddHttpClient<IFaceServiceHealthProbe, FaceServiceHealthProbe>(ConfigureFaceClient);
 
         return services;
     }

@@ -149,6 +149,64 @@ namespace ChildGuard.Infrastructure.Postgres.Migrations
                     b.ToTable("Buses");
                 });
 
+            modelBuilder.Entity("ChildGuard.Domain.Entities.DataImport", b =>
+                {
+                    b.Property<int>("DataImportId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("DataImportId"));
+
+                    b.Property<int>("AdminId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Category")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ErrorReportJson")
+                        .HasColumnType("text");
+
+                    b.Property<int>("FailedRows")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("InsertedRows")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Message")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int>("Source")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TotalRows")
+                        .HasColumnType("integer");
+
+                    b.HasKey("DataImportId");
+
+                    b.HasIndex("AdminId");
+
+                    b.HasIndex("StartedAt");
+
+                    b.HasIndex("Category", "StartedAt");
+
+                    b.ToTable("DataImports", (string)null);
+                });
+
             modelBuilder.Entity("ChildGuard.Domain.Entities.Driver", b =>
                 {
                     b.Property<int>("DriverId")
@@ -595,6 +653,9 @@ namespace ChildGuard.Infrastructure.Postgres.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("JourneyEventId"));
 
+                    b.Property<int?>("BusId")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -607,6 +668,9 @@ namespace ChildGuard.Infrastructure.Postgres.Migrations
                     b.Property<int?>("RfidDeviceId")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("RouteId")
+                        .HasColumnType("integer");
+
                     b.Property<string>("ScanId")
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
@@ -617,6 +681,9 @@ namespace ChildGuard.Infrastructure.Postgres.Migrations
                     b.Property<int>("Status")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("StudentBusAssignmentId")
+                        .HasColumnType("integer");
+
                     b.Property<int>("StudentId")
                         .HasColumnType("integer");
 
@@ -625,7 +692,13 @@ namespace ChildGuard.Infrastructure.Postgres.Migrations
 
                     b.HasKey("JourneyEventId");
 
+                    b.HasIndex("BusId");
+
                     b.HasIndex("RfidCardId");
+
+                    b.HasIndex("RouteId");
+
+                    b.HasIndex("StudentBusAssignmentId");
 
                     b.HasIndex("Timestamp");
 
@@ -786,6 +859,9 @@ namespace ChildGuard.Infrastructure.Postgres.Migrations
 
                     b.HasKey("RouteId");
 
+                    b.HasIndex("RouteName")
+                        .IsUnique();
+
                     b.ToTable("Routes");
                 });
 
@@ -831,11 +907,19 @@ namespace ChildGuard.Infrastructure.Postgres.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<int?>("ActiveStudentKey")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("integer")
+                        .HasComputedColumnSql("CASE WHEN \"Status\" = 1 THEN \"StudentId\" ELSE NULL END", true);
+
                     b.Property<DateTime>("AssignedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("BusId")
                         .HasColumnType("integer");
+
+                    b.Property<DateTime?>("EndedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<int?>("RouteId")
                         .HasColumnType("integer");
@@ -848,9 +932,12 @@ namespace ChildGuard.Infrastructure.Postgres.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("BusId");
+                    b.HasIndex("ActiveStudentKey")
+                        .IsUnique();
 
                     b.HasIndex("RouteId");
+
+                    b.HasIndex("BusId", "Status");
 
                     b.HasIndex("StudentId", "BusId");
 
@@ -1107,6 +1194,46 @@ namespace ChildGuard.Infrastructure.Postgres.Migrations
                     b.ToTable("TemporaryPickupPhotos", (string)null);
                 });
 
+            modelBuilder.Entity("ChildGuard.Domain.Entities.TransportAuditEntry", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<int?>("AdminId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Detail")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int>("EntityId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OccurredAt");
+
+                    b.HasIndex("EntityType", "EntityId");
+
+                    b.ToTable("TransportAuditEntries", (string)null);
+                });
+
             modelBuilder.Entity("ChildGuard.Domain.Entities.VerificationSession", b =>
                 {
                     b.Property<int>("Id")
@@ -1215,6 +1342,17 @@ namespace ChildGuard.Infrastructure.Postgres.Migrations
                     b.Navigation("Route");
                 });
 
+            modelBuilder.Entity("ChildGuard.Domain.Entities.DataImport", b =>
+                {
+                    b.HasOne("ChildGuard.Domain.Entities.Admin", "Admin")
+                        .WithMany()
+                        .HasForeignKey("AdminId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Admin");
+                });
+
             modelBuilder.Entity("ChildGuard.Domain.Entities.GuardianFaceData", b =>
                 {
                     b.HasOne("ChildGuard.Domain.Entities.Guardian", "Guardian")
@@ -1298,6 +1436,11 @@ namespace ChildGuard.Infrastructure.Postgres.Migrations
 
             modelBuilder.Entity("ChildGuard.Domain.Entities.JourneyEvent", b =>
                 {
+                    b.HasOne("ChildGuard.Domain.Entities.Bus", "Bus")
+                        .WithMany()
+                        .HasForeignKey("BusId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("ChildGuard.Domain.Entities.RfidCard", "RfidCard")
                         .WithMany("JourneyEvents")
                         .HasForeignKey("RfidCardId")
@@ -1308,17 +1451,33 @@ namespace ChildGuard.Infrastructure.Postgres.Migrations
                         .HasForeignKey("RfidDeviceId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("ChildGuard.Domain.Entities.Route", "Route")
+                        .WithMany()
+                        .HasForeignKey("RouteId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ChildGuard.Domain.Entities.StudentBusAssignment", "StudentBusAssignment")
+                        .WithMany("JourneyEvents")
+                        .HasForeignKey("StudentBusAssignmentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("ChildGuard.Domain.Entities.Student", "Student")
                         .WithMany("JourneyEvents")
                         .HasForeignKey("StudentId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.Navigation("Bus");
+
                     b.Navigation("RfidCard");
 
                     b.Navigation("RfidDevice");
 
+                    b.Navigation("Route");
+
                     b.Navigation("Student");
+
+                    b.Navigation("StudentBusAssignment");
                 });
 
             modelBuilder.Entity("ChildGuard.Domain.Entities.Notification", b =>
@@ -1519,6 +1678,11 @@ namespace ChildGuard.Infrastructure.Postgres.Migrations
                     b.Navigation("RfidCard");
 
                     b.Navigation("StudentGuardians");
+                });
+
+            modelBuilder.Entity("ChildGuard.Domain.Entities.StudentBusAssignment", b =>
+                {
+                    b.Navigation("JourneyEvents");
                 });
 
             modelBuilder.Entity("ChildGuard.Domain.Entities.TemporaryPickupAuthorization", b =>

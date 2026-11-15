@@ -160,7 +160,7 @@ public class StudentService : IStudentService
 
         var journey = (await _journey.GetHistoryAsync(s.StudentId, ct))
             .Take(ProfileHistoryRows)
-            .Select(e => new JourneyEventDto(e.JourneyEventId, e.StudentId, s.FullName, e.EventType, e.Timestamp, e.Source))
+            .Select(e => new JourneyEventDto(e.JourneyEventId, e.StudentId, s.FullName, e.EventType, e.Timestamp, e.Source, e.BusId, e.Bus?.BusNumber, e.Route?.RouteName))
             .ToList();
 
         var attendance = (await _journey.GetAttendanceAsync(s.StudentId, null, null, ct))

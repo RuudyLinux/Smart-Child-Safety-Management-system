@@ -21,6 +21,8 @@ public class RouteConfiguration : IEntityTypeConfiguration<Route>
     {
         b.HasKey(x => x.RouteId);
         b.Property(x => x.RouteName).IsRequired().HasMaxLength(150);
+        // Route names are unique (case-insensitive: MySQL collation, citext on PostgreSQL).
+        b.HasIndex(x => x.RouteName).IsUnique();
     }
 }
 
@@ -50,6 +52,15 @@ public class StudentBusAssignmentConfiguration : IEntityTypeConfiguration<Studen
     {
         b.HasKey(x => x.Id);
         b.HasIndex(x => new { x.StudentId, x.BusId });
+        // Seats taken on a bus are counted from its active assignments.
+        b.HasIndex(x => new { x.BusId, x.Status });
+
+        // One active assignment per student, enforced by the database: the computed key is the
+        // StudentId while Active and NULL otherwise, and unique indexes allow many NULLs.
+        // (PostgreSQL gets the same expression with quoted names in ApplyPostgresMappings.)
+        b.Property(x => x.ActiveStudentKey)
+            .HasComputedColumnSql("CASE WHEN `Status` = 1 THEN `StudentId` ELSE NULL END", stored: true);
+        b.HasIndex(x => x.ActiveStudentKey).IsUnique();
 
         b.HasOne(x => x.Student)
             .WithMany(x => x.BusAssignments)
@@ -65,5 +76,19 @@ public class StudentBusAssignmentConfiguration : IEntityTypeConfiguration<Studen
             .WithMany(x => x.StudentBusAssignments)
             .HasForeignKey(x => x.RouteId)
             .OnDelete(DeleteBehavior.SetNull);
+    }
+}
+
+public class TransportAuditEntryConfiguration : IEntityTypeConfiguration<TransportAuditEntry>
+{
+    public void Configure(EntityTypeBuilder<TransportAuditEntry> b)
+    {
+        b.ToTable("TransportAuditEntries");
+        b.HasKey(x => x.Id);
+        b.Property(x => x.EntityType).IsRequired().HasMaxLength(20);
+        b.Property(x => x.Action).IsRequired().HasMaxLength(30);
+        b.Property(x => x.Detail).HasMaxLength(1000);
+        b.HasIndex(x => x.OccurredAt);
+        b.HasIndex(x => new { x.EntityType, x.EntityId });
     }
 }

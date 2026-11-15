@@ -44,7 +44,8 @@ production unless someone presses *Manual Deploy* (Render dashboard) or calls th
 **API:** `Database__Provider=Postgres`, `ConnectionStrings__ChildGuardDb` (pooled, least-privilege role `childguard_app`),
 `Jwt__Secret`, `SeedAdmin__Email/Password/FullName` (first boot only), `Email__Provider=Resend`,
 `Email__Resend__ApiKey`, `Email__Resend__TestRecipient`, `Biometrics__EncryptionKey` (+ `EncryptionKeyId`),
-`ReverseProxy__TrustAll`, `AllowedHosts=*.onrender.com`, `Cors__AllowedOrigins__0` (the Pages origin), `School__TimeZone`.
+`ReverseProxy__TrustAll`, `AllowedHosts=*.onrender.com`, `Cors__AllowedOrigins__0` (the Pages origin), `Cors__AllowedOrigins__1`
+(`https://childguard-admin-qbjv.onrender.com`, needed by AdminWeb's browser-side Diagnostics page), `School__TimeZone`.
 **AdminWeb:** `Api__BaseUrl`, `Api__TimeoutSeconds`, `ReverseProxy__TrustAll`, `AllowedHosts`,
 `DataProtection__KeyRingXml` (from `tools/KeyRingGenerator`), `School__TimeZone`.
 

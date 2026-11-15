@@ -97,6 +97,11 @@
                                 @(e.Source == EventSource.Rfid
                                     ? "Identified by RFID card at the checkpoint reader."
                                     : "Recorded by staff at the pickup desk.")
+                                @* The bus and route as they were when this was recorded, not the student's current ones. *@
+                                @if (e.BusNumber is not null)
+                                {
+                                    <span class="cg-tag" data-cg-event-bus>@await Html.PartialAsync("_Icon", "bus") @e.BusNumber@(e.RouteName is null ? "" : $" · {e.RouteName}")</span>
+                                }
                             </div>
                         </li>
                     }

@@ -406,6 +406,7 @@ public class TemporaryPickupService : ITemporaryPickupService
             }
 
             var created = new JourneyEvent { StudentId = auth.StudentId, EventType = JourneyEventType.SchoolDeparture, Timestamp = now, Source = EventSource.Manual };
+            await JourneyTransportSnapshot.StampAsync(_journey, created, lockCt);
             await _journey.AddJourneyEventAsync(created, lockCt);
             var (date, time) = _clock.ToSchoolDateTime(now);
             await _journey.AddAttendanceAsync(new Attendance

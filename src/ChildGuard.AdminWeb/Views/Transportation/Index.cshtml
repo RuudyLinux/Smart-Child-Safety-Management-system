@@ -14,6 +14,15 @@
     // Pickers offer active drivers and routes, plus whatever a bus already has.
     bool Offer(RecordStatus status, bool current) => status == RecordStatus.Active || current;
     var unassignedStudents = students.Where(s => !assignedStudentIds.Contains(s.StudentId)).ToList();
+    var settings = ViewBag.Settings as TransportSettingsDto ?? new TransportSettingsDto(false);
+    var audit = ViewBag.Audit as List<TransportAuditDto> ?? new();
+    var driverNames = drivers.ToDictionary(d => d.DriverId, d => d.FullName);
+    var routeNames = routes.ToDictionary(r => r.RouteId, r => r.RouteName);
+    // Occupancy comes from the API's live count of active assignments, recalculated on every load.
+    bool IsFull(BusDto b) => b.ActiveStudentCount >= b.Capacity;
+    string Seats(BusDto b) => $"{b.ActiveStudentCount}/{b.Capacity} seats";
+    string BusOption(BusDto b) => $"{b.BusNumber}{(string.IsNullOrEmpty(b.RouteName) ? "" : $" — {b.RouteName}")} ({Seats(b)}{(IsFull(b) ? ", full" : "")})";
+    var hasFreeSeat = inServiceBuses.Any(b => !IsFull(b));
 }
 
 <div class="cg-page-head">
@@ -104,7 +113,7 @@
                 <div class="cg-grid cg-grid--2" style="margin-bottom:0">
                     @foreach (var b in Model)
                     {
-                        var onBoard = activeAssignments.Count(a => a.BusNumber == b.BusNumber);
+                        var onBoard = b.ActiveStudentCount;
                         var load = b.Capacity == 0 ? 0 : Math.Min(100, onBoard * 100.0 / b.Capacity);
                         <div class="cg-personcard" style="flex-direction:column;gap:12px">
                             <div class="cg-row--between" style="flex-wrap:wrap">
@@ -137,10 +146,18 @@
                                     @await Html.PartialAsync("_Icon", "students")
                                     @onBoard of @b.Capacity seats used
                                 </span>
+                                @if (load >= 100)
+                                {
+                                    <span class="cg-badge cg-badge--danger" data-cg-occupancy="full"><span class="cg-badge__dot"></span>Full</span>
+                                }
+                                else if (load > 90)
+                                {
+                                    <span class="cg-badge cg-badge--warning" data-cg-occupancy="warning"><span class="cg-badge__dot"></span>Almost full</span>
+                                }
                             </div>
 
                             <div class="cg-bar__track">
-                                <div class="cg-bar__fill @(load > 90 ? "cg-bar__fill--warning" : "")"
+                                <div class="cg-bar__fill @(load >= 100 ? "cg-bar__fill--danger" : load > 90 ? "cg-bar__fill--warning" : "")"
                                      style="width:@load.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)%"></div>
                             </div>
 
@@ -286,7 +303,7 @@
             <h2 class="cg-card__title">Student bus assignments</h2>
             <div class="cg-card__sub">Which bus each student travels on</div>
         </div>
-        @if (inServiceBuses.Any() && unassignedStudents.Any())
+        @if (hasFreeSeat && unassignedStudents.Any())
         {
             <button type="button" class="cg-btn cg-btn--primary cg-btn--sm" data-cg-modal-open="assignStudentModal">
                 @await Html.PartialAsync("_Icon", "plus") Assign student
@@ -320,6 +337,7 @@
                         <th>Bus</th>
                         <th>Route</th>
                         <th>Assigned</th>
+                        <th>Ended</th>
                         <th>Status</th>
                         <th class="cg-table__actions">Actions</th>
                     </tr>
@@ -348,6 +366,7 @@
                             }
                         </td>
                         <td class="cg-text-sm cg-muted">@a.AssignedAt.ToSchoolTime().ToString("d MMM yyyy")</td>
+                        <td class="cg-text-sm cg-muted">@(a.EndedAt?.ToSchoolTime().ToString("d MMM yyyy") ?? (a.Status == RecordStatus.Active ? "" : "—"))</td>
                         <td>
                             <span class="cg-badge @(a.Status == RecordStatus.Active ? "cg-badge--success" : "cg-badge--neutral")">
                                 <span class="cg-badge__dot"></span>@(a.Status == RecordStatus.Active ? "Active" : "Ended")
@@ -386,6 +405,39 @@
 </section>
 
 @* ------------------------------------------------------------------ Modals *@
+<section class="cg-card" aria-labelledby="transportAuditTitle">
+    <div class="cg-card__head">
+        <div>
+            <h2 class="cg-card__title" id="transportAuditTitle">Recent changes</h2>
+            <div class="cg-card__sub">Audit trail of transport changes: who changed what, and when</div>
+        </div>
+    </div>
+    @if (audit.Count == 0)
+    {
+        @await Html.PartialAsync("_EmptyState", ("activity", "No changes recorded yet", "Edits to drivers, routes, buses and assignments are listed here.", (string?)null, (string?)null))
+    }
+    else
+    {
+        <div class="cg-table-wrap">
+            <table class="cg-table" data-cg-transport-audit>
+                <thead><tr><th>When</th><th>Admin</th><th>Record</th><th>Change</th><th>Detail</th></tr></thead>
+                <tbody>
+                @foreach (var e in audit)
+                {
+                    <tr>
+                        <td class="cg-nowrap cg-text-sm">@e.OccurredAt.ToSchoolTime().ToString("d MMM, HH:mm")</td>
+                        <td>@(e.AdminName ?? (e.AdminId is null ? "System" : $"Admin #{e.AdminId}"))</td>
+                        <td class="cg-nowrap">@e.EntityType #@e.EntityId</td>
+                        <td><span class="cg-badge cg-badge--neutral">@e.Action</span></td>
+                        <td class="cg-text-sm cg-muted">@e.Detail</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
 <div class="cg-modal" id="addDriverModal" hidden role="dialog" aria-modal="true" aria-labelledby="addDriverTitle">
     <div class="cg-modal__panel">
         <div class="cg-modal__head">
@@ -537,20 +589,28 @@
                         <select class="cg-select" id="assignBus" name="busId" required>
                             @foreach (var b in inServiceBuses)
                             {
-                                <option value="@b.BusId">@b.BusNumber@(string.IsNullOrEmpty(b.RouteName) ? "" : $" — {b.RouteName}")</option>
+                                <option value="@b.BusId" disabled="@IsFull(b)">@BusOption(b)</option>
                             }
                         </select>
+                        <p class="cg-hint">Full buses cannot take more students. Out-of-service buses are not listed.</p>
                     </div>
-                    <div class="cg-field">
-                        <label class="cg-label" for="assignRoute">Route</label>
-                        <select class="cg-select" id="assignRoute" name="routeId">
-                            <option value="">Use the bus's own route</option>
-                            @foreach (var r in routes.Where(r => r.Status == RecordStatus.Active))
-                            {
-                                <option value="@r.RouteId">@r.RouteName</option>
-                            }
-                        </select>
-                    </div>
+                    @if (settings.AllowRouteOverride)
+                    {
+                        <div class="cg-field">
+                            <label class="cg-label" for="assignRoute">Route</label>
+                            <select class="cg-select" id="assignRoute" name="routeId">
+                                <option value="">Use the bus's own route</option>
+                                @foreach (var r in routes.Where(r => r.Status == RecordStatus.Active))
+                                {
+                                    <option value="@r.RouteId">@r.RouteName</option>
+                                }
+                            </select>
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="cg-hint">The student travels on the selected bus's route.</p>
+                    }
                 </div>
             </div>
             <div class="cg-modal__foot">
@@ -649,7 +709,8 @@
                             </div>
                             <div class="cg-field">
                                 <label class="cg-label" for="editBusCapacity-@b.BusId">Capacity <span class="cg-label__req">*</span></label>
-                                <input class="cg-input" id="editBusCapacity-@b.BusId" name="capacity" value="@b.Capacity" type="number" min="1" max="200" required />
+                                <input class="cg-input" id="editBusCapacity-@b.BusId" name="capacity" value="@b.Capacity" type="number" min="@Math.Max(1, b.ActiveStudentCount)" max="200" required aria-describedby="editBusCapacityHint-@b.BusId" />
+                                <p class="cg-hint" id="editBusCapacityHint-@b.BusId">@b.ActiveStudentCount student(s) assigned: capacity cannot go below that.</p>
                             </div>
                         </div>
                         <div class="cg-form-row">
@@ -706,20 +767,28 @@
                             <select class="cg-select" id="changeBusBus-@a.Id" name="busId" required>
                                 @foreach (var b in inServiceBuses)
                                 {
-                                    <option value="@b.BusId" selected="@(b.BusNumber == a.BusNumber)">@b.BusNumber@(string.IsNullOrEmpty(b.RouteName) ? "" : $" — {b.RouteName}")</option>
+                                    var current = b.BusId == a.BusId || b.BusNumber == a.BusNumber;
+                                    <option value="@b.BusId" selected="@current" disabled="@(IsFull(b) && !current)">@BusOption(b)</option>
                                 }
                             </select>
                         </div>
-                        <div class="cg-field">
-                            <label class="cg-label" for="changeBusRoute-@a.Id">Route</label>
-                            <select class="cg-select" id="changeBusRoute-@a.Id" name="routeId">
-                                <option value="">Use the bus's own route</option>
-                                @foreach (var r in routes.Where(r => r.Status == RecordStatus.Active))
-                                {
-                                    <option value="@r.RouteId" selected="@(r.RouteName == a.RouteName)">@r.RouteName</option>
-                                }
-                            </select>
-                        </div>
+                        @if (settings.AllowRouteOverride)
+                        {
+                            <div class="cg-field">
+                                <label class="cg-label" for="changeBusRoute-@a.Id">Route</label>
+                                <select class="cg-select" id="changeBusRoute-@a.Id" name="routeId">
+                                    <option value="">Use the bus's own route</option>
+                                    @foreach (var r in routes.Where(r => r.Status == RecordStatus.Active))
+                                    {
+                                        <option value="@r.RouteId" selected="@(r.RouteName == a.RouteName)">@r.RouteName</option>
+                                    }
+                                </select>
+                            </div>
+                        }
+                        else
+                        {
+                            <p class="cg-hint">The student travels on the new bus's route. Moving ends the current assignment and starts a new one in one step.</p>
+                        }
                     </div>
                 </div>
                 <div class="cg-modal__foot">

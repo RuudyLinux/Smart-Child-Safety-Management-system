@@ -189,3 +189,32 @@ public enum TemporaryPickupState
     Revoked = 7,
     Expired = 8
 }
+
+/// <summary>What kind of record a bulk import creates.</summary>
+public enum ImportCategory
+{
+    Students = 1,
+    Guardians = 2,
+    Drivers = 3,
+    Routes = 4,
+    Buses = 5
+}
+
+/// <summary>How the rows of a bulk import were supplied.</summary>
+public enum ImportSource
+{
+    Csv = 1,
+    Excel = 2,
+    Manual = 3
+}
+
+/// <summary>Outcome of a bulk import run.</summary>
+public enum ImportStatus
+{
+    /// <summary>Every row was inserted.</summary>
+    Completed = 1,
+    /// <summary>The valid rows were inserted; the rest were skipped and are in the error report.</summary>
+    CompletedWithErrors = 2,
+    /// <summary>Nothing was inserted.</summary>
+    Failed = 3
+}

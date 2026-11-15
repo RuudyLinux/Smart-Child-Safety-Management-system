@@ -104,6 +104,12 @@ internal sealed class FakeJourneyRepository : IJourneyRepository
         return Task.CompletedTask;
     }
 
+    /// <summary>Active bus assignments by student, for the transport snapshot on new events.</summary>
+    public Dictionary<int, StudentBusAssignment> ActiveAssignments { get; } = new();
+
+    public Task<StudentBusAssignment?> GetActiveBusAssignmentAsync(int studentId, CancellationToken ct = default) =>
+        Task.FromResult(ActiveAssignments.TryGetValue(studentId, out var a) ? a : null);
+
     public Task AddAttendanceAsync(Attendance attendance, CancellationToken ct = default)
     {
         AttendanceRecords.Add(attendance);

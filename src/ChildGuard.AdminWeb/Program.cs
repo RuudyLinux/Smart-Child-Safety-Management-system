@@ -48,6 +48,12 @@ builder.Services.AddHttpClient<ApiClient>(client =>
     client.Timeout = TimeSpan.FromSeconds(builder.Configuration.GetValue("Api:TimeoutSeconds", 30));
 }).AddHttpMessageHandler<JwtForwardingHandler>();
 
+builder.Services.AddHttpClient<LongRunningApiClient>(client =>
+{
+    client.BaseAddress = new Uri(apiBaseUrl);
+    client.Timeout = TimeSpan.FromSeconds(builder.Configuration.GetValue("Api:LongRunningTimeoutSeconds", 300));
+}).AddHttpMessageHandler<JwtForwardingHandler>();
+
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
     {

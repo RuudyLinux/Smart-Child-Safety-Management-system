@@ -34,7 +34,7 @@ public class AttendanceJourneyService : IAttendanceJourneyService
 
     public async Task<List<JourneyEventDto>> GetJourneyHistoryAsync(int studentId, CancellationToken ct = default) =>
         (await _journey.GetHistoryAsync(studentId, ct))
-            .Select(e => new JourneyEventDto(e.JourneyEventId, e.StudentId, e.Student?.FullName ?? string.Empty, e.EventType, e.Timestamp, e.Source))
+            .Select(e => new JourneyEventDto(e.JourneyEventId, e.StudentId, e.Student?.FullName ?? string.Empty, e.EventType, e.Timestamp, e.Source, e.BusId, e.Bus?.BusNumber, e.Route?.RouteName))
             .ToList();
 
     public const int MaxRecentTake = 200;
@@ -43,7 +43,7 @@ public class AttendanceJourneyService : IAttendanceJourneyService
 
     public async Task<List<JourneyEventDto>> GetRecentEventsAsync(int take, CancellationToken ct = default) =>
         (await _journey.GetRecentAsync(Math.Clamp(take, 1, MaxRecentTake), ct))
-            .Select(e => new JourneyEventDto(e.JourneyEventId, e.StudentId, e.Student.FullName, e.EventType, e.Timestamp, e.Source))
+            .Select(e => new JourneyEventDto(e.JourneyEventId, e.StudentId, e.Student.FullName, e.EventType, e.Timestamp, e.Source, e.BusId, e.Bus?.BusNumber, e.Route?.RouteName))
             .ToList();
 
     public async Task<Result<JourneyReportPageDto>> GetJourneyReportAsync(
@@ -64,7 +64,7 @@ public class AttendanceJourneyService : IAttendanceJourneyService
 
         var (items, total) = await _journey.GetPageAsync(fromUtc, toUtcExclusive, studentId, (page - 1) * pageSize, pageSize, ct);
         var dtos = items
-            .Select(e => new JourneyEventDto(e.JourneyEventId, e.StudentId, e.Student?.FullName ?? string.Empty, e.EventType, e.Timestamp, e.Source))
+            .Select(e => new JourneyEventDto(e.JourneyEventId, e.StudentId, e.Student?.FullName ?? string.Empty, e.EventType, e.Timestamp, e.Source, e.BusId, e.Bus?.BusNumber, e.Route?.RouteName))
             .ToList();
         return Result<JourneyReportPageDto>.Success(new JourneyReportPageDto(dtos, total, page, pageSize, from, to, studentId));
     }
