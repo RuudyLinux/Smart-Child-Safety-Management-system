@@ -55,7 +55,7 @@
             <div class="cg-card__head">
                 <div>
                     <h2 class="cg-card__title" id="enStudentTitle">Student information</h2>
-                    <div class="cg-card__sub">As it appears on the school roll. A photo can be added from the profile once enrolled.</div>
+                    <div class="cg-card__sub">As it appears on the school roll.</div>
                 </div>
             </div>
             <div class="cg-card__body">
@@ -67,10 +67,10 @@
                             <span class="cg-error-text" data-en-error="student.fullName"></span>
                         </div>
                         <div class="cg-field">
-                            <label class="cg-label" for="enAdmission">Admission number</label>
-                            <input class="cg-input cg-mono" id="enAdmission" data-en="student.admissionNumber" maxlength="50" placeholder="e.g. 2026/0418" />
-                            <span class="cg-hint">Optional. Must be unique when given.</span>
-                            <span class="cg-error-text" data-en-error="student.admissionNumber"></span>
+                            <label class="cg-label" for="enStudentPhoto">Student photo <span class="cg-badge cg-badge--neutral">Optional</span></label>
+                            <input class="cg-input" id="enStudentPhoto" type="file" accept="image/jpeg,image/png,image/webp" data-en-photo="student" />
+                            <span class="cg-hint">Can also be added later from the student's profile. The admission number is assigned automatically.</span>
+                            <span class="cg-error-text" data-en-error="student.photo"></span>
                         </div>
                     </div>
                     <div class="cg-form-row">
@@ -139,7 +139,7 @@
                     <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "info")</span>
                     <div class="cg-alert__body">
                         New guardians receive their sign-in details by email after enrollment and must set their own password at first sign-in.
-                        Passwords are never shown here. Face registration is done later from the guardian's profile.
+                        Passwords are never shown here. Photos are optional; face registration is done later from the guardian's profile.
                     </div>
                 </div>
                 <div class="cg-enrol-guardians" data-en-guardians></div>
@@ -366,6 +366,12 @@
             </label>
             <div data-en-gaddress hidden>
                 @await Html.PartialAsync("_AddressFields", "guardian")
+            </div>
+            <div class="cg-field">
+                <label class="cg-label">Guardian photo <span class="cg-badge cg-badge--neutral">Optional</span></label>
+                <input class="cg-input" type="file" accept="image/jpeg,image/png,image/webp" data-en-photo="guardian" />
+                <span class="cg-hint">A profile photo. Can be added later from the guardian's profile; face registration for pickup is separate.</span>
+                <span class="cg-error-text" data-g-error="photo"></span>
             </div>
         </div>
 

@@ -116,6 +116,9 @@ public class EnrollmentService : IEnrollmentService
             await _students.AddAsync(student, tx);
             await _students.SaveChangesAsync(tx);
             studentId = student.StudentId;
+            // No number given: the system assigns one from the new id (saved with the enrollment request below).
+            student.AdmissionNumber ??= await AdmissionNumbers.NextFreeAsync(student.StudentId, _clock.Today,
+                n => _repo.AdmissionNumberExistsAsync(n, tx));
 
             // Saved straight away: a concurrent request with the same key waits on this row and then fails as a duplicate.
             await _repo.AddAsync(new EnrollmentRequest

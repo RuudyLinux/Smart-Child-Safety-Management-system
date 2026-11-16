@@ -84,6 +84,10 @@ public class StudentService : IStudentService
                 StudentId = student.StudentId,
                 Details = new { student.FullName, dateOfBirth = DateOnly.FromDateTime(student.DateOfBirth), student.Grade }
             }, ct);
+        // The admission number comes from the new id, so it is assigned once the student is saved.
+        student.AdmissionNumber = await AdmissionNumbers.NextFreeAsync(student.StudentId, _clock.Today,
+            n => _students.AdmissionNumberTakenAsync(n, student.StudentId, ct));
+        await _students.SaveChangesAsync(ct);
         return Result<StudentDetailDto>.Success(await ToDetailAsync(student, ct));
     }
 

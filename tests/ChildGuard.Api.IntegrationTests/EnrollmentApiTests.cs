@@ -420,6 +420,26 @@ public class EnrollmentApiTests : IClassFixture<EnrollmentApiFactory>
     }
 
     [Fact]
+    public async Task AdmissionNumber_IsAssignedAutomatically_WhenNoneIsGiven()
+    {
+        var admin = await _api.AdminClientAsync();
+        var enrolled = await Read<EnrollmentResultDto>(await Enroll(admin, new EnrollStudentRequest(Key(), NewStudent(), [NewGuardian()], null, null)));
+        var student = await Read<StudentDetailDto>(await admin.GetAsync($"/api/students/{enrolled.StudentId}"));
+        // The test clock puts the school's today in 2026.
+        Assert.Equal($"ADM2026{enrolled.StudentId:D5}", student.AdmissionNumber);
+
+        // The plain create endpoint assigns one the same way.
+        var created = await Read<StudentDetailDto>(await admin.PostAsJsonAsync("/api/students",
+            new CreateStudentRequest(Unique("Auto "), new DateTime(2016, 1, 1), "2"), Json.Options));
+        Assert.Equal($"ADM2026{created.StudentId:D5}", created.AdmissionNumber);
+
+        // A number given explicitly (API clients) is still kept as given.
+        var given = Unique("GIVEN");
+        var manual = await Read<EnrollmentResultDto>(await Enroll(admin, new EnrollStudentRequest(Key(), NewStudent(given), [NewGuardian()], null, null)));
+        Assert.Equal(given, (await Read<StudentDetailDto>(await admin.GetAsync($"/api/students/{manual.StudentId}"))).AdmissionNumber);
+    }
+
+    [Fact]
     public async Task DuplicateAdmissionNumber_IsAlwaysRefused()
     {
         var admin = await _api.AdminClientAsync();

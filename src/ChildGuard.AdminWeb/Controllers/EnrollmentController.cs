@@ -79,4 +79,28 @@ public class EnrollmentController : BaseAdminController
         var (status, json) = await _longRunning.PostRawAsync("/api/enrollments", request, ct);
         return new ContentResult { StatusCode = status, Content = json, ContentType = "application/json" };
     }
+
+    /// <summary>
+    /// The optional photos chosen in the wizard, uploaded after the enrollment has committed (one per call), through
+    /// the same API endpoints as the profile pages. A failed upload leaves the enrollment as it is; the photo can be
+    /// added from the profile later.
+    /// </summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [RequestSizeLimit(5L * 1024 * 1024)]
+    public async Task<IActionResult> Photo(string kind, int id, IFormFile? file, CancellationToken ct)
+    {
+        var path = kind switch
+        {
+            "student" => $"/api/students/{id}/photo",
+            "guardian" => $"/api/guardians/{id}/photo",
+            _ => null
+        };
+        if (path is null || id <= 0) return BadRequest(new { message = "Unknown photo target." });
+        if (file is null || file.Length == 0) return BadRequest(new { message = "Select an image to upload." });
+
+        await using var stream = file.OpenReadStream();
+        var result = await Api.PostFileAsync<PhotoStateDto>(path, stream, file.FileName, file.ContentType, ct);
+        return result.Succeeded ? Json(new { saved = true }) : StatusCode(result.StatusCode, new { message = result.Error });
+    }
 }

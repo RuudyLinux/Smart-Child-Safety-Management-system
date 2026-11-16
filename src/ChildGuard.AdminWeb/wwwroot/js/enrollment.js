@@ -133,7 +133,6 @@
   function student() {
     return {
       fullName: text($('[data-en="student.fullName"]')),
-      admissionNumber: orNull(text($('[data-en="student.admissionNumber"]'))),
       dateOfBirth: text($('[data-en="student.dateOfBirth"]')),
       gender: orNull(text($('[data-en="student.gender"]'))),
       grade: orNull(text($('[data-en="student.grade"]'))),
@@ -172,22 +171,33 @@
 
   function duplicateReason() { return duplicates.length ? dupReason.value.trim() : null; }
 
-  // Local checks, then the server: admission number free, and any same-name, same-birth-date student answered.
+  // ---- optional photos: checked here, uploaded only after the enrollment has been saved
+  var PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+  var PHOTO_MAX = 5 * 1024 * 1024;
+
+  function photoFile(input) { return input && input.files && input.files[0] ? input.files[0] : null; }
+
+  function checkPhoto(input, container, errorSelector) {
+    var f = photoFile(input);
+    var msg = '';
+    if (f && PHOTO_TYPES.indexOf(f.type) < 0) msg = 'Use a JPEG, PNG or WebP image.';
+    else if (f && f.size > PHOTO_MAX) msg = 'The photo must be 5 MB or smaller.';
+    markInvalid(input, !!msg);
+    fieldError(container, errorSelector, msg);
+    return !msg;
+  }
+
+  // Local checks, then the server: any same-name, same-birth-date student answered.
   function validateStudent() {
     if (!validateStudentLocal()) return Promise.resolve(false);
     var panel = $('[data-en-panel="1"]');
     var s = student();
-    var admission = $('[data-en="student.admissionNumber"]');
-    return postJson('/Enrollment/CheckStudent', { fullName: s.fullName, dateOfBirth: s.dateOfBirth, admissionNumber: s.admissionNumber })
+    return postJson('/Enrollment/CheckStudent', { fullName: s.fullName, dateOfBirth: s.dateOfBirth, admissionNumber: null })
       .then(function (res) {
         if (!res.ok) {
           fieldError(panel, '[data-en-error="student.fullName"]', errorMessage(res, 'Existing students could not be checked. Try again.'));
           return false;
         }
-        var taken = !!res.data.admissionNumberTaken;
-        markInvalid(admission, taken);
-        fieldError(panel, '[data-en-error="student.admissionNumber"]', taken ? 'Another student already has this admission number.' : '');
-        if (taken) { admission.focus(); return false; }
         showDuplicates(res.data.possibleDuplicates);
         return checkDuplicateReason(true);
       }, function () {
@@ -214,6 +224,7 @@
     ok = ok && !dobBad;
 
     ok = validateAddress($('[data-en-address="student"]')) && ok;
+    ok = checkPhoto($('[data-en-photo="student"]'), panel, '[data-en-error="student.photo"]') && ok;
     if (!ok) focusFirstInvalid(panel);
     return ok;
   }
@@ -460,6 +471,7 @@
         bad('email', 'email', 'Already registered. Use "Link this guardian instead".');
       }
       if (!g.sameAsStudentAddress && !validateAddress($('[data-en-gaddress]', c))) ok = false;
+      if (!checkPhoto($('[data-en-photo="guardian"]', c), c, '[data-g-error="photo"]')) ok = false;
     });
 
     fieldError(panel, '[data-en-error="guardians"]', guardianCards().length ? '' : 'Add at least one guardian.');
@@ -677,7 +689,8 @@
     var s = student();
     var html = block('Student', 1, deflist([
       ['Name', s.fullName],
-      ['Admission no.', s.admissionNumber || '—'],
+      ['Admission no.', 'Assigned automatically'],
+      ['Photo', photoFile($('[data-en-photo="student"]')) ? photoFile($('[data-en-photo="student"]')).name : 'None (can be added later)'],
       ['Date of birth', formatDate(s.dateOfBirth)],
       ['Gender', s.gender || 'Not specified'],
       ['Grade / section', [s.grade, s.section].filter(Boolean).join(' · ') || '—'],
@@ -700,6 +713,7 @@
       return '<div class="cg-enrol-review__sub">' + escapeHtml(g.fullName) + ' <span class="cg-badge cg-badge--primary">New account</span></div>' +
         deflist([
           ['Email', g.email], ['Contact', g.contactNumber], ['Relationship', g.relationship || '—'], ['Pickup', pickup, true],
+          ['Photo', photoFile($('[data-en-photo="guardian"]', c)) ? photoFile($('[data-en-photo="guardian"]', c)).name : 'None (can be added later)'],
           ['Address', g.sameAsStudentAddress ? 'Same as student' : addressHtml(g.address, 'Not provided'), !g.sameAsStudentAddress]
         ]);
     }).join(''));
@@ -835,7 +849,11 @@
     $('.cg-btn__label', submitBtn).textContent = 'Enrolling…';
 
     postJson('/Enrollment/Submit', buildRequest()).then(function (res) {
-      if (res.ok) { renderDone(res.data); return; }
+      if (res.ok) {
+        finished = true;
+        $('.cg-btn__label', submitBtn).textContent = 'Saving photos…';
+        return uploadPhotos(res.data).then(function (photos) { renderDone(res.data, photos); });
+      }
       if (res.status === 409 && res.data && res.data.code === 'ConfirmationRequired') { handleConfirmation(res.data.confirmation); return; }
       showSubmitError(errorMessage(res, 'The enrollment could not be completed.'));
     }, function () {
@@ -849,7 +867,45 @@
     });
   });
 
-  function renderDone(r) {
+  // The enrollment is already saved; each photo is a separate upload, and a failure only means adding it from the profile later.
+  function uploadPhoto(kind, id, file) {
+    var fd = new FormData();
+    fd.append('file', file);
+    return request('/Enrollment/Photo?kind=' + kind + '&id=' + id, {
+      method: 'POST',
+      headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrfToken() },
+      body: fd
+    }).then(function (res) {
+      return res.ok ? null : errorMessage(res, 'The photo could not be saved.');
+    }, function () { return 'Could not reach the server.'; });
+  }
+
+  function uploadPhotos(r) {
+    if (r.alreadyEnrolled) return Promise.resolve([]);
+    var jobs = [];
+    var sf = photoFile($('[data-en-photo="student"]'));
+    if (sf) jobs.push({ label: 'Student photo', kind: 'student', id: r.studentId, file: sf });
+    var used = {};
+    guardianCards().forEach(function (c) {
+      if (guardianMode(c) !== 'new') return;
+      var f = photoFile($('[data-en-photo="guardian"]', c));
+      if (!f) return;
+      var name = text($('[data-g="fullName"]', c));
+      var match = r.guardians.filter(function (g) { return g.created && !used[g.guardianId] && g.fullName === name; })[0];
+      if (!match) { jobs.push({ label: 'Photo of ' + name, error: 'The new account was not found. Add the photo from the guardian\'s profile.' }); return; }
+      used[match.guardianId] = true;
+      jobs.push({ label: 'Photo of ' + name, kind: 'guardian', id: match.guardianId, file: f });
+    });
+    return jobs.reduce(function (p, j) {
+      return p.then(function (out) {
+        if (j.error) { out.push(j); return out; }
+        return uploadPhoto(j.kind, j.id, j.file).then(function (err) { j.error = err; out.push(j); return out; });
+      });
+    }, Promise.resolve([]));
+  }
+
+  function renderDone(r, photos) {
+    photos = photos || [];
     finished = true;
     form.hidden = true;
     $$('[data-en-step]').forEach(function (s) { s.className = 'cg-step cg-step--done'; s.removeAttribute('aria-current'); });
@@ -878,10 +934,19 @@
     html += block('Transport', 0, r.busNumber
       ? deflist([['Bus', r.busNumber], ['Route', r.routeName || '—']])
       : '<span class="cg-muted">No school transport</span>');
+    if (photos.length) {
+      html += block('Photos', 0, deflist(photos.map(function (p) {
+        return [p.label, p.error
+          ? '<span class="cg-badge cg-badge--warning">Not saved</span><div class="cg-hint">' + escapeHtml(p.error) + ' Add it from the profile.</div>'
+          : '<span class="cg-badge cg-badge--success">Saved</span>', true];
+      })));
+    }
     $('[data-en-done-summary]').innerHTML = html;
 
     $('[data-en-done-profile]').href = '/Students/Details/' + r.studentId;
     $('[data-en-done-photo]').href = '/Students/Details/' + r.studentId + '#photo';
+    // Offer "Add a photo" only when the student still has none from this enrollment.
+    $('[data-en-done-photo]').hidden = photos.some(function (p) { return p.kind === 'student' && !p.error; });
     var done = $('[data-en-done]');
     done.hidden = false;
     done.focus();

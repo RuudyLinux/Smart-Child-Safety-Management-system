@@ -76,11 +76,6 @@ public class RfidController : BaseAdminController
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Reassign(int id, int studentId, string? reason, CancellationToken ct) =>
-        Back(await Api.PostAsync<RfidOperationResultDto>($"/api/rfid/cards/{id}/reassign", new ReassignRfidRequest(studentId, reason ?? ""), ct), id);
-
-    [HttpPost]
-    [ValidateAntiForgeryToken]
     public async Task<IActionResult> DeleteCard(int id, string? reason, bool confirmed, CancellationToken ct)
     {
         if (!confirmed)

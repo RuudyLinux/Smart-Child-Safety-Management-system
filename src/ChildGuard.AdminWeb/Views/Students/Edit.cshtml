@@ -62,8 +62,9 @@
                     </div>
                     <div class="cg-field">
                         <label class="cg-label" for="AdmissionNumber">Admission number</label>
-                        <input class="cg-input cg-mono" id="AdmissionNumber" name="AdmissionNumber" value="@Model.AdmissionNumber" maxlength="50" />
-                        <p class="cg-hint">Optional. Must be unique when given.</p>
+                        <input class="cg-input cg-mono" id="AdmissionNumber" name="AdmissionNumber" value="@Model.AdmissionNumber" maxlength="50"
+                               readonly aria-readonly="true" placeholder="Not assigned" />
+                        <p class="cg-hint">Assigned automatically at enrollment.</p>
                     </div>
                     <div class="cg-field">
                         <label class="cg-label" for="Gender">Gender</label>

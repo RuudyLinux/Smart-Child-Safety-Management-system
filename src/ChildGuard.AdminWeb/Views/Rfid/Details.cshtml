@@ -82,7 +82,7 @@
             <h2 class="cg-card__title">Manage card</h2>
             <div class="cg-card__sub">
                 @if (Model.Status == RfidCardStatus.Retired) { <span>Retired cards are kept as history and cannot be used again.</span> }
-                else if (assigned) { <span>Unassign, replace with another card, or move it to a different student.</span> }
+                else if (assigned) { <span>Unassign it, or replace it with another card.</span> }
                 else if (usable) { <span>Available: give it to a student who has no card.</span> }
                 else { <span>Marked @Model.Status: set it back to Active before assigning it.</span> }
             </div>
@@ -96,10 +96,6 @@
         @if (assigned)
         {
             <button type="button" class="cg-btn cg-btn--secondary" data-cg-modal-open="cardReplace">Replace card</button>
-            @if (usable)
-            {
-                <button type="button" class="cg-btn cg-btn--secondary" data-cg-modal-open="cardReassign">Move to another student</button>
-            }
             <button type="button" class="cg-btn cg-btn--danger-soft" data-cg-modal-open="cardUnassign">Unassign</button>
         }
         @if (Model.Status != RfidCardStatus.Retired)
@@ -234,22 +230,6 @@
                 <input class="cg-input" id="unassignReason" name="reason" minlength="5" maxlength="200" required placeholder="e.g. Student left the bus service" />
             </div>
         </text>, "Unassign", "cg-btn--danger");
-    if (usable)
-    {
-        await Modal("cardReassign", "Move this card to another student", $"It stops belonging to {Model.StudentName}.", "Reassign",
-            @<text>
-                <div class="cg-field">
-                    <label class="cg-label" for="reassignStudent">New student <span class="cg-label__req">*</span></label>
-                    <select class="cg-select" id="reassignStudent" name="studentId" required>
-                        @foreach (var s in eligible) { <option value="@s.StudentId">@s.FullName@(string.IsNullOrEmpty(s.Grade) ? "" : $" · {s.Grade}")</option> }
-                    </select>
-                </div>
-                <div class="cg-field">
-                    <label class="cg-label" for="reassignReason">Reason <span class="cg-label__req">*</span></label>
-                    <input class="cg-input" id="reassignReason" name="reason" minlength="5" maxlength="200" required placeholder="e.g. Issued to the wrong sibling" />
-                </div>
-            </text>, "Move card");
-    }
 }
 @if (Model.CanDelete)
 {

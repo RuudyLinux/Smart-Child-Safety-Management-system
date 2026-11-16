@@ -11,12 +11,14 @@ const shot = async (page: Page, name: string) => {
 test.use({ viewport: { width: 1366, height: 1500 } });
 
 test.describe('Student and guardian management', () => {
-  test('edit section, admission number and gender', async ({ page, data }) => {
+  test('edit section and gender; the admission number is assigned automatically and read-only', async ({ page, data }) => {
     const s = await data.student();
-    const number = 'ADM-' + Date.now().toString(36).toUpperCase();
     await page.goto(`/Students/Edit/${s.id}`);
+    const admission = page.locator('#AdmissionNumber');
+    await expect(admission).toHaveAttribute('readonly', '');
+    const number = await admission.inputValue();
+    expect(number).toMatch(/^ADM\d{4}\d{5}/);
     await page.locator('#Section').fill('D');
-    await page.locator('#AdmissionNumber').fill(number);
     await page.locator('#Gender').selectOption('Female');
     await page.getByRole('button', { name: 'Save changes' }).click();
     await expect(page).toHaveURL(new RegExp(`/Students/Details/${s.id}$`));

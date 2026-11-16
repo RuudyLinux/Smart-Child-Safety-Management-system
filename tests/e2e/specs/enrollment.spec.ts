@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { Page, Locator } from '@playwright/test';
-import { test, expect, uid } from '../support/fixtures';
+import { test, expect, uid, PNG_1PX } from '../support/fixtures';
 
 // Walkthrough screenshots, kept with the run's other artifacts.
 const SHOTS = path.join(__dirname, '..', 'test-results', 'enrollment-walkthrough');
@@ -26,7 +26,8 @@ async function openWizard(page: Page) {
 async function fillStudent(page: Page, name: string, withAddress = true) {
   await expect(page.locator('#enFullName')).toBeFocused();
   await page.locator('#enFullName').fill(name);
-  await page.locator('#enAdmission').fill('ADM-' + Date.now().toString(36).toUpperCase());
+  // The admission number is assigned by the system; the wizard has no field for it.
+  await expect(page.locator('#enAdmission')).toHaveCount(0);
   await page.locator('#enDob').fill('2016-05-14');
   await page.locator('#enGender').selectOption('Female');
   await page.locator('#enGrade').fill('4');
@@ -64,11 +65,14 @@ test.describe('Enrollment wizard', () => {
 
     await openWizard(page);
     await fillStudent(page, name);
+    // Optional photos: chosen here, uploaded once the enrollment is saved.
+    await page.locator('[data-en-photo="student"]').setInputFiles({ name: 'diya.png', mimeType: 'image/png', buffer: PNG_1PX });
     await shot(page, '01-student');
     await next(page);
 
     const first = page.locator('[data-en-guardian]').nth(0);
     await fillNewGuardian(first, guardianName);
+    await first.locator('[data-en-photo="guardian"]').setInputFiles({ name: 'meera.png', mimeType: 'image/png', buffer: PNG_1PX });
     await page.getByRole('button', { name: 'Add another guardian' }).click();
     const second = page.locator('[data-en-guardian]').nth(1);
     await second.getByRole('radio', { name: 'Link existing' }).click();
@@ -100,6 +104,9 @@ test.describe('Enrollment wizard', () => {
     await expect(review).toContainText('Existing account');
     await expect(review).toContainText(uidValue.slice(-4));
     await expect(review).toContainText(bus.busNumber);
+    await expect(review).toContainText('Assigned automatically');
+    await expect(review).toContainText('diya.png');
+    await expect(review).toContainText('meera.png');
     await shot(page, '05-review');
 
     // Going back keeps everything entered.
@@ -113,10 +120,14 @@ test.describe('Enrollment wizard', () => {
     await expect(done).toContainText('Sign-in details emailed');
     await expect(done).toContainText('Existing account linked');
     await expect(done).toContainText(bus.busNumber);
+    const photos = done.locator('.cg-enrol-review__block', { hasText: 'Photos' });
+    await expect(photos.getByText('Saved')).toHaveCount(2);
+    await expect(done.getByRole('link', { name: 'Add a photo' })).toBeHidden();
     await shot(page, '06-done');
 
     await done.getByRole('link', { name: 'Open student profile' }).click();
     await expect(page).toHaveURL(/\/Students\/Details\/\d+/);
+    await expect(page.locator('body')).toContainText(/ADM2\d{3}\d{5}/);
     await expect(page.locator('body')).toContainText('12 Lake View Road');
     await expect(page.locator('body')).toContainText('Section B');
     await expect(page.locator('body')).toContainText(guardianName);

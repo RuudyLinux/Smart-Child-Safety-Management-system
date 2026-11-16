@@ -54,7 +54,9 @@ public class RecordLifecycleTests : IClassFixture<EnrollmentApiFactory>
         var taken = await admin.PutAsJsonAsync($"/api/students/{b.StudentId}/record",
             new UpdateStudentRecordRequest(b.FullName, b.DateOfBirth, null, null, number.ToLowerInvariant(), null), Json.Options);
         Assert.Equal(HttpStatusCode.Conflict, taken.StatusCode);
-        Assert.Null((await Ok<StudentDetailDto>(await admin.GetAsync($"/api/students/{b.StudentId}"))).AdmissionNumber);
+        // b keeps the number assigned to it automatically when it was created.
+        Assert.NotNull(b.AdmissionNumber);
+        Assert.Equal(b.AdmissionNumber, (await Ok<StudentDetailDto>(await admin.GetAsync($"/api/students/{b.StudentId}"))).AdmissionNumber);
 
         // Clearing works, and the original endpoint still behaves as before.
         var cleared = await Ok<StudentDetailDto>(await admin.PutAsJsonAsync($"/api/students/{a.StudentId}/record",
