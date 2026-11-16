@@ -66,6 +66,50 @@ public class StudentsController : ControllerBase
         return result.Succeeded ? Ok(result.Value) : NotFound(new { message = result.Error });
     }
 
+    /// <summary>Full edit including section, admission number and gender, saved atomically.</summary>
+    [HttpPut("{id:int}/record")]
+    public async Task<IActionResult> UpdateRecord(int id, UpdateStudentRecordRequest request,
+        [FromServices] IValidator<UpdateStudentRecordRequest> validator, CancellationToken ct)
+    {
+        await validator.ValidateAndThrowAsync(request, ct);
+        var result = await _studentService.UpdateRecordAsync(id, request, ct);
+        if (result.Succeeded) return Ok(result.Value);
+        return result.Error == "Student not found." ? NotFound(new { message = result.Error }) : Conflict(new { message = result.Error });
+    }
+
+    /// <summary>What archiving would do, and what (if anything) prevents permanent deletion.</summary>
+    [HttpGet("{id:int}/deletion-check")]
+    public async Task<IActionResult> DeletionCheck(int id, [FromServices] IRecordLifecycleService lifecycle, CancellationToken ct)
+    {
+        var result = await lifecycle.CheckStudentAsync(id, ct);
+        return result.Succeeded ? Ok(result.Value) : NotFound(new { message = result.Error });
+    }
+
+    [HttpPost("{id:int}/archive")]
+    public async Task<IActionResult> Archive(int id, ArchiveRecordRequest request, [FromServices] IValidator<ArchiveRecordRequest> validator,
+        [FromServices] IRecordLifecycleService lifecycle, CancellationToken ct)
+    {
+        await validator.ValidateAndThrowAsync(request, ct);
+        return this.ToResult(await lifecycle.ArchiveStudentAsync(id, request.Reason, this.GetUserId(), ct));
+    }
+
+    [HttpPost("{id:int}/restore")]
+    public async Task<IActionResult> Restore(int id, RestoreRecordRequest request, [FromServices] IValidator<RestoreRecordRequest> validator,
+        [FromServices] IRecordLifecycleService lifecycle, CancellationToken ct)
+    {
+        await validator.ValidateAndThrowAsync(request, ct);
+        return this.ToResult(await lifecycle.RestoreStudentAsync(id, request.Reason, this.GetUserId(), ct));
+    }
+
+    /// <summary>Permanent deletion; only for a student with no history (409 lists what blocks it).</summary>
+    [HttpDelete("{id:int}")]
+    public async Task<IActionResult> Delete(int id, [FromBody] DeleteRecordRequest request, [FromServices] IValidator<DeleteRecordRequest> validator,
+        [FromServices] IRecordLifecycleService lifecycle, CancellationToken ct)
+    {
+        await validator.ValidateAndThrowAsync(request, ct);
+        return this.ToResult(await lifecycle.DeleteStudentAsync(id, request.Reason, this.GetUserId(), ct));
+    }
+
     /// <summary>Replaces the student's residential address. Every part blank clears it.</summary>
     [HttpPut("{id:int}/address")]
     public async Task<IActionResult> UpdateAddress(int id, AddressDto address, [FromServices] IValidator<AddressDto> validator, CancellationToken ct)

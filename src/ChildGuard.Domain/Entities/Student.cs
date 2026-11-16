@@ -14,6 +14,10 @@ public class Student
     public Gender? Gender { get; set; }
     public PostalAddress? Address { get; set; }
     public RecordStatus Status { get; set; } = RecordStatus.Active;
+    /// <summary>Set when an admin archived the record (Status is then Inactive). Cleared on restore.</summary>
+    public DateTime? ArchivedAt { get; set; }
+    public int? ArchivedByAdminId { get; set; }
+    public string? ArchiveReason { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 

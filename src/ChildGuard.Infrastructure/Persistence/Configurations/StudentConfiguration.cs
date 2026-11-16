@@ -16,6 +16,7 @@ public class StudentConfiguration : IEntityTypeConfiguration<Student>
         // Unique when present; NULLs (no number recorded) are allowed many times on both engines.
         b.HasIndex(x => x.AdmissionNumber).IsUnique();
         b.OwnsOne(x => x.Address, PostalAddressMapping.Map);
+        b.Property(x => x.ArchiveReason).HasMaxLength(500);
 
         b.HasOne(x => x.RfidCard)
             .WithOne(x => x.Student)

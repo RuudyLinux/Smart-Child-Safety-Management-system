@@ -66,6 +66,14 @@ public class ApiClient
         return await ReadResultAsync<T>(response, ct);
     }
 
+    /// <summary>DELETE with a JSON body (e.g. the reason for a permanent deletion).</summary>
+    public async Task<ApiResult<T>> DeleteAsync<T>(string url, object body, CancellationToken ct = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Delete, url) { Content = JsonContent.Create(body, options: JsonOptions) };
+        var response = await _http.SendAsync(request, ct);
+        return await ReadResultAsync<T>(response, ct);
+    }
+
     /// <summary>
     /// Forwards a browser file upload to the API as multipart, unchanged. AdminWeb
     /// deliberately does not inspect or re-encode the bytes: the API is the trust

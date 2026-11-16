@@ -14,6 +14,7 @@ public class GuardianConfiguration : IEntityTypeConfiguration<Guardian>
         b.Property(x => x.Phone).HasMaxLength(30);
         b.Property(x => x.PasswordHash).IsRequired();
         b.OwnsOne(x => x.Address, PostalAddressMapping.Map);
+        b.Property(x => x.ArchiveReason).HasMaxLength(500);
         b.HasIndex(x => x.Email).IsUnique();
         // The contact number is the Guardian login identifier, so it must resolve to
         // exactly one account. Nulls stay allowed (MySQL permits duplicate NULLs) —

@@ -71,7 +71,11 @@
         <a class="cg-btn cg-btn--secondary" href="/Guardians/Edit/@Model.GuardianId">
             @await Html.PartialAsync("_Icon", "edit") Edit
         </a>
-        @if (Model.Status == RecordStatus.Active)
+        @if (Model.ArchivedAt is not null)
+        {
+            @* Restore is offered on the archived banner below. *@
+        }
+        else if (Model.Status == RecordStatus.Active)
         {
             <form asp-action="UpdateStatus" asp-route-id="@Model.GuardianId" method="post" class="cg-inline-form"
                   data-cg-confirm="Deactivate @Model.FullName? They will be unable to sign in or be verified for pickup until the account is reactivated.">
@@ -90,6 +94,11 @@
         }
     </div>
 </section>
+
+@if (ViewBag.Lifecycle is RecordLifecycleModel lifecycle)
+{
+    @await Html.PartialAsync("_ArchivedBanner", lifecycle)
+}
 
 <div class="cg-tabs" data-cg-tabs="guardian" role="tablist">
     <button class="cg-tab is-active" data-cg-tab="children" role="tab" aria-selected="true">
@@ -410,4 +419,9 @@
 @section Scripts {
     <script src="~/js/face-capture.js" asp-append-version="true"></script>
     <script src="~/js/face-enrol.js" asp-append-version="true"></script>
+}
+
+@if (ViewBag.Lifecycle is RecordLifecycleModel lifecycleCard)
+{
+    <div style="margin-top:16px">@await Html.PartialAsync("_RecordLifecycle", lifecycleCard)</div>
 }

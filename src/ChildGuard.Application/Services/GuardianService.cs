@@ -98,7 +98,8 @@ public class GuardianService : IGuardianService
             photos.TryGetValue(g.GuardianId, out var at) ? at : null,
             g.FaceData is not null && g.FaceData.IsActive,
             g.PasswordResetRequired,
-            lastActivity.TryGetValue(g.GuardianId, out var lastAt) ? lastAt : null)).ToList();
+            lastActivity.TryGetValue(g.GuardianId, out var lastAt) ? lastAt : null,
+            g.ArchivedAt)).ToList();
     }
 
     public async Task<Result<GuardianDetailDto>> GetByIdAsync(int id, CancellationToken ct = default)
@@ -138,7 +139,8 @@ public class GuardianService : IGuardianService
             photos.TryGetValue(id, out var photoAt) ? photoAt : null,
             history.FirstOrDefault()?.AttemptedAt,
             history,
-            AddressDto.From(g.Address)));
+            AddressDto.From(g.Address),
+            g.ArchivedAt, g.ArchiveReason));
     }
 
     public async Task<List<GuardianLookupDto>> LookupAsync(string query, CancellationToken ct = default)
@@ -182,6 +184,7 @@ public class GuardianService : IGuardianService
         g.Phone = contactNumber;
         g.Status = request.Status;
         g.UpdatedAt = DateTime.UtcNow;
+        ClearArchiveIfActivated(g);
         if (changes.Count > 0)
             _audit.Record(new AuditEvent("GuardianUpdated", "Guardian", id, $"Guardian {g.FullName} updated: {string.Join(", ", changes.Keys)}")
             { GuardianId = id, Details = changes });
@@ -199,8 +202,20 @@ public class GuardianService : IGuardianService
             { GuardianId = id, Details = new { from = g.Status, to = request.Status } });
         g.Status = request.Status;
         g.UpdatedAt = DateTime.UtcNow;
+        ClearArchiveIfActivated(g);
         await _guardians.SaveChangesAsync(ct);
         return Result.Success();
+    }
+
+    /// <summary>Activating an archived account restores it: an active guardian is never left marked as archived.</summary>
+    private void ClearArchiveIfActivated(Guardian g)
+    {
+        if (g.Status != RecordStatus.Active || g.ArchivedAt is null) return;
+        _audit.Record(new AuditEvent("GuardianRestored", "Guardian", g.GuardianId, $"Guardian {g.FullName} restored by activation")
+        { GuardianId = g.GuardianId, Details = new { archivedAt = g.ArchivedAt, archiveReason = g.ArchiveReason } });
+        g.ArchivedAt = null;
+        g.ArchivedByAdminId = null;
+        g.ArchiveReason = null;
     }
 
     public async Task<Result> UpdateAddressAsync(int id, AddressDto address, CancellationToken ct = default)

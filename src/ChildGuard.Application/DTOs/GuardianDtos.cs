@@ -4,14 +4,16 @@ namespace ChildGuard.Application.DTOs;
 
 public record GuardianListItemDto(
     int GuardianId, string FullName, string Email, string? Phone, RecordStatus Status, int LinkedStudentCount,
-    bool HasPhoto, DateTime? PhotoUpdatedAt, bool FaceRegistered, bool PasswordResetRequired, DateTime? LastActivityAt);
+    bool HasPhoto, DateTime? PhotoUpdatedAt, bool FaceRegistered, bool PasswordResetRequired, DateTime? LastActivityAt,
+    DateTime? ArchivedAt = null);
 
 public record GuardianDetailDto(
     int GuardianId, string FullName, string Email, string? Phone, RecordStatus Status,
     bool FaceRegistered, bool PasswordResetRequired, IReadOnlyList<StudentSummaryDto> Students, DateTime CreatedAt,
     bool HasPhoto, DateTime? PhotoUpdatedAt, DateTime? LastActivityAt,
     IReadOnlyList<GuardianVerificationHistoryDto> RecentVerifications,
-    AddressDto? Address = null);
+    AddressDto? Address = null,
+    DateTime? ArchivedAt = null, string? ArchiveReason = null);
 
 /// <summary>
 /// A child as seen from their guardian — identity, relationship, and the live

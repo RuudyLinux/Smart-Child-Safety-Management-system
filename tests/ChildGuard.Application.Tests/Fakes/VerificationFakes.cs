@@ -42,6 +42,8 @@ internal sealed class FakeStudentRepository : IStudentRepository
         Task.FromResult(Links.Where(l => l.StudentId == studentId).ToList());
 
     public Task SaveChangesAsync(CancellationToken ct = default) => Task.CompletedTask;
+    public Task<bool> AdmissionNumberTakenAsync(string admissionNumber, int exceptStudentId, CancellationToken ct = default) => Task.FromResult(false);
+    public Task<bool> TrySaveChangesAsync(CancellationToken ct = default) => Task.FromResult(true);
 }
 
 internal sealed class FakeNotificationRepository : INotificationRepository

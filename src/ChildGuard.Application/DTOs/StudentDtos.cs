@@ -7,7 +7,8 @@ public record StudentListItemDto(
     string? MaskedRfid, int GuardianCount,
     bool HasPhoto, string? PrimaryGuardianName,
     StudentSafetyStatus SafetyStatus, bool PresentToday, TimeOnly? CheckInTime,
-    DateTime? LastEventAt, JourneyEventType? LastEventType, string? BusNumber);
+    DateTime? LastEventAt, JourneyEventType? LastEventType, string? BusNumber,
+    DateTime? ArchivedAt = null, string? AdmissionNumber = null, string? Section = null);
 
 public record StudentDetailDto(
     int StudentId, string FullName, DateTime DateOfBirth, string? Grade, RecordStatus Status,
@@ -20,7 +21,8 @@ public record StudentDetailDto(
     AttendanceStatsDto AttendanceStats,
     IReadOnlyList<JourneyEventDto> RecentJourney,
     IReadOnlyList<AttendanceRecordDto> RecentAttendance,
-    string? Section = null, string? AdmissionNumber = null, Gender? Gender = null, AddressDto? Address = null);
+    string? Section = null, string? AdmissionNumber = null, Gender? Gender = null, AddressDto? Address = null,
+    DateTime? ArchivedAt = null, string? ArchiveReason = null);
 
 /// <summary>Attendance counted over the trailing window shown on a student profile.</summary>
 public record AttendanceStatsDto(int WindowDays, int DaysPresent, int DaysLate, int SchoolDaysObserved, double PresentRate);

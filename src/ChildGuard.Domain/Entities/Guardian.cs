@@ -11,6 +11,10 @@ public class Guardian
     public PostalAddress? Address { get; set; }
     public string PasswordHash { get; set; } = default!;
     public RecordStatus Status { get; set; } = RecordStatus.Active;
+    /// <summary>Set when an admin archived the record (Status is then Inactive). Cleared on restore.</summary>
+    public DateTime? ArchivedAt { get; set; }
+    public int? ArchivedByAdminId { get; set; }
+    public string? ArchiveReason { get; set; }
     public string? PasswordResetToken { get; set; }
     public DateTime? PasswordResetTokenExpiresAt { get; set; }
     /// <summary>True while the Guardian is still on an admin-supplied default password. Blocks JWT issuance until a new password is chosen.</summary>

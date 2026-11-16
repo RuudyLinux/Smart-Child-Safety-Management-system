@@ -15,4 +15,16 @@ public static class DbErrors
         }
         return false;
     }
+
+    /// <summary>True when a foreign key refused the write, e.g. a delete of a row that history still references (MySQL 1451/1452, PostgreSQL 23503).</summary>
+    public static bool IsForeignKeyViolation(Exception? exception)
+    {
+        for (var e = exception; e is not null; e = e.InnerException)
+        {
+            if (e is MySqlConnector.MySqlException { ErrorCode: MySqlConnector.MySqlErrorCode.RowIsReferenced2 or MySqlConnector.MySqlErrorCode.NoReferencedRow2 or MySqlConnector.MySqlErrorCode.RowIsReferenced })
+                return true;
+            if (e is PostgresException { SqlState: PostgresErrorCodes.ForeignKeyViolation }) return true;
+        }
+        return false;
+    }
 }

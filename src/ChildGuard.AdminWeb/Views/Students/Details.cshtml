@@ -26,7 +26,11 @@
         <div class="cg-profile__meta">
             @await Html.PartialAsync("_SafetyChip", Model.SafetyStatus)
             <span class="cg-tag">@(Model.Grade ?? "No grade")</span>
-            @if (Model.Status == RecordStatus.Active)
+            @if (Model.ArchivedAt is not null)
+            {
+                <span class="cg-badge cg-badge--warning"><span class="cg-badge__dot"></span>Archived</span>
+            }
+            else if (Model.Status == RecordStatus.Active)
             {
                 <span class="cg-badge cg-badge--success"><span class="cg-badge__dot"></span>Active record</span>
             }
@@ -73,7 +77,11 @@
         <a class="cg-btn cg-btn--secondary" href="/Journey/Student/@Model.StudentId">
             @await Html.PartialAsync("_Icon", "journey") Journey
         </a>
-        @if (Model.Status == RecordStatus.Active)
+        @if (Model.ArchivedAt is not null)
+        {
+            @* Restore is offered on the archived banner below. *@
+        }
+        else if (Model.Status == RecordStatus.Active)
         {
             <form asp-action="UpdateStatus" asp-route-id="@Model.StudentId" method="post" class="cg-inline-form"
                   data-cg-confirm="Deactivate @Model.FullName? Their RFID card stops recording checkpoints until the record is reactivated.">
@@ -92,6 +100,11 @@
         }
     </div>
 </section>
+
+@if (ViewBag.Lifecycle is RecordLifecycleModel lifecycle)
+{
+    @await Html.PartialAsync("_ArchivedBanner", lifecycle)
+}
 
 <div class="cg-tabs" data-cg-tabs="student" role="tablist">
     <button class="cg-tab is-active" data-cg-tab="overview" role="tab" aria-selected="true">
@@ -600,3 +613,8 @@
         }
     </div>
 </div>
+
+@if (ViewBag.Lifecycle is RecordLifecycleModel lifecycleCard)
+{
+    <div style="margin-top:16px">@await Html.PartialAsync("_RecordLifecycle", lifecycleCard)</div>
+}

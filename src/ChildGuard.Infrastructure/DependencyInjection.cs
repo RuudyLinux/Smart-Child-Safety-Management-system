@@ -82,6 +82,8 @@ public static class DependencyInjection
         services.TryAddScoped<ICurrentActor, SystemActor>();
         services.AddScoped<IAuditTrail, EfAuditTrail>();
         services.AddScoped<IAuditQueryService, AuditQueryService>();
+        services.AddScoped<ILifecycleRepository, LifecycleRepository>();
+        services.AddScoped<IRecordLifecycleService, RecordLifecycleService>();
         services.AddScoped<IEnrollmentRepository, EnrollmentRepository>();
         services.AddScoped<IEnrollmentService, EnrollmentService>();
         services.AddScoped<IAttendanceJourneyService, AttendanceJourneyService>();

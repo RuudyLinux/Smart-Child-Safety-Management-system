@@ -87,6 +87,39 @@ public class GuardiansController : ControllerBase
         return result.Succeeded ? Ok(new { message = "Guardian updated." }) : BadRequest(new { message = result.Error });
     }
 
+    /// <summary>What archiving would do, and what (if anything) prevents permanent deletion.</summary>
+    [HttpGet("{id:int}/deletion-check")]
+    public async Task<IActionResult> DeletionCheck(int id, [FromServices] IRecordLifecycleService lifecycle, CancellationToken ct)
+    {
+        var result = await lifecycle.CheckGuardianAsync(id, ct);
+        return result.Succeeded ? Ok(result.Value) : NotFound(new { message = result.Error });
+    }
+
+    [HttpPost("{id:int}/archive")]
+    public async Task<IActionResult> Archive(int id, ArchiveRecordRequest request, [FromServices] IValidator<ArchiveRecordRequest> validator,
+        [FromServices] IRecordLifecycleService lifecycle, CancellationToken ct)
+    {
+        await validator.ValidateAndThrowAsync(request, ct);
+        return this.ToResult(await lifecycle.ArchiveGuardianAsync(id, request.Reason, this.GetUserId(), ct));
+    }
+
+    [HttpPost("{id:int}/restore")]
+    public async Task<IActionResult> Restore(int id, RestoreRecordRequest request, [FromServices] IValidator<RestoreRecordRequest> validator,
+        [FromServices] IRecordLifecycleService lifecycle, CancellationToken ct)
+    {
+        await validator.ValidateAndThrowAsync(request, ct);
+        return this.ToResult(await lifecycle.RestoreGuardianAsync(id, request.Reason, this.GetUserId(), ct));
+    }
+
+    /// <summary>Permanent deletion; only for an unlinked guardian with no history (409 lists what blocks it).</summary>
+    [HttpDelete("{id:int}")]
+    public async Task<IActionResult> Delete(int id, [FromBody] DeleteRecordRequest request, [FromServices] IValidator<DeleteRecordRequest> validator,
+        [FromServices] IRecordLifecycleService lifecycle, CancellationToken ct)
+    {
+        await validator.ValidateAndThrowAsync(request, ct);
+        return this.ToResult(await lifecycle.DeleteGuardianAsync(id, request.Reason, this.GetUserId(), ct));
+    }
+
     /// <summary>Replaces the guardian's residential address. Every part blank clears it.</summary>
     [HttpPut("{id:int}/address")]
     public async Task<IActionResult> UpdateAddress(int id, AddressDto address, [FromServices] IValidator<AddressDto> validator, CancellationToken ct)

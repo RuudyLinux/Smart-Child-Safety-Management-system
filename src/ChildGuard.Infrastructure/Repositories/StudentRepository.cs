@@ -68,4 +68,21 @@ public class StudentRepository : IStudentRepository
             .ToListAsync(ct);
 
     public Task SaveChangesAsync(CancellationToken ct = default) => _db.SaveChangesAsync(ct);
+
+    public Task<bool> AdmissionNumberTakenAsync(string admissionNumber, int exceptStudentId, CancellationToken ct = default) =>
+        _db.Students.AnyAsync(s => s.AdmissionNumber == admissionNumber && s.StudentId != exceptStudentId, ct);
+
+    public async Task<bool> TrySaveChangesAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+            return true;
+        }
+        catch (DbUpdateException ex) when (DbErrors.IsUniqueViolation(ex))
+        {
+            _db.ChangeTracker.Clear();
+            return false;
+        }
+    }
 }

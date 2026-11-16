@@ -92,6 +92,7 @@
             <option value="__all">Any status</option>
             <option value="Active">Active</option>
             <option value="Inactive">Inactive</option>
+                <option value="Archived">Archived</option>
         </select>
 
         <button type="button" class="cg-btn cg-btn--ghost cg-btn--sm" data-cg-reset data-cg-reset-scope="guardians">Clear</button>
@@ -130,7 +131,7 @@
                         data-search="@g.FullName @g.Email @g.Phone"
                         data-verification="@(g.FaceRegistered ? "ready" : "missing")"
                         data-children="@(g.LinkedStudentCount == 0 ? "none" : "linked")"
-                        data-status="@g.Status"
+                        data-status="@(g.ArchivedAt is not null ? "Archived" : g.Status.ToString())"
                         data-sort-name="@g.FullName"
                         data-sort-children="@g.LinkedStudentCount"
                         data-sort-activity="@(g.LastActivityAt?.Ticks ?? 0)">
@@ -175,7 +176,11 @@
                             }
                         </td>
                         <td>
-                            @if (g.Status != RecordStatus.Active)
+                            @if (g.ArchivedAt is not null)
+                            {
+                                <span class="cg-badge cg-badge--warning"><span class="cg-badge__dot"></span>Archived</span>
+                            }
+                            else if (g.Status != RecordStatus.Active)
                             {
                                 <span class="cg-badge cg-badge--neutral"><span class="cg-badge__dot"></span>Inactive</span>
                             }

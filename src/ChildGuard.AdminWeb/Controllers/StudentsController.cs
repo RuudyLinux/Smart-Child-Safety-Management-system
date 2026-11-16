@@ -64,6 +64,9 @@ public class StudentsController : BaseAdminController
         var guardians = await Api.GetAsync<List<GuardianListItemDto>>("/api/guardians", ct);
         var linkedIds = result.Value.Guardians.Select(g => g.GuardianId).ToHashSet();
         ViewBag.AvailableGuardians = (guardians.Value ?? new()).Where(g => !linkedIds.Contains(g.GuardianId)).ToList();
+        var check = await Api.GetAsync<DeletionCheckDto>($"/api/students/{id}/deletion-check", ct);
+        ViewBag.Lifecycle = new RecordLifecycleModel("Students", id, result.Value.FullName, "student",
+            result.Value.ArchivedAt, result.Value.ArchiveReason, check.Value);
 
         return View(result.Value);
     }
@@ -77,8 +80,48 @@ public class StudentsController : BaseAdminController
         ViewData["HasPhoto"] = result.Value.HasPhoto;
         ViewData["AddressForm"] = new AddressFormModel($"/Students/EditAddress/{id}", id, result.Value.Address,
             "Residential address", "Where the student lives. Shown on the profile and used for transport planning.");
-        return View(new UpdateStudentRequest(result.Value.FullName, result.Value.DateOfBirth, result.Value.Grade));
+        var s = result.Value;
+        return View(new UpdateStudentRecordRequest(s.FullName, s.DateOfBirth, s.Grade, s.Section, s.AdmissionNumber, s.Gender));
     }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Archive(int id, string? reason, CancellationToken ct)
+    {
+        var result = await Api.PostAsync<LifecycleResultDto>($"/api/students/{id}/archive", new ArchiveRecordRequest(reason ?? ""), ct);
+        TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded ? Message(result.Value!) : result.Error;
+        return RedirectToAction(nameof(Details), new { id });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Restore(int id, string? reason, CancellationToken ct)
+    {
+        var result = await Api.PostAsync<LifecycleResultDto>($"/api/students/{id}/restore", new RestoreRecordRequest(reason), ct);
+        TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded ? Message(result.Value!) : result.Error;
+        return RedirectToAction(nameof(Details), new { id });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeletePermanently(int id, string? reason, bool confirmed, CancellationToken ct)
+    {
+        if (!confirmed)
+        {
+            TempData["Error"] = "Confirm that you understand the deletion cannot be undone.";
+            return RedirectToAction(nameof(Details), new { id });
+        }
+        var result = await Api.DeleteAsync<LifecycleResultDto>($"/api/students/{id}", new DeleteRecordRequest(reason ?? ""), ct);
+        if (!result.Succeeded)
+        {
+            TempData["Error"] = result.Error;
+            return RedirectToAction(nameof(Details), new { id });
+        }
+        TempData["Success"] = result.Value!.Message;
+        return RedirectToAction(nameof(Index));
+    }
+
+    private static string Message(LifecycleResultDto r) => r.Effects.Count == 0 ? r.Message : $"{r.Message} {string.Join(" ", r.Effects)}";
 
     [HttpPost]
     [ValidateAntiForgeryToken]
@@ -96,9 +139,9 @@ public class StudentsController : BaseAdminController
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Edit(int id, UpdateStudentRequest request, CancellationToken ct)
+    public async Task<IActionResult> Edit(int id, UpdateStudentRecordRequest request, CancellationToken ct)
     {
-        var result = await Api.PutAsync<StudentDetailDto>($"/api/students/{id}", request, ct);
+        var result = await Api.PutAsync<StudentDetailDto>($"/api/students/{id}/record", request, ct);
         if (!result.Succeeded)
         {
             SetPage("Edit student", "People");

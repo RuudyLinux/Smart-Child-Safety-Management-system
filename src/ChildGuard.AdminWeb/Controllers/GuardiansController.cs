@@ -51,8 +51,50 @@ public class GuardiansController : BaseAdminController
         var result = await Api.GetAsync<GuardianDetailDto>($"/api/guardians/{id}", ct);
         if (!result.Succeeded) return NotFound();
         SetPage(result.Value!.FullName, "People");
+        var check = await Api.GetAsync<DeletionCheckDto>($"/api/guardians/{id}/deletion-check", ct);
+        ViewBag.Lifecycle = new RecordLifecycleModel("Guardians", id, result.Value.FullName, "guardian",
+            result.Value.ArchivedAt, result.Value.ArchiveReason, check.Value);
         return View(result.Value);
     }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Archive(int id, string? reason, CancellationToken ct)
+    {
+        var result = await Api.PostAsync<LifecycleResultDto>($"/api/guardians/{id}/archive", new ArchiveRecordRequest(reason ?? ""), ct);
+        TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded ? Message(result.Value!) : result.Error;
+        return RedirectToAction(nameof(Details), new { id });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Restore(int id, string? reason, CancellationToken ct)
+    {
+        var result = await Api.PostAsync<LifecycleResultDto>($"/api/guardians/{id}/restore", new RestoreRecordRequest(reason), ct);
+        TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded ? Message(result.Value!) : result.Error;
+        return RedirectToAction(nameof(Details), new { id });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeletePermanently(int id, string? reason, bool confirmed, CancellationToken ct)
+    {
+        if (!confirmed)
+        {
+            TempData["Error"] = "Confirm that you understand the deletion cannot be undone.";
+            return RedirectToAction(nameof(Details), new { id });
+        }
+        var result = await Api.DeleteAsync<LifecycleResultDto>($"/api/guardians/{id}", new DeleteRecordRequest(reason ?? ""), ct);
+        if (!result.Succeeded)
+        {
+            TempData["Error"] = result.Error;
+            return RedirectToAction(nameof(Details), new { id });
+        }
+        TempData["Success"] = result.Value!.Message;
+        return RedirectToAction(nameof(Index));
+    }
+
+    private static string Message(LifecycleResultDto r) => r.Effects.Count == 0 ? r.Message : $"{r.Message} {string.Join(" ", r.Effects)}";
 
     [HttpGet]
     public async Task<IActionResult> Edit(int id, CancellationToken ct)

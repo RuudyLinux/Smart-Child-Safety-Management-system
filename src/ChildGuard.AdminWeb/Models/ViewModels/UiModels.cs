@@ -21,6 +21,10 @@ public class AuditFilter
 
 public record AuditPageModel(AuditFilter Filter, AuditPageDto Page);
 
+/// <summary>Archive / restore / permanent-delete controls for a student or guardian profile.</summary>
+public record RecordLifecycleModel(
+    string Controller, int Id, string Name, string Noun, DateTime? ArchivedAt, string? ArchiveReason, DeletionCheckDto? Check);
+
 /// <summary>An address edit form: where it posts and the current value.</summary>
 public record AddressFormModel(string Action, int Id, AddressDto? Address, string Title, string Hint);
 

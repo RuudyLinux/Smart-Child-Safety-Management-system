@@ -56,7 +56,8 @@ public class StudentService : IStudentService
                 photos.ContainsKey(s.StudentId),
                 s.StudentGuardians.FirstOrDefault()?.Guardian?.FullName,
                 snap.Status, snap.PresentToday, snap.CheckInTime,
-                snap.LastEventAt, snap.LastEventType, snap.BusNumber);
+                snap.LastEventAt, snap.LastEventType, snap.BusNumber,
+                s.ArchivedAt, s.AdmissionNumber, s.Section);
         }).ToList();
     }
 
@@ -119,8 +120,57 @@ public class StudentService : IStudentService
             { StudentId = id, Details = new { from = student.Status, to = request.Status } });
         student.Status = request.Status;
         student.UpdatedAt = DateTime.UtcNow;
+        // Activating an archived record restores it: an active student is never left marked as archived.
+        if (request.Status == RecordStatus.Active && student.ArchivedAt is not null)
+        {
+            _audit.Record(new AuditEvent("StudentRestored", "Student", id, $"Student {student.FullName} restored by activation")
+            { StudentId = id, Details = new { archivedAt = student.ArchivedAt, archiveReason = student.ArchiveReason } });
+            student.ArchivedAt = null;
+            student.ArchivedByAdminId = null;
+            student.ArchiveReason = null;
+        }
         await _students.SaveChangesAsync(ct);
         return Result.Success();
+    }
+
+    public const string AdmissionNumberTaken = "Another student already has this admission number.";
+
+    public async Task<Result<StudentDetailDto>> UpdateRecordAsync(int id, UpdateStudentRecordRequest request, CancellationToken ct = default)
+    {
+        var student = await _students.GetByIdAsync(id, ct);
+        if (student is null) return Result<StudentDetailDto>.Failure("Student not found.");
+
+        static string? Blank(string? v) => string.IsNullOrWhiteSpace(v) ? null : v.Trim();
+        var admission = Blank(request.AdmissionNumber);
+        if (admission is not null && await _students.AdmissionNumberTakenAsync(admission, id, ct))
+            return Result<StudentDetailDto>.Failure(AdmissionNumberTaken);
+
+        var name = request.FullName.Trim();
+        var dob = DateTime.SpecifyKind(request.DateOfBirth.Date, DateTimeKind.Unspecified);
+        var changes = AuditDetails.Changes(
+            ("fullName", student.FullName, name),
+            ("dateOfBirth", DateOnly.FromDateTime(student.DateOfBirth), DateOnly.FromDateTime(dob)),
+            ("grade", student.Grade, Blank(request.Grade)),
+            ("section", student.Section, Blank(request.Section)),
+            ("admissionNumber", student.AdmissionNumber, admission),
+            ("gender", student.Gender, request.Gender));
+        if (changes.Count > 0)
+        {
+            student.FullName = name;
+            student.DateOfBirth = dob;
+            student.Grade = Blank(request.Grade);
+            student.Section = Blank(request.Section);
+            student.AdmissionNumber = admission;
+            student.Gender = request.Gender;
+            student.UpdatedAt = DateTime.UtcNow;
+            _audit.Record(new AuditEvent("StudentUpdated", "Student", id, $"Student {name} updated: {string.Join(", ", changes.Keys)}")
+            { StudentId = id, Details = changes });
+            // The unique index backs the check above when two admins save the same number at once.
+            if (!await _students.TrySaveChangesAsync(ct)) return Result<StudentDetailDto>.Failure(AdmissionNumberTaken);
+        }
+
+        var withGuardians = await _students.GetWithGuardiansAsync(id, ct);
+        return Result<StudentDetailDto>.Success(await ToDetailAsync(withGuardians!, ct));
     }
 
     public async Task<Result<StudentDetailDto>> UpdateAddressAsync(int id, AddressDto address, CancellationToken ct = default)
@@ -243,7 +293,8 @@ public class StudentService : IStudentService
             snap.BusNumber, snap.RouteName, snap.DriverName,
             s.RfidCard?.Status, s.RfidCard?.AssignedAt,
             stats, journey, attendance,
-            s.Section, s.AdmissionNumber, s.Gender, AddressDto.From(s.Address));
+            s.Section, s.AdmissionNumber, s.Gender, AddressDto.From(s.Address),
+            s.ArchivedAt, s.ArchiveReason);
     }
 
     /// <summary>

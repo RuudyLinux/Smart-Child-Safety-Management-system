@@ -88,6 +88,7 @@
             <option value="__all">Any status</option>
             <option value="Active">Active</option>
             <option value="Inactive">Inactive</option>
+                <option value="Archived">Archived</option>
         </select>
 
         <button type="button" class="cg-btn cg-btn--ghost cg-btn--sm" data-cg-reset data-cg-reset-scope="students">
@@ -133,7 +134,7 @@
                         data-attendance="@(s.PresentToday ? "present" : "absent")"
                         data-rfid="@(s.MaskedRfid is null ? "none" : "assigned")"
                         data-guardian="@(s.GuardianCount == 0 ? "none" : "linked")"
-                        data-status="@s.Status"
+                        data-status="@(s.ArchivedAt is not null ? "Archived" : s.Status.ToString())"
                         data-sort-name="@s.FullName"
                         data-sort-grade="@(s.Grade ?? "")"
                         data-sort-activity="@(s.LastEventAt?.Ticks ?? 0)">
@@ -144,7 +145,11 @@
                                 <span class="cg-identity__body">
                                     <span class="cg-identity__name">@s.FullName</span>
                                     <span class="cg-identity__meta">
-                                        @if (s.Status != RecordStatus.Active)
+                                        @if (s.ArchivedAt is not null)
+                                        {
+                                            <span class="cg-badge cg-badge--warning">Archived</span>
+                                        }
+                                        else if (s.Status != RecordStatus.Active)
                                         {
                                             <span class="cg-badge cg-badge--neutral">Inactive</span>
                                         }

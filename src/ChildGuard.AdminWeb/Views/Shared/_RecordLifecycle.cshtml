@@ -1,0 +1,133 @@
+@model RecordLifecycleModel
+@{
+    var archived = Model.ArchivedAt is not null;
+    var check = Model.Check;
+    var archiveId = $"archive{Model.Controller}{Model.Id}";
+    var deleteId = $"delete{Model.Controller}{Model.Id}";
+}
+
+<section class="cg-card" data-record-lifecycle>
+    <div class="cg-card__head">
+        <div>
+            <h2 class="cg-card__title">Archive or delete</h2>
+            <div class="cg-card__sub">Archiving keeps every record and its history and can be undone. Permanent deletion is only possible for a @Model.Noun with no history.</div>
+        </div>
+    </div>
+    <div class="cg-card__body cg-row cg-row--wrap" style="gap:8px">
+        @if (!archived)
+        {
+            <button type="button" class="cg-btn cg-btn--secondary" data-cg-modal-open="@archiveId">
+                @await Html.PartialAsync("_Icon", "archive") Archive @Model.Noun
+            </button>
+        }
+        <button type="button" class="cg-btn cg-btn--danger-soft" data-cg-modal-open="@deleteId">Delete permanently</button>
+        @if (check is not null && !check.CanDelete)
+        {
+            <span class="cg-text-sm cg-muted">Has history, so it can be archived but not deleted.</span>
+        }
+    </div>
+</section>
+
+@if (!archived)
+{
+    <div class="cg-modal" id="@archiveId" hidden role="dialog" aria-modal="true" aria-labelledby="@(archiveId)Title">
+        <div class="cg-modal__panel">
+            <div class="cg-modal__head">
+                <div>
+                    <h2 class="cg-modal__title" id="@(archiveId)Title">Archive @Model.Name?</h2>
+                    <div class="cg-modal__sub">The record and its history are kept. You can restore it at any time.</div>
+                </div>
+                <button type="button" class="cg-iconbtn" data-cg-modal-close aria-label="Close">@await Html.PartialAsync("_Icon", "x")</button>
+            </div>
+            <form action="/@Model.Controller/Archive/@Model.Id" method="post" data-cg-busy>
+                @Html.AntiForgeryToken()
+                <div class="cg-modal__body cg-form">
+                    @if (check?.Warnings.Count > 0)
+                    {
+                        <ul class="cg-text-sm" style="margin:0;padding-left:18px">
+                            @foreach (var w in check.Warnings) { <li>@w</li> }
+                        </ul>
+                    }
+                    <div class="cg-field">
+                        <label class="cg-label" for="@(archiveId)Reason">Reason <span class="cg-label__req">*</span></label>
+                        <textarea class="cg-textarea" id="@(archiveId)Reason" name="reason" rows="3" minlength="10" maxlength="500" required
+                                  placeholder="e.g. Left the school at the end of term"></textarea>
+                        <span class="cg-hint">10 to 500 characters. Recorded in the audit log.</span>
+                    </div>
+                </div>
+                <div class="cg-modal__foot">
+                    <button type="button" class="cg-btn cg-btn--secondary" data-cg-modal-close>Cancel</button>
+                    <button type="submit" class="cg-btn cg-btn--primary"><span class="cg-btn__label">Archive</span></button>
+                </div>
+            </form>
+        </div>
+    </div>
+}
+
+<div class="cg-modal" id="@deleteId" hidden role="dialog" aria-modal="true" aria-labelledby="@(deleteId)Title">
+    <div class="cg-modal__panel">
+        <div class="cg-modal__head">
+            <div>
+                <h2 class="cg-modal__title" id="@(deleteId)Title">Permanently delete @Model.Name?</h2>
+                <div class="cg-modal__sub">This cannot be undone. Only the audit log keeps a note of the deletion.</div>
+            </div>
+            <button type="button" class="cg-iconbtn" data-cg-modal-close aria-label="Close">@await Html.PartialAsync("_Icon", "x")</button>
+        </div>
+        @if (check is null || !check.CanDelete)
+        {
+            <div class="cg-modal__body">
+                <div class="cg-alert cg-alert--danger" role="alert">
+                    <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "alert-circle")</span>
+                    <div class="cg-alert__body">
+                        <div class="cg-alert__title">This @Model.Noun cannot be deleted</div>
+                        @if (check is null)
+                        {
+                            <div>The dependency check could not be loaded. Try again later.</div>
+                        }
+                        else
+                        {
+                            <div>It has history that must be kept:</div>
+                            <ul style="margin:6px 0 0;padding-left:18px" data-delete-blockers>
+                                @foreach (var b in check.Blockers) { <li>@b</li> }
+                            </ul>
+                            <div style="margin-top:6px">Archive it instead: it disappears from daily use and its history stays intact.</div>
+                        }
+                    </div>
+                </div>
+            </div>
+            <div class="cg-modal__foot">
+                <button type="button" class="cg-btn cg-btn--secondary" data-cg-modal-close>Close</button>
+            </div>
+        }
+        else
+        {
+            <form action="/@Model.Controller/DeletePermanently/@Model.Id" method="post" data-cg-busy>
+                @Html.AntiForgeryToken()
+                <div class="cg-modal__body cg-form">
+                    <p class="cg-text-sm" style="margin:0">This @Model.Noun has no history, so it can be deleted.</p>
+                    @if (check.AlsoRemoved.Count > 0)
+                    {
+                        <div class="cg-text-sm">Also removed:
+                            <ul style="margin:4px 0 0;padding-left:18px">
+                                @foreach (var a in check.AlsoRemoved) { <li>@a</li> }
+                            </ul>
+                        </div>
+                    }
+                    <div class="cg-field">
+                        <label class="cg-label" for="@(deleteId)Reason">Reason <span class="cg-label__req">*</span></label>
+                        <textarea class="cg-textarea" id="@(deleteId)Reason" name="reason" rows="3" minlength="10" maxlength="500" required
+                                  placeholder="e.g. Created by mistake, duplicate of another record"></textarea>
+                    </div>
+                    <label class="cg-check">
+                        <input type="checkbox" name="confirmed" value="true" required />
+                        <span class="cg-check__text">I understand this permanently deletes the @Model.Noun.</span>
+                    </label>
+                </div>
+                <div class="cg-modal__foot">
+                    <button type="button" class="cg-btn cg-btn--secondary" data-cg-modal-close>Cancel</button>
+                    <button type="submit" class="cg-btn cg-btn--danger"><span class="cg-btn__label">Delete permanently</span></button>
+                </div>
+            </form>
+        }
+    </div>
+</div>

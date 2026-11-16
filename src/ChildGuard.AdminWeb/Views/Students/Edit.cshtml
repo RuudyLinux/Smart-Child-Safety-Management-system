@@ -1,4 +1,4 @@
-@model UpdateStudentRequest
+@model UpdateStudentRecordRequest
 @{
     ViewData["Title"] = "Edit student";
     var id = (int)ViewData["StudentId"]!;
@@ -52,6 +52,28 @@
                     <div class="cg-field">
                         <label class="cg-label" for="Grade">Grade</label>
                         <input class="cg-input" id="Grade" name="Grade" value="@Model.Grade" maxlength="50" />
+                    </div>
+                </div>
+
+                <div class="cg-form-row">
+                    <div class="cg-field">
+                        <label class="cg-label" for="Section">Section</label>
+                        <input class="cg-input" id="Section" name="Section" value="@Model.Section" maxlength="20" />
+                    </div>
+                    <div class="cg-field">
+                        <label class="cg-label" for="AdmissionNumber">Admission number</label>
+                        <input class="cg-input cg-mono" id="AdmissionNumber" name="AdmissionNumber" value="@Model.AdmissionNumber" maxlength="50" />
+                        <p class="cg-hint">Optional. Must be unique when given.</p>
+                    </div>
+                    <div class="cg-field">
+                        <label class="cg-label" for="Gender">Gender</label>
+                        <select class="cg-select" id="Gender" name="Gender">
+                            <option value="" selected="@(Model.Gender is null)">Not specified</option>
+                            @foreach (var g in Enum.GetValues<Gender>())
+                            {
+                                <option value="@g" selected="@(Model.Gender == g)">@g</option>
+                            }
+                        </select>
                     </div>
                 </div>
 
