@@ -191,6 +191,129 @@
     </div>
 </div>
 
+@{
+    var dbo = ViewBag.Database as DatabaseOverviewDto;
+    int Count(string table) => dbo?.Tables.FirstOrDefault(t => t.Table == table)?.Rows ?? 0;
+}
+<section class="cg-card" id="database" data-db-card>
+    <div class="cg-card__head">
+        <div>
+            <h2 class="cg-card__title">Database</h2>
+            <div class="cg-card__sub">
+                Back up, restore or reset all school data. Administrator accounts are never exported, imported or removed:
+                you keep signing in with the same email and password.
+            </div>
+        </div>
+        @if (dbo is not null)
+        {
+            <span class="cg-badge cg-badge--neutral" data-db-provider>@dbo.Provider</span>
+        }
+    </div>
+    <div class="cg-card__body">
+        @if (dbo is null)
+        {
+            <p class="cg-muted">The database summary could not be loaded.</p>
+        }
+        else
+        {
+            <div class="cg-grid cg-grid--3" style="margin-bottom:16px">
+                @foreach (var (label, table) in new[] { ("Students", "Students"), ("Guardians", "Guardians"), ("Drivers", "Drivers"), ("Buses", "Buses"), ("Routes", "Routes"), ("RFID cards", "RfidCards") })
+                {
+                    <div class="cg-kpi" data-db-count="@table">
+                        <div class="cg-kpi__label">@label</div>
+                        <div class="cg-kpi__value">@Count(table)</div>
+                    </div>
+                }
+            </div>
+            <p class="cg-hint">@dbo.TotalRows records in @dbo.Tables.Count tables · @dbo.Admins administrator account@(dbo.Admins == 1 ? "" : "s") (kept) · latest migration <span class="cg-mono">@dbo.LatestMigration</span></p>
+        }
+        <div class="cg-btn-group" style="margin-top:12px">
+            <a class="cg-btn cg-btn--secondary" href="/Settings/ExportDatabase" data-db-export>
+                @await Html.PartialAsync("_Icon", "download") Export database
+            </a>
+            <button type="button" class="cg-btn cg-btn--secondary" data-cg-modal-open="importDatabaseModal" data-db-import>
+                @await Html.PartialAsync("_Icon", "upload") Import database
+            </button>
+            <button type="button" class="cg-btn cg-btn--danger" data-cg-modal-open="resetDatabaseModal" data-db-reset>
+                @await Html.PartialAsync("_Icon", "refresh") Reset database
+            </button>
+        </div>
+        <p class="cg-hint" style="margin-top:10px">
+            Export downloads one JSON file with every record and photo. A backup is downloaded automatically before every reset.
+        </p>
+    </div>
+</section>
+
+<div class="cg-modal" id="importDatabaseModal" hidden role="dialog" aria-modal="true" aria-labelledby="importDatabaseTitle">
+    <div class="cg-modal__panel">
+        <div class="cg-modal__head">
+            <div>
+                <h2 class="cg-modal__title" id="importDatabaseTitle">Import database</h2>
+                <div class="cg-modal__sub">Replaces all current school data with the records in a backup file.</div>
+            </div>
+            <button type="button" class="cg-iconbtn" data-cg-modal-close aria-label="Close">@await Html.PartialAsync("_Icon", "x")</button>
+        </div>
+        <form asp-action="ImportDatabase" method="post" enctype="multipart/form-data" data-cg-busy>
+            @Html.AntiForgeryToken()
+            <div class="cg-modal__body">
+                <div class="cg-alert cg-alert--warning">
+                    <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "alert-triangle")</span>
+                    <div class="cg-alert__body">Everything now in the database is replaced. Export first if you may need it. Administrator accounts are not changed.</div>
+                </div>
+                <div class="cg-field">
+                    <label class="cg-label" for="backupFile">Backup file <span class="cg-label__req">*</span></label>
+                    <input class="cg-input" id="backupFile" name="file" type="file" accept=".json,application/json" required />
+                    <p class="cg-hint">A <span class="cg-mono">childguard-backup-….json</span> file made with Export database.</p>
+                </div>
+            </div>
+            <div class="cg-modal__foot">
+                <button type="button" class="cg-btn cg-btn--secondary" data-cg-modal-close>Cancel</button>
+                <button type="submit" class="cg-btn cg-btn--danger"><span class="cg-btn__label">Import and replace</span></button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="cg-modal" id="resetDatabaseModal" hidden role="dialog" aria-modal="true" aria-labelledby="resetDatabaseTitle">
+    <div class="cg-modal__panel">
+        <div class="cg-modal__head">
+            <div>
+                <h2 class="cg-modal__title" id="resetDatabaseTitle">Reset database</h2>
+                <div class="cg-modal__sub">Removes all students, guardians, drivers, buses, routes, cards, attendance, journeys, pickups and notifications.</div>
+            </div>
+            <button type="button" class="cg-iconbtn" data-cg-modal-close aria-label="Close">@await Html.PartialAsync("_Icon", "x")</button>
+        </div>
+        <form data-db-reset-form novalidate>
+            <div class="cg-modal__body">
+                <div class="cg-alert cg-alert--info">
+                    <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "download")</span>
+                    <div class="cg-alert__body">A full backup downloads to this computer first. The reset only starts once that download has succeeded.</div>
+                </div>
+                <label class="cg-check">
+                    <input type="checkbox" name="loadDemoData" checked data-db-demo />
+                    <span class="cg-check__text">Load the demo school afterwards
+                        <span class="cg-check__sub">15 students and their guardians, 6 drivers, 5 buses on the 5 Tarsadi routes with timed stops, RFID cards and a week of history.</span>
+                    </span>
+                </label>
+                <div class="cg-field" style="margin-top:12px">
+                    <label class="cg-label" for="resetConfirm">Type <span class="cg-mono">RESET</span> to confirm <span class="cg-label__req">*</span></label>
+                    <input class="cg-input cg-mono" id="resetConfirm" autocomplete="off" data-db-confirm />
+                </div>
+                <div class="cg-error-text" role="alert" data-db-reset-error></div>
+                <div class="cg-hint" role="status" aria-live="polite" data-db-reset-status></div>
+            </div>
+            <div class="cg-modal__foot">
+                <button type="button" class="cg-btn cg-btn--secondary" data-cg-modal-close>Cancel</button>
+                <button type="submit" class="cg-btn cg-btn--danger" data-db-reset-submit disabled><span class="cg-btn__label">Back up and reset</span></button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/js/database.js" asp-append-version="true"></script>
+}
+
 <div class="cg-modal" id="addDeviceModal" hidden role="dialog" aria-modal="true" aria-labelledby="addDeviceTitle">
     <div class="cg-modal__panel">
         <div class="cg-modal__head">

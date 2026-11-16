@@ -1,0 +1,516 @@
+{
+  "notice": "Fictional demo people for ChildGuard. Names, phone numbers and addresses are invented; emails use the reserved example.com domain.",
+  "drivers": [
+    {
+      "code": "DRV-001",
+      "name": "Bhupendra Rajput",
+      "phone": "9000110001",
+      "email": "bhupendra.rajput@example.com",
+      "licenseNumber": "GJ05 20110012345",
+      "category": "HTV",
+      "licenseExpiresInDays": 720,
+      "joinedOn": "2019-06-01",
+      "emergencyName": "Sarita Rajput",
+      "emergencyPhone": "9000110101",
+      "bus": "BUS-01",
+      "address": {
+        "line1": "14 Shanti Nagar Society",
+        "locality": "Udhna",
+        "city": "Surat",
+        "district": "Surat",
+        "state": "Gujarat",
+        "postalCode": "394210"
+      }
+    },
+    {
+      "code": "DRV-002",
+      "name": "Ganesh Patil",
+      "phone": "9000110002",
+      "email": "ganesh.patil@example.com",
+      "licenseNumber": "GJ21 20130045678",
+      "category": "HTV",
+      "licenseExpiresInDays": 540,
+      "joinedOn": "2020-04-15",
+      "emergencyName": "Mangala Patil",
+      "emergencyPhone": "9000110102",
+      "bus": "BUS-02",
+      "address": {
+        "line1": "7 Lunsikui Road",
+        "locality": "Lunsikui",
+        "city": "Navsari",
+        "district": "Navsari",
+        "state": "Gujarat",
+        "postalCode": "396445"
+      }
+    },
+    {
+      "code": "DRV-003",
+      "name": "Ashok Chaudhari",
+      "phone": "9000110003",
+      "email": "ashok.chaudhari@example.com",
+      "licenseNumber": "GJ19 20090023456",
+      "category": "HTV",
+      "licenseExpiresInDays": 410,
+      "joinedOn": "2017-07-10",
+      "emergencyName": "Lata Chaudhari",
+      "emergencyPhone": "9000110103",
+      "bus": "BUS-03",
+      "address": {
+        "line1": "22 Station Road",
+        "locality": "Bardoli",
+        "city": "Bardoli",
+        "district": "Surat",
+        "state": "Gujarat",
+        "postalCode": "394601"
+      }
+    },
+    {
+      "code": "DRV-004",
+      "name": "Raju Gamit",
+      "phone": "9000110004",
+      "email": "raju.gamit@example.com",
+      "licenseNumber": "GJ26 20150067890",
+      "category": "HTV",
+      "licenseExpiresInDays": 21,
+      "joinedOn": "2021-01-04",
+      "emergencyName": "Kamla Gamit",
+      "emergencyPhone": "9000110104",
+      "bus": "BUS-04",
+      "address": {
+        "line1": "3 Kanpura Faliya",
+        "locality": "Kanpura",
+        "city": "Vyara",
+        "district": "Tapi",
+        "state": "Gujarat",
+        "postalCode": "394650"
+      }
+    },
+    {
+      "code": "DRV-005",
+      "name": "Imran Shaikh",
+      "phone": "9000110005",
+      "email": "imran.shaikh@example.com",
+      "licenseNumber": "GJ05 20120098765",
+      "category": "LMV-TR",
+      "licenseExpiresInDays": 860,
+      "joinedOn": "2022-06-20",
+      "emergencyName": "Ruksana Shaikh",
+      "emergencyPhone": "9000110105",
+      "bus": "BUS-05",
+      "address": {
+        "line1": "11 Gangadhara Road",
+        "locality": "Palsana",
+        "city": "Palsana",
+        "district": "Surat",
+        "state": "Gujarat",
+        "postalCode": "394315"
+      }
+    },
+    {
+      "code": "DRV-006",
+      "name": "Kiran Vasava",
+      "phone": "9000110006",
+      "email": "kiran.vasava@example.com",
+      "licenseNumber": "GJ19 20160034567",
+      "category": "HTV",
+      "licenseExpiresInDays": 600,
+      "joinedOn": "2023-08-01",
+      "emergencyName": "Geeta Vasava",
+      "emergencyPhone": "9000110106",
+      "bus": null,
+      "address": {
+        "line1": "5 Tarsadi Main Road",
+        "locality": "Tarsadi",
+        "city": "Bardoli",
+        "district": "Surat",
+        "state": "Gujarat",
+        "postalCode": "394350"
+      }
+    }
+  ],
+  "buses": [
+    {
+      "number": "BUS-01",
+      "registration": "GJ-05-BZ-4521",
+      "manufacturer": "Tata Motors",
+      "model": "Starbus Ultra",
+      "capacity": 40
+    },
+    {
+      "number": "BUS-02",
+      "registration": "GJ-21-AT-3307",
+      "manufacturer": "Ashok Leyland",
+      "model": "Lynx School",
+      "capacity": 40
+    },
+    {
+      "number": "BUS-03",
+      "registration": "GJ-19-AB-1186",
+      "manufacturer": "Eicher",
+      "model": "Skyline Pro",
+      "capacity": 32
+    },
+    {
+      "number": "BUS-04",
+      "registration": "GJ-26-T-7742",
+      "manufacturer": "Tata Motors",
+      "model": "Starbus",
+      "capacity": 40
+    },
+    {
+      "number": "BUS-05",
+      "registration": "GJ-19-BC-2690",
+      "manufacturer": "Force Motors",
+      "model": "Traveller School Bus",
+      "capacity": 26
+    }
+  ],
+  "families": [
+    {
+      "route": "SB-01",
+      "stop": "Udhna",
+      "address": {
+        "line1": "B-204 Sahjanand Residency",
+        "locality": "Udhna",
+        "landmark": "Udhna Darwaja",
+        "city": "Surat",
+        "district": "Surat",
+        "state": "Gujarat",
+        "postalCode": "394210"
+      },
+      "guardians": [
+        {
+          "name": "Rajesh Patel",
+          "relationship": "Father",
+          "phone": "9000220001"
+        },
+        {
+          "name": "Nisha Patel",
+          "relationship": "Mother",
+          "phone": "9000220002"
+        }
+      ],
+      "children": [
+        {
+          "name": "Aarav Patel",
+          "gender": "Male",
+          "dob": "2015-03-14",
+          "grade": "6",
+          "section": "A"
+        },
+        {
+          "name": "Diya Patel",
+          "gender": "Female",
+          "dob": "2018-07-22",
+          "grade": "3",
+          "section": "B"
+        }
+      ]
+    },
+    {
+      "route": "SB-02",
+      "stop": "Navsari Bus Station",
+      "address": {
+        "line1": "6 Station Road",
+        "locality": "Juna Thana",
+        "city": "Navsari",
+        "district": "Navsari",
+        "state": "Gujarat",
+        "postalCode": "396445"
+      },
+      "guardians": [
+        {
+          "name": "Sanjay Naik",
+          "relationship": "Father",
+          "phone": "9000220008"
+        },
+        {
+          "name": "Kavita Naik",
+          "relationship": "Mother",
+          "phone": "9000220009"
+        }
+      ],
+      "children": [
+        {
+          "name": "Ishaan Naik",
+          "gender": "Male",
+          "dob": "2014-04-18",
+          "grade": "7",
+          "section": "B"
+        },
+        {
+          "name": "Myra Naik",
+          "gender": "Female",
+          "dob": "2016-08-09",
+          "grade": "5",
+          "section": "B"
+        }
+      ]
+    },
+    {
+      "route": "SB-02",
+      "stop": "Vesma",
+      "address": {
+        "line1": "2 Patel Faliyu",
+        "locality": "Vesma",
+        "city": "Navsari",
+        "district": "Navsari",
+        "state": "Gujarat",
+        "postalCode": "396460"
+      },
+      "guardians": [
+        {
+          "name": "Paresh Bhatt",
+          "relationship": "Father",
+          "phone": "9000220011"
+        }
+      ],
+      "children": [
+        {
+          "name": "Saanvi Bhatt",
+          "gender": "Female",
+          "dob": "2017-02-14",
+          "grade": "4",
+          "section": "B"
+        }
+      ]
+    },
+    {
+      "route": "SB-03",
+      "stop": "Bardoli Bus Stand",
+      "address": {
+        "line1": "31 Swaraj Ashram Road",
+        "locality": "Bardoli",
+        "landmark": "Bardoli Bus Stand",
+        "city": "Bardoli",
+        "district": "Surat",
+        "state": "Gujarat",
+        "postalCode": "394601"
+      },
+      "guardians": [
+        {
+          "name": "Vikram Rathod",
+          "relationship": "Father",
+          "phone": "9000220014"
+        }
+      ],
+      "children": [
+        {
+          "name": "Arjun Rathod",
+          "gender": "Male",
+          "dob": "2011-12-03",
+          "grade": "10",
+          "section": "A"
+        },
+        {
+          "name": "Tanvi Rathod",
+          "gender": "Female",
+          "dob": "2015-10-16",
+          "grade": "6",
+          "section": "A"
+        }
+      ]
+    },
+    {
+      "route": "SB-03",
+      "stop": "Baben",
+      "address": {
+        "line1": "4 Baben Gam",
+        "locality": "Baben",
+        "city": "Bardoli",
+        "district": "Surat",
+        "state": "Gujarat",
+        "postalCode": "394602"
+      },
+      "guardians": [
+        {
+          "name": "Amit Kapadia",
+          "relationship": "Father",
+          "phone": "9000220018"
+        },
+        {
+          "name": "Savita Kapadia",
+          "relationship": "Grandmother",
+          "phone": "9000220019"
+        }
+      ],
+      "children": [
+        {
+          "name": "Parth Kapadia",
+          "gender": "Male",
+          "dob": "2011-03-17",
+          "grade": "10",
+          "section": "B",
+          "lostCard": true
+        }
+      ]
+    },
+    {
+      "route": "SB-04",
+      "stop": "Vyara Bus Station",
+      "address": {
+        "line1": "12 Jalaram Society",
+        "locality": "Vyara",
+        "landmark": "Vyara Bus Station",
+        "city": "Vyara",
+        "district": "Tapi",
+        "state": "Gujarat",
+        "postalCode": "394650"
+      },
+      "guardians": [
+        {
+          "name": "Ramesh Gamit",
+          "relationship": "Father",
+          "phone": "9000220020"
+        }
+      ],
+      "children": [
+        {
+          "name": "Kartik Gamit",
+          "gender": "Male",
+          "dob": "2014-07-12",
+          "grade": "7",
+          "section": "A"
+        },
+        {
+          "name": "Nidhi Gamit",
+          "gender": "Female",
+          "dob": "2017-09-25",
+          "grade": "4",
+          "section": "A"
+        }
+      ]
+    },
+    {
+      "route": "SB-04",
+      "stop": "Kanza",
+      "address": {
+        "line1": "1 Nishal Faliya",
+        "locality": "Kanza",
+        "city": "Vyara",
+        "district": "Tapi",
+        "state": "Gujarat",
+        "postalCode": "394651"
+      },
+      "guardians": [
+        {
+          "name": "Sunita Vasava",
+          "relationship": "Mother",
+          "phone": "9000220021"
+        }
+      ],
+      "children": [
+        {
+          "name": "Rohan Vasava",
+          "gender": "Male",
+          "dob": "2013-02-08",
+          "grade": "8",
+          "section": "A"
+        }
+      ]
+    },
+    {
+      "route": "SB-05",
+      "stop": "Palsana Bus Stand",
+      "address": {
+        "line1": "38 Ambika Nagar",
+        "locality": "Palsana",
+        "landmark": "Palsana Bus Stand",
+        "city": "Palsana",
+        "district": "Surat",
+        "state": "Gujarat",
+        "postalCode": "394315"
+      },
+      "guardians": [
+        {
+          "name": "Ketan Prajapati",
+          "relationship": "Father",
+          "phone": "9000220023"
+        },
+        {
+          "name": "Jalpa Prajapati",
+          "relationship": "Mother",
+          "phone": "9000220024"
+        }
+      ],
+      "children": [
+        {
+          "name": "Harsh Prajapati",
+          "gender": "Male",
+          "dob": "2012-06-14",
+          "grade": "9",
+          "section": "B"
+        },
+        {
+          "name": "Khushi Prajapati",
+          "gender": "Female",
+          "dob": "2016-11-30",
+          "grade": "5",
+          "section": "B"
+        }
+      ]
+    },
+    {
+      "route": "SB-05",
+      "stop": "Vareli",
+      "address": {
+        "line1": "10 Vareli Gam",
+        "locality": "Vareli",
+        "city": "Kadodara",
+        "district": "Surat",
+        "state": "Gujarat",
+        "postalCode": "394327"
+      },
+      "guardians": [
+        {
+          "name": "Alpesh Mistry",
+          "relationship": "Father",
+          "phone": "9000220025"
+        }
+      ],
+      "children": [
+        {
+          "name": "Dev Mistry",
+          "gender": "Male",
+          "dob": "2017-04-03",
+          "grade": "4",
+          "section": "B",
+          "noCard": true
+        }
+      ]
+    },
+    {
+      "route": null,
+      "stop": null,
+      "address": {
+        "line1": "5 Gandhi Chowk",
+        "locality": "Tarsadi",
+        "city": "Bardoli",
+        "district": "Surat",
+        "state": "Gujarat",
+        "postalCode": "394350"
+      },
+      "guardians": [
+        {
+          "name": "Nilesh Pandya",
+          "relationship": "Father",
+          "phone": "9000220027"
+        },
+        {
+          "name": "Komal Pandya",
+          "relationship": "Mother",
+          "phone": "9000220028"
+        }
+      ],
+      "children": [
+        {
+          "name": "Reyansh Pandya",
+          "gender": "Male",
+          "dob": "2016-05-10",
+          "grade": "5",
+          "section": "A"
+        }
+      ]
+    }
+  ]
+}

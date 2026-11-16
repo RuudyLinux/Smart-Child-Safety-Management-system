@@ -146,10 +146,13 @@ public class TransportationController : ControllerBase
     // ---- driver and bus profiles, live rosters, controlled deletion
 
     [HttpGet("drivers/{id:int}")]
-    public async Task<IActionResult> GetDriver(int id, CancellationToken ct)
+    public async Task<IActionResult> GetDriver(int id, [FromServices] IPhotoRepository photos, CancellationToken ct)
     {
         var r = await _service.GetDriverDetailAsync(id, ct);
-        return r.Succeeded ? Ok(r.Value) : NotFound(new { message = r.Error });
+        if (!r.Succeeded) return NotFound(new { message = r.Error });
+        // Photo timestamp only (no blob): tells the profile whether to show the image, and busts its cache.
+        var stamps = await photos.GetDriverPhotoTimestampsAsync(new[] { id }, ct);
+        return Ok(r.Value! with { PhotoUpdatedAt = stamps.TryGetValue(id, out var at) ? at : null });
     }
 
     [HttpPut("drivers/{id:int}/profile")]

@@ -32,3 +32,9 @@ public class StudentPhoto : ProfilePhoto
     public int StudentId { get; set; }
     public Student Student { get; set; } = default!;
 }
+
+public class DriverPhoto : ProfilePhoto
+{
+    public int DriverId { get; set; }
+    public Driver Driver { get; set; } = default!;
+}

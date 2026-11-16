@@ -1,0 +1,321 @@
+{
+  "school": {
+    "name": "School",
+    "location": "Tarsadi, Bardoli, Gujarat, India"
+  },
+  "dataType": "DEMO",
+  "notice": "All routes, stops, and timings are simulated sample data for system testing. Verify locations, road alignment, and timings before any real-world use.",
+  "routes": [
+    {
+      "routeId": "SB-01",
+      "routeName": "Surat to School",
+      "busNumber": "BUS-01",
+      "startPoint": "Surat Railway Station, Surat, Gujarat, India",
+      "destination": "School, Tarsadi, Bardoli, Gujarat, India",
+      "stops": [
+        {
+          "stopOrder": 1,
+          "stopName": "Surat Railway Station",
+          "addressOrLandmark": "Railway Station Road, Surat",
+          "pickupTime": "06:30 AM",
+          "dropOffTime": "03:45 PM"
+        },
+        {
+          "stopOrder": 2,
+          "stopName": "Udhna",
+          "addressOrLandmark": "Udhna Darwaja, Surat",
+          "pickupTime": "06:40 AM",
+          "dropOffTime": "03:35 PM"
+        },
+        {
+          "stopOrder": 3,
+          "stopName": "Parvat Patiya",
+          "addressOrLandmark": "Parvat Patiya Circle",
+          "pickupTime": "06:50 AM",
+          "dropOffTime": "03:25 PM"
+        },
+        {
+          "stopOrder": 4,
+          "stopName": "Kosmada",
+          "addressOrLandmark": "Kosmada Main Road",
+          "pickupTime": "07:00 AM",
+          "dropOffTime": "03:15 PM"
+        },
+        {
+          "stopOrder": 5,
+          "stopName": "Vareli",
+          "addressOrLandmark": "Vareli Village",
+          "pickupTime": "07:10 AM",
+          "dropOffTime": "03:05 PM"
+        },
+        {
+          "stopOrder": 6,
+          "stopName": "Kadodara",
+          "addressOrLandmark": "Kadodara Char Rasta",
+          "pickupTime": "07:20 AM",
+          "dropOffTime": "02:55 PM"
+        },
+        {
+          "stopOrder": 7,
+          "stopName": "Jolva Patiya",
+          "addressOrLandmark": "Jolva Main Road",
+          "pickupTime": "07:30 AM",
+          "dropOffTime": "02:45 PM"
+        },
+        {
+          "stopOrder": 8,
+          "stopName": "Bardoli",
+          "addressOrLandmark": "Bardoli Bus Stand",
+          "pickupTime": "07:40 AM",
+          "dropOffTime": "02:35 PM"
+        },
+        {
+          "stopOrder": 9,
+          "stopName": "Baben",
+          "addressOrLandmark": "Baben Main Road",
+          "pickupTime": "07:50 AM",
+          "dropOffTime": "02:25 PM"
+        },
+        {
+          "stopOrder": 10,
+          "stopName": "School",
+          "addressOrLandmark": "Tarsadi, Bardoli",
+          "pickupTime": "08:00 AM",
+          "dropOffTime": "02:15 PM"
+        }
+      ]
+    },
+    {
+      "routeId": "SB-02",
+      "routeName": "Navsari to School",
+      "busNumber": "BUS-02",
+      "startPoint": "Navsari Bus Station, Navsari, Gujarat, India",
+      "destination": "School, Tarsadi, Bardoli, Gujarat, India",
+      "stops": [
+        {
+          "stopOrder": 1,
+          "stopName": "Navsari Bus Station",
+          "addressOrLandmark": "Navsari Main Bus Station",
+          "pickupTime": "06:45 AM",
+          "dropOffTime": "03:30 PM"
+        },
+        {
+          "stopOrder": 2,
+          "stopName": "Kabilpore",
+          "addressOrLandmark": "Kabilpore Main Road",
+          "pickupTime": "06:55 AM",
+          "dropOffTime": "03:20 PM"
+        },
+        {
+          "stopOrder": 3,
+          "stopName": "Vesma",
+          "addressOrLandmark": "Vesma Village Junction",
+          "pickupTime": "07:05 AM",
+          "dropOffTime": "03:10 PM"
+        },
+        {
+          "stopOrder": 4,
+          "stopName": "Palsana",
+          "addressOrLandmark": "Palsana Char Rasta",
+          "pickupTime": "07:20 AM",
+          "dropOffTime": "02:55 PM"
+        },
+        {
+          "stopOrder": 5,
+          "stopName": "Kadodara",
+          "addressOrLandmark": "Kadodara Circle",
+          "pickupTime": "07:35 AM",
+          "dropOffTime": "02:40 PM"
+        },
+        {
+          "stopOrder": 6,
+          "stopName": "Bardoli",
+          "addressOrLandmark": "Bardoli Bus Stand",
+          "pickupTime": "07:45 AM",
+          "dropOffTime": "02:30 PM"
+        },
+        {
+          "stopOrder": 7,
+          "stopName": "Baben",
+          "addressOrLandmark": "Baben Main Road",
+          "pickupTime": "07:55 AM",
+          "dropOffTime": "02:20 PM"
+        },
+        {
+          "stopOrder": 8,
+          "stopName": "School",
+          "addressOrLandmark": "Tarsadi, Bardoli",
+          "pickupTime": "08:05 AM",
+          "dropOffTime": "02:10 PM"
+        }
+      ]
+    },
+    {
+      "routeId": "SB-03",
+      "routeName": "Bardoli to School",
+      "busNumber": "BUS-03",
+      "startPoint": "Bardoli Bus Stand, Bardoli, Gujarat, India",
+      "destination": "School, Tarsadi, Bardoli, Gujarat, India",
+      "stops": [
+        {
+          "stopOrder": 1,
+          "stopName": "Bardoli Bus Stand",
+          "addressOrLandmark": "Bardoli Main Bus Station",
+          "pickupTime": "07:20 AM",
+          "dropOffTime": "03:00 PM"
+        },
+        {
+          "stopOrder": 2,
+          "stopName": "Bardoli Railway Station",
+          "addressOrLandmark": "Railway Station Road",
+          "pickupTime": "07:30 AM",
+          "dropOffTime": "02:50 PM"
+        },
+        {
+          "stopOrder": 3,
+          "stopName": "Sugar Factory Road",
+          "addressOrLandmark": "Bardoli Sugar Factory Area",
+          "pickupTime": "07:40 AM",
+          "dropOffTime": "02:40 PM"
+        },
+        {
+          "stopOrder": 4,
+          "stopName": "Baben",
+          "addressOrLandmark": "Baben Village Junction",
+          "pickupTime": "07:50 AM",
+          "dropOffTime": "02:30 PM"
+        },
+        {
+          "stopOrder": 5,
+          "stopName": "School",
+          "addressOrLandmark": "Tarsadi, Bardoli",
+          "pickupTime": "08:00 AM",
+          "dropOffTime": "02:20 PM"
+        }
+      ]
+    },
+    {
+      "routeId": "SB-04",
+      "routeName": "Vyara to School",
+      "busNumber": "BUS-04",
+      "startPoint": "Vyara Bus Station, Vyara, Tapi, Gujarat, India",
+      "destination": "School, Tarsadi, Bardoli, Gujarat, India",
+      "stops": [
+        {
+          "stopOrder": 1,
+          "stopName": "Vyara Bus Station",
+          "addressOrLandmark": "Vyara Main Bus Station",
+          "pickupTime": "06:30 AM",
+          "dropOffTime": "03:45 PM"
+        },
+        {
+          "stopOrder": 2,
+          "stopName": "Kanza",
+          "addressOrLandmark": "Kanza Village Road",
+          "pickupTime": "06:45 AM",
+          "dropOffTime": "03:30 PM"
+        },
+        {
+          "stopOrder": 3,
+          "stopName": "Kakrapar",
+          "addressOrLandmark": "Kakrapar Junction",
+          "pickupTime": "07:00 AM",
+          "dropOffTime": "03:15 PM"
+        },
+        {
+          "stopOrder": 4,
+          "stopName": "Tarsada",
+          "addressOrLandmark": "Tarsada Village Road",
+          "pickupTime": "07:15 AM",
+          "dropOffTime": "03:00 PM"
+        },
+        {
+          "stopOrder": 5,
+          "stopName": "Bardoli",
+          "addressOrLandmark": "Bardoli Main Road",
+          "pickupTime": "07:35 AM",
+          "dropOffTime": "02:40 PM"
+        },
+        {
+          "stopOrder": 6,
+          "stopName": "Baben",
+          "addressOrLandmark": "Baben Village Junction",
+          "pickupTime": "07:50 AM",
+          "dropOffTime": "02:25 PM"
+        },
+        {
+          "stopOrder": 7,
+          "stopName": "School",
+          "addressOrLandmark": "Tarsadi, Bardoli",
+          "pickupTime": "08:05 AM",
+          "dropOffTime": "02:10 PM"
+        }
+      ]
+    },
+    {
+      "routeId": "SB-05",
+      "routeName": "Palsana to School",
+      "busNumber": "BUS-05",
+      "startPoint": "Palsana Bus Stand, Palsana, Gujarat, India",
+      "destination": "School, Tarsadi, Bardoli, Gujarat, India",
+      "stops": [
+        {
+          "stopOrder": 1,
+          "stopName": "Palsana Bus Stand",
+          "addressOrLandmark": "Palsana Main Bus Stand",
+          "pickupTime": "07:00 AM",
+          "dropOffTime": "03:20 PM"
+        },
+        {
+          "stopOrder": 2,
+          "stopName": "Palsana Char Rasta",
+          "addressOrLandmark": "Main Junction",
+          "pickupTime": "07:10 AM",
+          "dropOffTime": "03:10 PM"
+        },
+        {
+          "stopOrder": 3,
+          "stopName": "Kadodara",
+          "addressOrLandmark": "Kadodara Char Rasta",
+          "pickupTime": "07:20 AM",
+          "dropOffTime": "03:00 PM"
+        },
+        {
+          "stopOrder": 4,
+          "stopName": "Vareli",
+          "addressOrLandmark": "Vareli Village",
+          "pickupTime": "07:30 AM",
+          "dropOffTime": "02:50 PM"
+        },
+        {
+          "stopOrder": 5,
+          "stopName": "Jolva Patiya",
+          "addressOrLandmark": "Jolva Main Road",
+          "pickupTime": "07:40 AM",
+          "dropOffTime": "02:40 PM"
+        },
+        {
+          "stopOrder": 6,
+          "stopName": "Bardoli",
+          "addressOrLandmark": "Bardoli Bus Stand",
+          "pickupTime": "07:50 AM",
+          "dropOffTime": "02:30 PM"
+        },
+        {
+          "stopOrder": 7,
+          "stopName": "Baben",
+          "addressOrLandmark": "Baben Main Road",
+          "pickupTime": "08:00 AM",
+          "dropOffTime": "02:20 PM"
+        },
+        {
+          "stopOrder": 8,
+          "stopName": "School",
+          "addressOrLandmark": "Tarsadi, Bardoli",
+          "pickupTime": "08:10 AM",
+          "dropOffTime": "02:10 PM"
+        }
+      ]
+    }
+  ]
+}

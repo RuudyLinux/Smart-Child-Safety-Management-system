@@ -22,6 +22,12 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
+  <!-- Demo dataset (routes, people, generated avatars) used by the database reset's demo seeder. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Persistence\DemoData\*.json" LogicalName="DemoData/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Persistence\DemoData\avatars\*.png" LogicalName="DemoData/avatars/%(Filename)%(Extension)" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>

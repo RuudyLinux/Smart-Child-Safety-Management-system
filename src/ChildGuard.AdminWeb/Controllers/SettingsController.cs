@@ -11,8 +11,60 @@ namespace ChildGuard.AdminWeb.Controllers;
 /// </summary>
 public class SettingsController : BaseAdminController
 {
+    private const long BackupSizeLimit = 100L * 1024 * 1024;
+
     private readonly IWebHostEnvironment _env;
-    public SettingsController(ApiClient api, IWebHostEnvironment env) : base(api) => _env = env;
+    private readonly LongRunningApiClient _longRunning;
+
+    public SettingsController(ApiClient api, IWebHostEnvironment env, LongRunningApiClient longRunning) : base(api)
+    {
+        _env = env;
+        _longRunning = longRunning;
+    }
+
+    // ---- Database: export, import, reset (administrator accounts are never touched) ----
+
+    [HttpGet]
+    public async Task<IActionResult> ExportDatabase(CancellationToken ct)
+    {
+        var result = await _longRunning.GetFileAsync("/api/admin/database/export", $"childguard-backup-{DateTime.UtcNow:yyyyMMdd-HHmmss}.json", ct);
+        if (!result.Succeeded)
+        {
+            TempData["Error"] = $"The backup could not be created: {result.Error}";
+            return Redirect("/Settings#database");
+        }
+        Response.Headers.CacheControl = "no-store";
+        return File(result.Value.Data, "application/json", result.Value.FileName);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [RequestSizeLimit(BackupSizeLimit)]
+    [RequestFormLimits(MultipartBodyLengthLimit = BackupSizeLimit)]
+    public async Task<IActionResult> ImportDatabase(IFormFile? file, CancellationToken ct)
+    {
+        if (file is null || file.Length == 0)
+        {
+            TempData["Error"] = "Choose a backup file to import.";
+            return Redirect("/Settings#database");
+        }
+        await using var stream = file.OpenReadStream();
+        var result = await _longRunning.PostFileAsync<DatabaseOperationResultDto>("/api/admin/database/import", stream, file.FileName,
+            string.IsNullOrWhiteSpace(file.ContentType) ? "application/json" : file.ContentType, ct);
+        TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded ? result.Value!.Message : result.Error;
+        return Redirect("/Settings#database");
+    }
+
+    /// <summary>Called by database.js after it has downloaded the backup.</summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ResetDatabase([FromBody] DatabaseResetRequest request, CancellationToken ct)
+    {
+        var result = await _longRunning.PostAsync<DatabaseOperationResultDto>("/api/admin/database/reset", request, ct);
+        if (!result.Succeeded) return StatusCode(result.StatusCode is >= 400 ? result.StatusCode : 500, new { message = result.Error });
+        TempData["Success"] = result.Value!.Message;
+        return Json(new { message = result.Value.Message });
+    }
 
     public async Task<IActionResult> Index(CancellationToken ct)
     {
@@ -75,6 +127,7 @@ public class SettingsController : BaseAdminController
         SetPage("Settings", "System");
         var devices = await Api.GetAsync<List<RfidDeviceDto>>("/api/rfid/devices", ct);
         ViewBag.Devices = devices.Value ?? new();
+        ViewBag.Database = (await Api.GetAsync<DatabaseOverviewDto>("/api/admin/database", ct)).Value;
         ViewBag.Environment = _env.EnvironmentName;
     }
 }

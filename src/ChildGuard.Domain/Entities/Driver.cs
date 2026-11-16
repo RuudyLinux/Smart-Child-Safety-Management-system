@@ -22,4 +22,5 @@ public class Driver
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public ICollection<Bus> Buses { get; set; } = new List<Bus>();
+    public DriverPhoto? Photo { get; set; }
 }

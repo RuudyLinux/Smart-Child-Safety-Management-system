@@ -353,6 +353,40 @@ namespace ChildGuard.Infrastructure.Postgres.Migrations
                     b.ToTable("Drivers");
                 });
 
+            modelBuilder.Entity("ChildGuard.Domain.Entities.DriverPhoto", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ByteSize")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<byte[]>("Data")
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<int>("DriverId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DriverId")
+                        .IsUnique();
+
+                    b.ToTable("DriverPhotos", (string)null);
+                });
+
             modelBuilder.Entity("ChildGuard.Domain.Entities.EnrollmentRequest", b =>
                 {
                     b.Property<long>("Id")
@@ -1715,6 +1749,17 @@ namespace ChildGuard.Infrastructure.Postgres.Migrations
                     b.Navigation("Address");
                 });
 
+            modelBuilder.Entity("ChildGuard.Domain.Entities.DriverPhoto", b =>
+                {
+                    b.HasOne("ChildGuard.Domain.Entities.Driver", "Driver")
+                        .WithOne("Photo")
+                        .HasForeignKey("ChildGuard.Domain.Entities.DriverPhoto", "DriverId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Driver");
+                });
+
             modelBuilder.Entity("ChildGuard.Domain.Entities.EnrollmentRequest", b =>
                 {
                     b.HasOne("ChildGuard.Domain.Entities.Student", "Student")
@@ -2170,6 +2215,8 @@ namespace ChildGuard.Infrastructure.Postgres.Migrations
             modelBuilder.Entity("ChildGuard.Domain.Entities.Driver", b =>
                 {
                     b.Navigation("Buses");
+
+                    b.Navigation("Photo");
                 });
 
             modelBuilder.Entity("ChildGuard.Domain.Entities.Guardian", b =>

@@ -11,6 +11,8 @@ public class PhotoService : IPhotoService
     private const string NoStudent = "Student not found.";
     private const string NoGuardianPhoto = "This guardian has no profile photo.";
     private const string NoStudentPhoto = "This student has no profile photo.";
+    private const string NoDriver = "Driver not found.";
+    private const string NoDriverPhoto = "This driver has no profile photo.";
 
     private readonly IPhotoRepository _photos;
     private readonly IAuditTrail _audit;
@@ -91,6 +93,43 @@ public class PhotoService : IPhotoService
         if (photo is null) return Result.Failure(NoStudentPhoto);
         _photos.Remove(photo);
         _audit.Record(new AuditEvent("StudentPhotoRemoved", "Student", studentId, $"Profile photo of student {studentId} removed") { StudentId = studentId });
+        await _photos.SaveChangesAsync(ct);
+        return Result.Success();
+    }
+
+    public async Task<Result<PhotoContentDto>> GetDriverPhotoAsync(int driverId, CancellationToken ct = default)
+    {
+        var photo = await _photos.GetDriverPhotoAsync(driverId, ct);
+        return photo is null
+            ? Result<PhotoContentDto>.Failure(NoDriverPhoto)
+            : Result<PhotoContentDto>.Success(new PhotoContentDto(photo.Data, photo.ContentType, photo.UpdatedAt));
+    }
+
+    public async Task<Result<PhotoStateDto>> SaveDriverPhotoAsync(int driverId, UploadPhotoRequest request, CancellationToken ct = default)
+    {
+        if (!await _photos.DriverExistsAsync(driverId, ct))
+            return Result<PhotoStateDto>.Failure(NoDriver);
+
+        var validation = ProfileImage.Validate(request.Data);
+        if (!validation.Succeeded) return Result<PhotoStateDto>.Failure(validation.Error!);
+
+        var existing = await _photos.GetDriverPhotoAsync(driverId, ct);
+        var photo = existing ?? new DriverPhoto { DriverId = driverId };
+        Apply(photo, request.Data, validation.Value!);
+        if (existing is null) await _photos.AddAsync(photo, ct);
+        _audit.Record(new AuditEvent(existing is null ? "DriverPhotoAdded" : "DriverPhotoReplaced", "Driver", driverId,
+            $"Profile photo of driver {driverId} {(existing is null ? "added" : "replaced")}") { Details = new { photo.ContentType, photo.ByteSize } });
+        await _photos.SaveChangesAsync(ct);
+
+        return Result<PhotoStateDto>.Success(new PhotoStateDto(true, photo.UpdatedAt, photo.ByteSize, photo.ContentType));
+    }
+
+    public async Task<Result> RemoveDriverPhotoAsync(int driverId, CancellationToken ct = default)
+    {
+        var photo = await _photos.GetDriverPhotoAsync(driverId, ct);
+        if (photo is null) return Result.Failure(NoDriverPhoto);
+        _photos.Remove(photo);
+        _audit.Record(new AuditEvent("DriverPhotoRemoved", "Driver", driverId, $"Profile photo of driver {driverId} removed"));
         await _photos.SaveChangesAsync(ct);
         return Result.Success();
     }

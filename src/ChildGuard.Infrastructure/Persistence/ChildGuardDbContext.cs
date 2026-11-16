@@ -28,6 +28,7 @@ public class ChildGuardDbContext : DbContext
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<GuardianPhoto> GuardianPhotos => Set<GuardianPhoto>();
     public DbSet<StudentPhoto> StudentPhotos => Set<StudentPhoto>();
+    public DbSet<DriverPhoto> DriverPhotos => Set<DriverPhoto>();
     public DbSet<FaceAuditLog> FaceAuditLogs => Set<FaceAuditLog>();
     public DbSet<GuardianTrustedDevice> GuardianTrustedDevices => Set<GuardianTrustedDevice>();
     public DbSet<TemporaryPickupAuthorization> TemporaryPickupAuthorizations => Set<TemporaryPickupAuthorization>();

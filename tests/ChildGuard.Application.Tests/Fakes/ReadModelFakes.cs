@@ -25,6 +25,15 @@ internal sealed class FakePhotoRepository : IPhotoRepository
     public Task<bool> GuardianExistsAsync(int guardianId, CancellationToken ct = default) => Task.FromResult(true);
     public Task<bool> StudentExistsAsync(int studentId, CancellationToken ct = default) => Task.FromResult(true);
 
+    public Task<DriverPhoto?> GetDriverPhotoAsync(int driverId, CancellationToken ct = default) =>
+        Task.FromResult(Photos.OfType<DriverPhoto>().FirstOrDefault(p => p.DriverId == driverId));
+    public Task<bool> DriverExistsAsync(int driverId, CancellationToken ct = default) => Task.FromResult(true);
+    public Task<Dictionary<int, DateTime>> GetDriverPhotoTimestampsAsync(
+        IReadOnlyCollection<int>? driverIds = null, CancellationToken ct = default) =>
+        Task.FromResult(Photos.OfType<DriverPhoto>()
+            .Where(p => driverIds is null || driverIds.Count == 0 || driverIds.Contains(p.DriverId))
+            .ToDictionary(p => p.DriverId, p => p.UpdatedAt));
+
     public Task AddAsync(ProfilePhoto photo, CancellationToken ct = default)
     {
         Photos.Add(photo);

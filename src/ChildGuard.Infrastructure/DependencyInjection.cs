@@ -81,6 +81,7 @@ public static class DependencyInjection
         // The API registers the request's actor over this default.
         services.TryAddScoped<ICurrentActor, SystemActor>();
         services.AddScoped<IAuditTrail, EfAuditTrail>();
+        services.AddScoped<IDatabaseMaintenanceService, DatabaseMaintenanceService>();
         services.AddScoped<IAuditQueryService, AuditQueryService>();
         services.AddScoped<ILifecycleRepository, LifecycleRepository>();
         services.AddScoped<IRecordLifecycleService, RecordLifecycleService>();

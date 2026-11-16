@@ -38,3 +38,20 @@ public class StudentPhotoConfiguration : IEntityTypeConfiguration<StudentPhoto>
             .OnDelete(DeleteBehavior.Cascade);
     }
 }
+
+public class DriverPhotoConfiguration : IEntityTypeConfiguration<DriverPhoto>
+{
+    public void Configure(EntityTypeBuilder<DriverPhoto> b)
+    {
+        b.ToTable("DriverPhotos");
+        b.HasKey(x => x.Id);
+        b.Property(x => x.ContentType).IsRequired().HasMaxLength(50);
+        b.Property(x => x.Data).IsRequired().HasColumnType("LONGBLOB");
+        b.HasIndex(x => x.DriverId).IsUnique();
+
+        b.HasOne(x => x.Driver)
+            .WithOne(x => x.Photo)
+            .HasForeignKey<DriverPhoto>(x => x.DriverId)
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+}

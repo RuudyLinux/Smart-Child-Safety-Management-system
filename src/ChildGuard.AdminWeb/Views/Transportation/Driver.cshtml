@@ -10,7 +10,12 @@
         <nav class="cg-breadcrumb" style="margin-bottom:6px">
             <a href="/Transportation">@await Html.PartialAsync("_Icon", "arrow-left") Back to transportation</a>
         </nav>
-        <h1 class="cg-page-head__title">@d.FullName</h1>
+        <div class="cg-row" style="gap:14px;align-items:center">
+            @await Html.PartialAsync("_Avatar", new AvatarModel(
+                Model.HasPhoto ? Url.Action("Photo", "Drivers", new { id = d.DriverId, v = Model.PhotoUpdatedAt?.Ticks }) : null,
+                d.FullName, "lg", false, true))
+            <h1 class="cg-page-head__title">@d.FullName</h1>
+        </div>
         <p class="cg-page-head__sub cg-row cg-row--wrap" style="gap:8px">
             <span>Driver@(d.EmployeeCode is null ? "" : $" · ID {d.EmployeeCode}")</span>
             @if (d.Status == RecordStatus.Active) { <span class="cg-badge cg-badge--success"><span class="cg-badge__dot"></span>Active</span> }
@@ -58,6 +63,13 @@
             </dl>
         </div>
     </section>
+</div>
+
+<div id="photo" data-driver-photo>
+    @await Html.PartialAsync("_PhotoManager", new PhotoManagerModel(
+        "Drivers", d.DriverId, d.FullName, Model.HasPhoto, Model.PhotoUpdatedAt, false,
+        "Driver photo",
+        "Helps staff recognise the driver at pickup and drop-off."))
 </div>
 
 <section class="cg-card">

@@ -10,6 +10,9 @@ public interface IPhotoRepository
     Task<StudentPhoto?> GetStudentPhotoAsync(int studentId, CancellationToken ct = default);
     Task<bool> GuardianExistsAsync(int guardianId, CancellationToken ct = default);
     Task<bool> StudentExistsAsync(int studentId, CancellationToken ct = default);
+    Task<DriverPhoto?> GetDriverPhotoAsync(int driverId, CancellationToken ct = default);
+    Task<bool> DriverExistsAsync(int driverId, CancellationToken ct = default);
+    Task<Dictionary<int, DateTime>> GetDriverPhotoTimestampsAsync(IReadOnlyCollection<int>? driverIds = null, CancellationToken ct = default);
     Task AddAsync(ProfilePhoto photo, CancellationToken ct = default);
     void Remove(ProfilePhoto photo);
     Task SaveChangesAsync(CancellationToken ct = default);
@@ -37,4 +40,8 @@ public interface IPhotoService
     Task<Result<PhotoContentDto>> GetStudentPhotoAsync(int studentId, CancellationToken ct = default);
     Task<Result<PhotoStateDto>> SaveStudentPhotoAsync(int studentId, UploadPhotoRequest request, CancellationToken ct = default);
     Task<Result> RemoveStudentPhotoAsync(int studentId, CancellationToken ct = default);
+
+    Task<Result<PhotoContentDto>> GetDriverPhotoAsync(int driverId, CancellationToken ct = default);
+    Task<Result<PhotoStateDto>> SaveDriverPhotoAsync(int driverId, UploadPhotoRequest request, CancellationToken ct = default);
+    Task<Result> RemoveDriverPhotoAsync(int driverId, CancellationToken ct = default);
 }

@@ -22,12 +22,27 @@ public class PhotoRepository : IPhotoRepository
     public Task<bool> StudentExistsAsync(int studentId, CancellationToken ct = default) =>
         _db.Students.AnyAsync(s => s.StudentId == studentId, ct);
 
+    public Task<DriverPhoto?> GetDriverPhotoAsync(int driverId, CancellationToken ct = default) =>
+        _db.DriverPhotos.FirstOrDefaultAsync(p => p.DriverId == driverId, ct);
+
+    public Task<bool> DriverExistsAsync(int driverId, CancellationToken ct = default) =>
+        _db.Drivers.AnyAsync(d => d.DriverId == driverId, ct);
+
+    public async Task<Dictionary<int, DateTime>> GetDriverPhotoTimestampsAsync(
+        IReadOnlyCollection<int>? driverIds = null, CancellationToken ct = default)
+    {
+        var query = _db.DriverPhotos.AsNoTracking().Select(p => new { p.DriverId, p.UpdatedAt });
+        if (driverIds is { Count: > 0 }) query = query.Where(p => driverIds.Contains(p.DriverId));
+        return await query.ToDictionaryAsync(p => p.DriverId, p => p.UpdatedAt, ct);
+    }
+
     public async Task AddAsync(ProfilePhoto photo, CancellationToken ct = default)
     {
         switch (photo)
         {
             case GuardianPhoto g: await _db.GuardianPhotos.AddAsync(g, ct); break;
             case StudentPhoto s: await _db.StudentPhotos.AddAsync(s, ct); break;
+            case DriverPhoto d: await _db.DriverPhotos.AddAsync(d, ct); break;
             default: throw new ArgumentOutOfRangeException(nameof(photo), photo.GetType().Name, "Unsupported photo owner.");
         }
     }
@@ -38,6 +53,7 @@ public class PhotoRepository : IPhotoRepository
         {
             case GuardianPhoto g: _db.GuardianPhotos.Remove(g); break;
             case StudentPhoto s: _db.StudentPhotos.Remove(s); break;
+            case DriverPhoto d: _db.DriverPhotos.Remove(d); break;
             default: throw new ArgumentOutOfRangeException(nameof(photo), photo.GetType().Name, "Unsupported photo owner.");
         }
     }

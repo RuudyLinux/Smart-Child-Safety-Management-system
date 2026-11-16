@@ -19,7 +19,11 @@ public record RouteSummaryDto(int RouteId, string RouteName, string? Description
 
 public record DriverDetailDto(
     DriverDto Driver, AddressDto? Address, string? EmergencyContactName, string? EmergencyContactPhone, DateOnly? JoinedOn,
-    DateTime CreatedAt, IReadOnlyList<BusSummaryDto> Buses, IReadOnlyList<RosterEntryDto> Students, DeletionCheckDto Deletion);
+    DateTime CreatedAt, IReadOnlyList<BusSummaryDto> Buses, IReadOnlyList<RosterEntryDto> Students, DeletionCheckDto Deletion,
+    DateTime? PhotoUpdatedAt = null)
+{
+    public bool HasPhoto => PhotoUpdatedAt is not null;
+}
 
 public record BusDetailDto(
     BusDto Bus, DateTime CreatedAt, DriverSummaryDto? Driver, RouteSummaryDto? Route,
