@@ -53,6 +53,63 @@ public class RfidController : ControllerBase
         return result.Succeeded ? Ok(new { message = "RFID card assigned." }) : BadRequest(new { message = result.Error });
     }
 
+    // ---- inventory
+
+    private IActionResult Op(ChildGuard.Application.Common.Result<RfidOperationResultDto> r) => r.Succeeded
+        ? Ok(r.Value)
+        : r.Error == ChildGuard.Application.Services.RfidService.CardNotFound ? NotFound(new { message = r.Error }) : BadRequest(new { message = r.Error });
+
+    [HttpPost("cards/register")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> Register(RegisterRfidCardRequest request, [FromServices] IValidator<RegisterRfidCardRequest> v, CancellationToken ct)
+    {
+        await v.ValidateAndThrowAsync(request, ct);
+        return Op(await _rfidService.RegisterAsync(request, this.GetUserId(), ct));
+    }
+
+    [HttpPost("cards/{id:int}/assign")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> AssignRegistered(int id, AssignRegisteredCardRequest request, [FromServices] IValidator<AssignRegisteredCardRequest> v, CancellationToken ct)
+    {
+        await v.ValidateAndThrowAsync(request, ct);
+        return Op(await _rfidService.AssignRegisteredAsync(id, request, this.GetUserId(), ct));
+    }
+
+    [HttpPost("cards/{id:int}/unassign")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> Unassign(int id, UnassignRfidRequest request, [FromServices] IValidator<UnassignRfidRequest> v, CancellationToken ct)
+    {
+        await v.ValidateAndThrowAsync(request, ct);
+        return Op(await _rfidService.UnassignAsync(id, request, this.GetUserId(), ct));
+    }
+
+    [HttpPost("cards/{id:int}/replace")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> Replace(int id, ReplaceRfidRequest request, [FromServices] IValidator<ReplaceRfidRequest> v, CancellationToken ct)
+    {
+        await v.ValidateAndThrowAsync(request, ct);
+        return Op(await _rfidService.ReplaceAsync(id, request, this.GetUserId(), ct));
+    }
+
+    [HttpPost("cards/{id:int}/reassign")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> Reassign(int id, ReassignRfidRequest request, [FromServices] IValidator<ReassignRfidRequest> v, CancellationToken ct)
+    {
+        await v.ValidateAndThrowAsync(request, ct);
+        return Op(await _rfidService.ReassignAsync(id, request, this.GetUserId(), ct));
+    }
+
+    /// <summary>Permanent removal of a card that was never used (409 otherwise: retire it instead).</summary>
+    [HttpDelete("cards/{id:int}")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> DeleteCard(int id, [FromBody] DeleteRecordRequest request, [FromServices] IValidator<DeleteRecordRequest> v, CancellationToken ct)
+    {
+        await v.ValidateAndThrowAsync(request, ct);
+        var r = await _rfidService.DeleteAsync(id, request.Reason, this.GetUserId(), ct);
+        if (r.Succeeded) return Ok(r.Value);
+        return r.Error == ChildGuard.Application.Services.RfidService.CardNotFound ? NotFound(new { message = r.Error }) : Conflict(new { message = r.Error });
+    }
+
     /// <summary>Can this UID be given to a student? POST so the UID stays out of URLs and access logs.</summary>
     [HttpPost("cards/check")]
     [Authorize(Policy = "AdminOnly")]

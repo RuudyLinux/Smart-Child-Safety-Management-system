@@ -5,9 +5,14 @@
     var badge = Model.Status switch
     {
         RfidCardStatus.Active => "cg-badge--success",
-        RfidCardStatus.Lost => "cg-badge--danger",
+        RfidCardStatus.Lost or RfidCardStatus.Damaged => "cg-badge--danger",
         _ => "cg-badge--neutral"
     };
+    var eligible = ViewBag.EligibleStudents as List<StudentListItemDto> ?? new();
+    var history = Model.History ?? Array.Empty<RfidCardAssignmentDto>();
+    var assigned = Model.StudentId is not null;
+    var usable = Model.Status == RfidCardStatus.Active;
+    var conditions = new[] { RfidCardStatus.Active, RfidCardStatus.Inactive, RfidCardStatus.Lost, RfidCardStatus.Damaged, RfidCardStatus.Retired };
 }
 
 <div class="cg-page-head">
@@ -71,6 +76,196 @@
     </article>
 </div>
 
+<section class="cg-card" data-card-actions>
+    <div class="cg-card__head">
+        <div>
+            <h2 class="cg-card__title">Manage card</h2>
+            <div class="cg-card__sub">
+                @if (Model.Status == RfidCardStatus.Retired) { <span>Retired cards are kept as history and cannot be used again.</span> }
+                else if (assigned) { <span>Unassign, replace with another card, or move it to a different student.</span> }
+                else if (usable) { <span>Available: give it to a student who has no card.</span> }
+                else { <span>Marked @Model.Status: set it back to Active before assigning it.</span> }
+            </div>
+        </div>
+    </div>
+    <div class="cg-card__body cg-row cg-row--wrap" style="gap:8px">
+        @if (!assigned && usable)
+        {
+            <button type="button" class="cg-btn cg-btn--primary" data-cg-modal-open="cardAssign">Assign to student</button>
+        }
+        @if (assigned)
+        {
+            <button type="button" class="cg-btn cg-btn--secondary" data-cg-modal-open="cardReplace">Replace card</button>
+            @if (usable)
+            {
+                <button type="button" class="cg-btn cg-btn--secondary" data-cg-modal-open="cardReassign">Move to another student</button>
+            }
+            <button type="button" class="cg-btn cg-btn--danger-soft" data-cg-modal-open="cardUnassign">Unassign</button>
+        }
+        @if (Model.Status != RfidCardStatus.Retired)
+        {
+            <form asp-action="UpdateStatus" asp-route-id="@Model.RfidCardId" method="post" class="cg-row" style="gap:6px">
+                @Html.AntiForgeryToken()
+                <select class="cg-select" name="status" style="max-width:140px" aria-label="Card condition">
+                    @foreach (var s in conditions)
+                    {
+                        <option value="@s" selected="@(Model.Status == s)">@s</option>
+                    }
+                </select>
+                <button class="cg-btn cg-btn--secondary cg-btn--sm" type="submit" style="flex-shrink:0;white-space:nowrap">Set condition</button>
+            </form>
+        }
+        @if (Model.CanDelete)
+        {
+            <button type="button" class="cg-btn cg-btn--ghost" data-cg-modal-open="cardDelete">Delete permanently</button>
+        }
+    </div>
+</section>
+
+<section class="cg-card" data-card-history>
+    <div class="cg-card__head">
+        <div>
+            <h2 class="cg-card__title">Assignment history</h2>
+            <div class="cg-card__sub">Every student this card has belonged to. History is never deleted.</div>
+        </div>
+    </div>
+    @if (history.Count == 0)
+    {
+        <div class="cg-card__body cg-muted cg-text-sm">This card has never been assigned.</div>
+    }
+    else
+    {
+        <div class="cg-table-wrap">
+            <table class="cg-table">
+                <thead><tr><th>Student</th><th>From</th><th>Until</th><th>Ended because</th><th>By</th></tr></thead>
+                <tbody>
+                @foreach (var h in history)
+                {
+                    <tr data-history-row>
+                        <td><a href="/Students/Details/@h.StudentId">@h.StudentName</a></td>
+                        <td class="cg-text-sm">
+                            @(h.AssignedAt?.ToSchoolTime().ToString("d MMM yyyy, HH:mm") ?? "Not recorded")
+                            @if (h.IsMigratedSnapshot) { <span class="cg-badge cg-badge--neutral" title="Existed before history was kept">Migrated</span> }
+                        </td>
+                        <td class="cg-text-sm">@(h.EndedAt?.ToSchoolTime().ToString("d MMM yyyy, HH:mm") ?? "Current")</td>
+                        <td class="cg-text-sm">@(h.EndReason ?? "—")</td>
+                        <td class="cg-text-sm">@(h.EndedBy ?? h.AssignedBy ?? "—")</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+@{
+    async Task Modal(string id, string title, string sub, string action, Func<object?, Microsoft.AspNetCore.Html.IHtmlContent> body, string submit, string submitClass = "cg-btn--primary")
+    {
+        <div class="cg-modal" id="@id" hidden role="dialog" aria-modal="true" aria-labelledby="@(id)Title">
+            <div class="cg-modal__panel">
+                <div class="cg-modal__head">
+                    <div>
+                        <h2 class="cg-modal__title" id="@(id)Title">@title</h2>
+                        <div class="cg-modal__sub">@sub</div>
+                    </div>
+                    <button type="button" class="cg-iconbtn" data-cg-modal-close aria-label="Close">@await Html.PartialAsync("_Icon", "x")</button>
+                </div>
+                <form action="/Rfid/@action/@Model.RfidCardId" method="post" data-cg-busy>
+                    @Html.AntiForgeryToken()
+                    <div class="cg-modal__body cg-form">@body(null)</div>
+                    <div class="cg-modal__foot">
+                        <button type="button" class="cg-btn cg-btn--secondary" data-cg-modal-close>Cancel</button>
+                        <button type="submit" class="cg-btn @submitClass"><span class="cg-btn__label">@submit</span></button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    }
+}
+
+@if (!assigned && usable)
+{
+    await Modal("cardAssign", "Assign this card", "Only active students without a card are listed.", "AssignRegistered",
+        @<div class="cg-field">
+            <label class="cg-label" for="assignStudent">Student <span class="cg-label__req">*</span></label>
+            <select class="cg-select" id="assignStudent" name="studentId" required>
+                @foreach (var s in eligible) { <option value="@s.StudentId">@s.FullName@(string.IsNullOrEmpty(s.Grade) ? "" : $" · {s.Grade}")</option> }
+            </select>
+        </div>, "Assign card");
+}
+@if (assigned)
+{
+    await Modal("cardReplace", "Replace this card", $"{Model.StudentName} gets the new card in the same step.", "Replace",
+        @<text>
+            <div class="cg-field">
+                <label class="cg-label" for="replaceUid">New card UID <span class="cg-label__req">*</span></label>
+                <input class="cg-input cg-mono" id="replaceUid" name="newCardUid" maxlength="100" required autocomplete="off" placeholder="Tap the new card on the USB reader…" data-rfid-scan />
+                <span class="cg-hint">A registered spare or a brand-new card. The reader types the UID; Enter is ignored here.</span>
+            </div>
+            <div class="cg-field">
+                <label class="cg-label" for="replaceOld">The old card is now <span class="cg-label__req">*</span></label>
+                <select class="cg-select" id="replaceOld" name="oldCardStatus">
+                    <option value="Lost">Lost</option>
+                    <option value="Damaged">Damaged</option>
+                    <option value="Retired">Retired</option>
+                    <option value="Inactive">Inactive</option>
+                    <option value="Active">Active (keep as a spare)</option>
+                </select>
+            </div>
+            <div class="cg-field">
+                <label class="cg-label" for="replaceReason">Reason <span class="cg-label__req">*</span></label>
+                <input class="cg-input" id="replaceReason" name="reason" minlength="5" maxlength="200" required placeholder="e.g. Card lost on the bus" />
+            </div>
+        </text>, "Replace card");
+    await Modal("cardUnassign", "Unassign this card", $"{Model.StudentName} will have no card until another is assigned.", "Unassign",
+        @<text>
+            <div class="cg-field">
+                <label class="cg-label" for="unassignStatus">Card condition afterwards</label>
+                <select class="cg-select" id="unassignStatus" name="newStatus">
+                    <option value="">Unchanged (@Model.Status)</option>
+                    <option value="Lost">Lost</option>
+                    <option value="Damaged">Damaged</option>
+                    <option value="Retired">Retired</option>
+                    <option value="Inactive">Inactive</option>
+                </select>
+            </div>
+            <div class="cg-field">
+                <label class="cg-label" for="unassignReason">Reason <span class="cg-label__req">*</span></label>
+                <input class="cg-input" id="unassignReason" name="reason" minlength="5" maxlength="200" required placeholder="e.g. Student left the bus service" />
+            </div>
+        </text>, "Unassign", "cg-btn--danger");
+    if (usable)
+    {
+        await Modal("cardReassign", "Move this card to another student", $"It stops belonging to {Model.StudentName}.", "Reassign",
+            @<text>
+                <div class="cg-field">
+                    <label class="cg-label" for="reassignStudent">New student <span class="cg-label__req">*</span></label>
+                    <select class="cg-select" id="reassignStudent" name="studentId" required>
+                        @foreach (var s in eligible) { <option value="@s.StudentId">@s.FullName@(string.IsNullOrEmpty(s.Grade) ? "" : $" · {s.Grade}")</option> }
+                    </select>
+                </div>
+                <div class="cg-field">
+                    <label class="cg-label" for="reassignReason">Reason <span class="cg-label__req">*</span></label>
+                    <input class="cg-input" id="reassignReason" name="reason" minlength="5" maxlength="200" required placeholder="e.g. Issued to the wrong sibling" />
+                </div>
+            </text>, "Move card");
+    }
+}
+@if (Model.CanDelete)
+{
+    await Modal("cardDelete", "Permanently delete this card?", "It has never been used, so nothing is lost but the inventory entry.", "DeleteCard",
+        @<text>
+            <div class="cg-field">
+                <label class="cg-label" for="deleteReason">Reason <span class="cg-label__req">*</span></label>
+                <input class="cg-input" id="deleteReason" name="reason" minlength="10" maxlength="500" required placeholder="e.g. Registered by mistake" />
+            </div>
+            <label class="cg-check">
+                <input type="checkbox" name="confirmed" value="true" required />
+                <span class="cg-check__text">I understand this cannot be undone.</span>
+            </label>
+        </text>, "Delete permanently", "cg-btn--danger");
+}
+
 <section class="cg-card">
     <div class="cg-card__head">
         <div>
@@ -82,8 +277,8 @@
         @if (Model.StudentId is null)
         {
             @await Html.PartialAsync("_EmptyState", ("id-card", "Card is not assigned",
-                "Assign this card to a student and its scans will start recording checkpoints.",
-                "Assign a card", "/Rfid"))
+                "Use Manage card above to give it to a student; its scans then record checkpoints.",
+                (string?)null, (string?)null))
         }
         else if (!journey.Any())
         {
@@ -111,3 +306,18 @@
         }
     </div>
 </section>
+
+@section Scripts {
+    <script>
+        // USB readers type the UID and press Enter: move on to the next field instead of submitting a half-filled form.
+        document.querySelectorAll('[data-rfid-scan]').forEach(function (input) {
+            input.addEventListener('keydown', function (e) {
+                if (e.key !== 'Enter') return;
+                e.preventDefault();
+                var fields = Array.prototype.slice.call(input.form.querySelectorAll('input, select'));
+                var next = fields[fields.indexOf(input) + 1];
+                if (next) next.focus();
+            });
+        });
+    </script>
+}

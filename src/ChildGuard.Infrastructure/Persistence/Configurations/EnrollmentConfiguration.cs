@@ -27,6 +27,7 @@ public class RfidCardAssignmentConfiguration : IEntityTypeConfiguration<RfidCard
     {
         b.HasKey(x => x.Id);
         b.HasIndex(x => new { x.RfidCardId, x.RecordedAt });
+        b.Property(x => x.EndReason).HasMaxLength(200);
         b.HasIndex(x => x.StudentId);
         // History: RESTRICT, like every other history table.
         b.HasOne(x => x.RfidCard)

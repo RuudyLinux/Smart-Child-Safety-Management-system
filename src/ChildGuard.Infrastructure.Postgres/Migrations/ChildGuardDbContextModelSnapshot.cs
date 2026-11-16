@@ -937,8 +937,15 @@ namespace ChildGuard.Infrastructure.Postgres.Migrations
                     b.Property<int?>("AssignedByAdminId")
                         .HasColumnType("integer");
 
+                    b.Property<string>("EndReason")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.Property<DateTime?>("EndedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("EndedByAdminId")
+                        .HasColumnType("integer");
 
                     b.Property<bool>("IsMigratedSnapshot")
                         .HasColumnType("boolean");

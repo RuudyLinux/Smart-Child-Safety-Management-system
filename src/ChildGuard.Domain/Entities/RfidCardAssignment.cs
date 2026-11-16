@@ -14,6 +14,9 @@ public class RfidCardAssignment
     /// <summary>When the card was given to the student. Null on a migrated snapshot whose card had no recorded date.</summary>
     public DateTime? AssignedAt { get; set; }
     public DateTime? EndedAt { get; set; }
+    /// <summary>Why the assignment ended (unassigned, replaced, reassigned), when it has.</summary>
+    public string? EndReason { get; set; }
+    public int? EndedByAdminId { get; set; }
     /// <summary>When this history row was written.</summary>
     public DateTime RecordedAt { get; set; }
     public int? AssignedByAdminId { get; set; }

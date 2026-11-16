@@ -22,6 +22,14 @@ public class RfidScanTests
         public Task AddAsync(RfidCard card, CancellationToken ct = default) { Cards.Add(card); return Task.CompletedTask; }
         public List<RfidCardAssignment> History { get; } = new();
         public Task AddAssignmentHistoryAsync(RfidCardAssignment entry, CancellationToken ct = default) { History.Add(entry); return Task.CompletedTask; }
+        public Task<Application.Common.Result> RunLockedAsync(IReadOnlyCollection<int> cardIds, Func<CancellationToken, Task<Application.Common.Result>> work, CancellationToken ct = default) => work(ct);
+        public Task LockCardsAsync(IReadOnlyCollection<int> cardIds, CancellationToken ct = default) => Task.CompletedTask;
+        public Task<RfidCardAssignment?> GetOpenAssignmentAsync(int cardId, CancellationToken ct = default) =>
+            Task.FromResult(History.LastOrDefault(h => h.RfidCardId == cardId && h.EndedAt == null));
+        public Task<List<Application.DTOs.RfidCardAssignmentDto>> GetHistoryAsync(int cardId, CancellationToken ct = default) => Task.FromResult(new List<Application.DTOs.RfidCardAssignmentDto>());
+        public Task<bool> HasHistoryAsync(int cardId, CancellationToken ct = default) => Task.FromResult(History.Any(h => h.RfidCardId == cardId));
+        public void Remove(RfidCard card) => Cards.Remove(card);
+        public Task<bool> TrySaveChangesAsync(CancellationToken ct = default) => Task.FromResult(true);
         public Task<List<RfidDevice>> GetDevicesAsync(CancellationToken ct = default) => Task.FromResult(Devices.ToList());
         public Task<RfidDevice?> GetDeviceByIdAsync(int id, CancellationToken ct = default) => Task.FromResult(Devices.FirstOrDefault(d => d.RfidDeviceId == id));
         public Task AddDeviceAsync(RfidDevice device, CancellationToken ct = default) { Devices.Add(device); return Task.CompletedTask; }

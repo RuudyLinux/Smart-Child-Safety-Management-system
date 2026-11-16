@@ -155,6 +155,8 @@ public class EnrollmentService : IEnrollmentService
             if (cardUid is not null)
             {
                 card = await _rfid.GetByCardUidAsync(cardUid, tx);
+                // A registered spare is locked and re-read, so two enrollments (or an admin) cannot both take it.
+                if (card is not null) await _rfid.LockCardsAsync(new[] { card.RfidCardId }, tx);
                 if (card is null)
                 {
                     card = new RfidCard { CardUid = cardUid, Status = RfidCardStatus.Active, CreatedAt = now };

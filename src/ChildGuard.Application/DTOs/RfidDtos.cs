@@ -8,9 +8,31 @@ public record RfidCardListItemDto(
 
 public record RfidCardDetailDto(
     int RfidCardId, string MaskedCardUid, RfidCardStatus Status,
-    int? StudentId, string? StudentName, string? StudentGrade, DateTime? AssignedAt, DateTime CreatedAt);
+    int? StudentId, string? StudentName, string? StudentGrade, DateTime? AssignedAt, DateTime CreatedAt,
+    IReadOnlyList<RfidCardAssignmentDto>? History = null, bool CanDelete = false);
 
 public record AssignRfidRequest(string CardUid, int StudentId);
+
+/// <summary>Adds a card to the inventory without giving it to anyone.</summary>
+public record RegisterRfidCardRequest(string CardUid);
+
+/// <summary>Gives a registered, active, unassigned card to a student who has none.</summary>
+public record AssignRegisteredCardRequest(int StudentId);
+
+/// <param name="NewStatus">Optional new condition for the card (e.g. Lost, Damaged, Retired) set in the same step.</param>
+public record UnassignRfidRequest(string Reason, RfidCardStatus? NewStatus = null);
+
+/// <summary>Swaps the student's card for another (registered spare or a new UID). The old card gets <paramref name="OldCardStatus"/>.</summary>
+public record ReplaceRfidRequest(string NewCardUid, RfidCardStatus OldCardStatus, string Reason);
+
+/// <summary>Moves a card from its current student to another student who has no card.</summary>
+public record ReassignRfidRequest(int StudentId, string Reason);
+
+public record RfidCardAssignmentDto(
+    long Id, int StudentId, string? StudentName, DateTime? AssignedAt, DateTime? EndedAt, string? EndReason,
+    bool IsMigratedSnapshot, string? AssignedBy, string? EndedBy);
+
+public record RfidOperationResultDto(string Message, int RfidCardId, int? StudentId);
 
 public record UpdateRfidStatusRequest(RfidCardStatus Status);
 

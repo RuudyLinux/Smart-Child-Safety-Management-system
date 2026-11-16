@@ -936,8 +936,15 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                     b.Property<int?>("AssignedByAdminId")
                         .HasColumnType("int");
 
+                    b.Property<string>("EndReason")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
                     b.Property<DateTime?>("EndedAt")
                         .HasColumnType("datetime(6)");
+
+                    b.Property<int?>("EndedByAdminId")
+                        .HasColumnType("int");
 
                     b.Property<bool>("IsMigratedSnapshot")
                         .HasColumnType("tinyint(1)");

@@ -6,11 +6,17 @@ public enum RecordStatus
     Inactive = 2
 }
 
+/// <summary>
+/// The card's condition. Whether it is assigned is separate (RfidCard.StudentId): an Active card with no student is
+/// available. Only an Active card records checkpoints or can be assigned. Retired is final.
+/// </summary>
 public enum RfidCardStatus
 {
     Active = 1,
     Inactive = 2,
-    Lost = 3
+    Lost = 3,
+    Damaged = 4,
+    Retired = 5
 }
 
 public enum Gender
