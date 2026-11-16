@@ -1,0 +1,173 @@
+@model AuditPageModel
+@{
+    ViewData["Title"] = "Audit Log";
+    var f = Model.Filter;
+    var p = Model.Page;
+    var pages = Math.Max(1, (int)Math.Ceiling(p.Total / (double)p.PageSize));
+    var filtered = f.EntityType is not null || f.EntityId is not null || f.StudentId is not null || f.GuardianId is not null
+                   || f.ActorType is not null || f.AuditAction is not null || f.Search is not null || f.From is not null || f.To is not null;
+
+    string PageUrl(int page)
+    {
+        var q = new List<string> { $"page={page}" };
+        void Add(string k, object? v) { if (v is not null) q.Add($"{k}={Uri.EscapeDataString(Convert.ToString(v, System.Globalization.CultureInfo.InvariantCulture)!)}"); }
+        Add("entityType", f.EntityType); Add("entityId", f.EntityId); Add("studentId", f.StudentId); Add("guardianId", f.GuardianId);
+        Add("actorType", f.ActorType); Add("auditAction", f.AuditAction); Add("search", f.Search);
+        Add("from", f.From?.ToString("yyyy-MM-dd")); Add("to", f.To?.ToString("yyyy-MM-dd"));
+        return "/Audit?" + string.Join("&", q);
+    }
+
+    static string? Pretty(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return null;
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            return System.Text.Json.JsonSerializer.Serialize(doc.RootElement, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+        }
+        catch (System.Text.Json.JsonException) { return json; }
+    }
+
+    static string? RecordLink(AuditEntryDto e) => e.EntityType switch
+    {
+        "Student" when e.EntityId is int id => $"/Students/Details/{id}",
+        "Guardian" when e.EntityId is int id => $"/Guardians/Details/{id}",
+        "RfidCard" when e.EntityId is int id => $"/Rfid/Details/{id}",
+        _ => null
+    };
+
+    static string ActionBadge(string action) =>
+        action.Contains("Failed") || action.Contains("Rejected") || action.Contains("Deactivated") || action.Contains("Revoked") || action.Contains("Unlinked") || action.Contains("Removed")
+            ? "cg-badge--warning"
+            : action.Contains("Created") || action.Contains("Enrolled") || action.Contains("Assigned") || action.Contains("Linked") || action.Contains("Approved")
+                ? "cg-badge--success"
+                : "cg-badge--info";
+}
+
+<div class="cg-page-head">
+    <div class="cg-page-head__text">
+        <h1 class="cg-page-head__title">Audit Log</h1>
+        <p class="cg-page-head__sub">
+            Who changed what, and when. Entries are permanent and read-only. Passwords, tokens, face images and biometric data are never recorded.
+        </p>
+    </div>
+</div>
+
+@if (ViewBag.LoadError is string loadError)
+{
+    <div class="cg-alert cg-alert--danger" role="alert">
+        <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "alert-circle")</span>
+        <div class="cg-alert__body">@loadError</div>
+    </div>
+}
+
+<section class="cg-card">
+    <form method="get" action="/Audit" class="cg-toolbar" style="flex-wrap:wrap" aria-label="Filter the audit log">
+        <div class="cg-input-group cg-toolbar__grow" style="min-width:200px;max-width:280px">
+            <span class="cg-input-group__icon">@await Html.PartialAsync("_Icon", "search")</span>
+            <input class="cg-input" name="search" value="@f.Search" maxlength="200" placeholder="Search summaries" aria-label="Search summaries" />
+        </div>
+        <select class="cg-select" name="entityType" style="max-width:160px" aria-label="Record type">
+            <option value="">Any record</option>
+            @foreach (var t in ChildGuard.AdminWeb.Controllers.AuditController.EntityTypes)
+            {
+                <option value="@t" selected="@(f.EntityType == t)">@t</option>
+            }
+        </select>
+        <select class="cg-select" name="actorType" style="max-width:150px" aria-label="Performed by">
+            <option value="">Anyone</option>
+            @foreach (var t in new[] { "Admin", "Guardian", "Device", "System", "Anonymous" })
+            {
+                <option value="@t" selected="@(f.ActorType == t)">@t</option>
+            }
+        </select>
+        <input class="cg-input" type="date" name="from" value="@f.From?.ToString("yyyy-MM-dd")" style="max-width:160px" aria-label="From date" />
+        <input class="cg-input" type="date" name="to" value="@f.To?.ToString("yyyy-MM-dd")" style="max-width:160px" aria-label="To date" />
+        @if (f.StudentId is int sid) { <input type="hidden" name="studentId" value="@sid" /> }
+        @if (f.GuardianId is int gid) { <input type="hidden" name="guardianId" value="@gid" /> }
+        @if (f.AuditAction is string act) { <input type="hidden" name="auditAction" value="@act" /> }
+        <button class="cg-btn cg-btn--secondary cg-btn--sm" type="submit">Apply</button>
+        @if (filtered)
+        {
+            <a class="cg-btn cg-btn--ghost cg-btn--sm" href="/Audit">Clear</a>
+        }
+        <span class="cg-toolbar__spacer"></span>
+        <span class="cg-text-sm cg-muted" data-audit-total>@p.Total entr@(p.Total == 1 ? "y" : "ies")</span>
+    </form>
+
+    @if (f.StudentId is not null || f.GuardianId is not null)
+    {
+        <div class="cg-alert cg-alert--info" style="margin:0 20px 12px">
+            <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "info")</span>
+            <div class="cg-alert__body">
+                Showing the history of
+                @if (f.StudentId is int s) { <a href="/Students/Details/@s">student @s</a> }
+                @if (f.GuardianId is int g) { <a href="/Guardians/Details/@g">guardian @g</a> }.
+            </div>
+        </div>
+    }
+
+    @if (p.Items.Count == 0)
+    {
+        @await Html.PartialAsync("_EmptyState", ("clock", filtered ? "No entries match these filters" : "Nothing recorded yet",
+            filtered ? "Clear one or more filters to widen the list." : "Changes made by administrators appear here as they happen.",
+            (string?)null, (string?)null))
+    }
+    else
+    {
+        <div class="cg-table-wrap">
+            <table class="cg-table" data-audit-table>
+                <thead>
+                    <tr>
+                        <th>When</th>
+                        <th>By</th>
+                        <th>Action</th>
+                        <th>Record</th>
+                        <th>Summary</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var e in p.Items)
+                {
+                    var link = RecordLink(e);
+                    var details = Pretty(e.Details);
+                    <tr data-audit-row data-action="@e.Action">
+                        <td class="cg-nowrap cg-text-sm">@e.OccurredAt.ToSchoolTime().ToString("d MMM yyyy, HH:mm:ss")</td>
+                        <td class="cg-text-sm">
+                            <div class="cg-strong">@(e.ActorName ?? (e.ActorId is int aid ? $"{e.ActorType} {aid}" : e.ActorType))</div>
+                            <div class="cg-muted">@e.ActorType</div>
+                        </td>
+                        <td><span class="cg-badge @ActionBadge(e.Action)">@e.Action</span></td>
+                        <td class="cg-text-sm cg-nowrap">
+                            @if (link is not null) { <a href="@link">@e.EntityType @e.EntityId</a> }
+                            else { <span>@e.EntityType @e.EntityId</span> }
+                        </td>
+                        <td class="cg-text-sm">
+                            <div>@e.Summary</div>
+                            @if (e.Reason is not null)
+                            {
+                                <div class="cg-muted">Reason: @e.Reason</div>
+                            }
+                            @if (details is not null)
+                            {
+                                <details>
+                                    <summary class="cg-muted" style="cursor:pointer">Details</summary>
+                                    <pre class="cg-mono" style="white-space:pre-wrap;word-break:break-word;margin:6px 0 0;font-size:12px">@details</pre>
+                                </details>
+                            }
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="cg-pagination">
+            <span class="cg-text-sm">Page @p.Page of @pages</span>
+            <div class="cg-pagination__pages">
+                @if (p.Page > 1) { <a class="cg-btn cg-btn--secondary cg-btn--sm" href="@PageUrl(p.Page - 1)">Newer</a> }
+                @if (p.Page < pages) { <a class="cg-btn cg-btn--secondary cg-btn--sm" href="@PageUrl(p.Page + 1)">Older</a> }
+            </div>
+        </div>
+    }
+</section>

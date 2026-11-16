@@ -33,6 +33,7 @@ public class EnrollmentService : IEnrollmentService
     private readonly IPasswordHasherService _hasher;
     private readonly IEmailSender _email;
     private readonly SchoolClock _clock;
+    private readonly IAuditTrail _audit;
 
     public EnrollmentService(
         IEnrollmentRepository repo,
@@ -44,8 +45,10 @@ public class EnrollmentService : IEnrollmentService
         ITransportationRepository transportRepo,
         IPasswordHasherService hasher,
         IEmailSender email,
-        SchoolClock clock)
+        SchoolClock clock,
+        IAuditTrail? audit = null)
     {
+        _audit = audit ?? NullAuditTrail.Instance;
         _repo = repo;
         _students = students;
         _guardians = guardians;
@@ -123,6 +126,7 @@ public class EnrollmentService : IEnrollmentService
             }, tx);
             await _students.SaveChangesAsync(tx);
 
+            var linked = new List<(Guardian Guardian, GuardianPlan Plan)>();
             foreach (var g in plan.Guardians)
             {
                 var guardian = g.Existing;
@@ -143,14 +147,18 @@ public class EnrollmentService : IEnrollmentService
                     Student = student, Guardian = guardian, Relationship = g.Relationship,
                     IsAuthorizedForPickup = g.IsAuthorizedForPickup, CreatedAt = now
                 }, tx);
+                linked.Add((guardian, g));
             }
 
+            RfidCard? card = null;
+            var cardWasNew = false;
             if (cardUid is not null)
             {
-                var card = await _rfid.GetByCardUidAsync(cardUid, tx);
+                card = await _rfid.GetByCardUidAsync(cardUid, tx);
                 if (card is null)
                 {
                     card = new RfidCard { CardUid = cardUid, Status = RfidCardStatus.Active, CreatedAt = now };
+                    cardWasNew = true;
                     await _rfid.AddAsync(card, tx);
                 }
                 else if (card.StudentId is not null || card.Status != RfidCardStatus.Active)
@@ -173,6 +181,10 @@ public class EnrollmentService : IEnrollmentService
                     new CreateStudentBusAssignmentRequest(student.StudentId, t.BusId, t.RouteId), tx, adminId);
                 if (!assigned.Succeeded) return Result.Failure($"Transport could not be assigned: {assigned.Error}");
             }
+
+            // Ids exist now; the trail is written in the same transaction, so it commits or rolls back with the enrollment.
+            RecordEnrollment(student, linked, card, cardWasNew, request.Transport, plan);
+            await _students.SaveChangesAsync(tx);
             return Result.Success();
         }, ct);
 
@@ -194,10 +206,54 @@ public class EnrollmentService : IEnrollmentService
             try { sent = await _email.SendAsync(message, CancellationToken.None); }
             catch (Exception ex) { sent = Result.Failure($"Email delivery failed: {ex.GetType().Name}."); }
             delivery[guardian.GuardianId] = sent;
+            if (!sent.Succeeded)
+                await _audit.RecordNowAsync(new AuditEvent("CredentialEmailFailed", "Guardian", guardian.GuardianId,
+                    $"Sign-in details could not be emailed to {guardian.FullName}")
+                { GuardianId = guardian.GuardianId, StudentId = studentId, Details = new { error = sent.Error } }, CancellationToken.None);
         }
         credentials.Clear();
 
         return EnrollmentOutcome.Done(await DescribeAsync(studentId, false, delivery, ct));
+    }
+
+    private void RecordEnrollment(Student student, List<(Guardian Guardian, GuardianPlan Plan)> linked, RfidCard? card, bool cardWasNew,
+        EnrollmentTransportDto? transport, Plan plan)
+    {
+        var masked = card is null ? null : RfidMasking.Mask(card.CardUid);
+        _audit.Record(new AuditEvent("StudentEnrolled", "Student", student.StudentId, $"{student.FullName} enrolled")
+        {
+            StudentId = student.StudentId,
+            Reason = plan.DuplicateOverrideReason,
+            Details = new
+            {
+                student.FullName, dateOfBirth = DateOnly.FromDateTime(student.DateOfBirth), student.Grade, student.Section, student.AdmissionNumber,
+                guardians = linked.Select(l => new
+                {
+                    l.Guardian.GuardianId, created = l.Plan.Existing is null, l.Plan.Relationship, l.Plan.IsAuthorizedForPickup
+                }),
+                card = masked, rfidPending = card is null,
+                busId = transport?.BusId, routeId = transport?.RouteId,
+                duplicateOverride = plan.DuplicateOverrideReason is not null,
+                confirmedInactiveGuardianIds = plan.ConfirmedInactiveGuardianIds
+            }
+        });
+
+        foreach (var (guardian, g) in linked)
+        {
+            if (g.Existing is null)
+                _audit.Record(new AuditEvent("GuardianCreated", "Guardian", guardian.GuardianId,
+                    $"Guardian {guardian.FullName} created during enrollment of {student.FullName}")
+                { GuardianId = guardian.GuardianId, StudentId = student.StudentId, Details = new { guardian.FullName, guardian.Email, contactNumber = guardian.Phone } });
+            _audit.Record(new AuditEvent("GuardianLinked", "Student", student.StudentId, $"{guardian.FullName} linked to {student.FullName}")
+            {
+                StudentId = student.StudentId, GuardianId = guardian.GuardianId,
+                Details = new { relationship = g.Relationship, isAuthorizedForPickup = g.IsAuthorizedForPickup, deactivatedAccountConfirmed = guardian.Status != RecordStatus.Active }
+            });
+        }
+
+        if (card is not null)
+            _audit.Record(new AuditEvent("RfidCardAssigned", "RfidCard", card.RfidCardId, $"Card {masked} assigned to {student.FullName}")
+            { StudentId = student.StudentId, Details = new { card = masked, newCard = cardWasNew } });
     }
 
     /// <summary>The completed enrollment for this key, or a refusal when the key was used for different content; null if unused.</summary>

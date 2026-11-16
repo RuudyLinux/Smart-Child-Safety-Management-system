@@ -29,6 +29,8 @@ builder.Services.AddControllers()
 builder.Services.AddOpenApi();
 
 builder.Services.AddInfrastructure(builder.Configuration, builder.Environment.IsDevelopment());
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ChildGuard.Application.Interfaces.ICurrentActor, ChildGuard.Api.Security.HttpCurrentActor>();
 builder.Services.AddValidatorsFromAssembly(
     typeof(ChildGuard.Application.Validators.LoginRequestValidator).Assembly);
 

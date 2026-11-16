@@ -335,7 +335,12 @@
                     <dt>Contact number</dt>
                     <dd class="cg-mono">@(Model.Phone ?? "Not set")</dd>
                     <dt>Address</dt>
-                    <dd>@await Html.PartialAsync("_AddressDisplay", Model.Address)</dd>
+                    <dd>
+                        @await Html.PartialAsync("_AddressDisplay", Model.Address)
+                        <div><a class="cg-text-sm" href="/Guardians/Edit/@Model.GuardianId#address">Edit address</a></div>
+                    </dd>
+                    <dt>Audit</dt>
+                    <dd><a class="cg-text-sm" href="/Audit?guardianId=@Model.GuardianId">View audit history</a></dd>
                     <dt>Status</dt>
                     <dd>@Model.Status</dd>
                     <dt>Password</dt>

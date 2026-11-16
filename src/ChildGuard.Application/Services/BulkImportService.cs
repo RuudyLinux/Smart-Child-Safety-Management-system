@@ -22,8 +22,11 @@ public class BulkImportService : IBulkImportService
     private readonly IBulkImportRepository _repo;
     private readonly SchoolClock _clock;
 
-    public BulkImportService(IEnumerable<ImportHandler> handlers, IBulkImportRepository repo, SchoolClock clock)
+    private readonly IAuditTrail _audit;
+
+    public BulkImportService(IEnumerable<ImportHandler> handlers, IBulkImportRepository repo, SchoolClock clock, IAuditTrail? audit = null)
     {
+        _audit = audit ?? NullAuditTrail.Instance;
         _handlers = handlers.ToDictionary(h => h.Definition.Category);
         _repo = repo;
         _clock = clock;
@@ -156,6 +159,12 @@ public class BulkImportService : IBulkImportService
             history.Message += $" {emailFailures.Count} credential email(s) could not be delivered; reissue those passwords from the guardian's page.";
             await _repo.UpdateHistoryAsync(history, ct);
         }
+        // The import's own history row keeps the per-row detail; the trail records that it happened and by whom.
+        await _audit.RecordNowAsync(new AuditEvent("ImportCommitted", "Import", history.DataImportId,
+            $"Bulk import of {request.Category}: {history.InsertedRows} inserted, {history.FailedRows} skipped")
+        {
+            Details = new { category = request.Category, source = request.Source, history.TotalRows, history.InsertedRows, history.FailedRows, credentialEmailFailures = emailFailures.Count }
+        }, ct);
 
         return Result<ImportSummaryDto>.Success(new ImportSummaryDto(
             history.DataImportId, history.Category, history.Status, history.TotalRows, history.InsertedRows, history.FailedRows,

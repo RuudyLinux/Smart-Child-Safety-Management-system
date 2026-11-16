@@ -3,7 +3,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { test, expect } from '../support/fixtures';
 
 const PAGES = ['/Dashboard', '/Students', '/Students/Create', '/Guardians', '/Guardians/Create', '/Attendance', '/Journey',
-  '/Verification', '/Verification/History', '/Transportation', '/Rfid', '/Reports', '/Profile', '/Settings'];
+  '/Verification', '/Verification/History', '/Transportation', '/Rfid', '/Reports', '/Profile', '/Settings', '/Audit', '/Enrollment'];
 
 test.describe('Accessibility', () => {
   for (const url of PAGES) {

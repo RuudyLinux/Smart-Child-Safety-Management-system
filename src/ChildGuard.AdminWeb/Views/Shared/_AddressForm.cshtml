@@ -1,0 +1,66 @@
+@model AddressFormModel
+@{
+    var a = Model.Address;
+}
+<section class="cg-card" id="address">
+    <div class="cg-card__head">
+        <div>
+            <h2 class="cg-card__title">@Model.Title</h2>
+            <div class="cg-card__sub">@Model.Hint</div>
+        </div>
+    </div>
+    <div class="cg-card__body">
+        <form action="@Model.Action" method="post" class="cg-form" data-cg-busy data-address-form>
+            @Html.AntiForgeryToken()
+            <div class="cg-form-row">
+                <div class="cg-field">
+                    <label class="cg-label" for="addrLine1">Address line 1</label>
+                    <input class="cg-input" id="addrLine1" name="Line1" value="@a?.Line1" maxlength="200" placeholder="House / flat number, building, street" />
+                </div>
+                <div class="cg-field">
+                    <label class="cg-label" for="addrLine2">Address line 2 <span class="cg-muted">(optional)</span></label>
+                    <input class="cg-input" id="addrLine2" name="Line2" value="@a?.Line2" maxlength="200" />
+                </div>
+            </div>
+            <div class="cg-form-row">
+                <div class="cg-field">
+                    <label class="cg-label" for="addrLocality">Area / locality</label>
+                    <input class="cg-input" id="addrLocality" name="Locality" value="@a?.Locality" maxlength="100" />
+                </div>
+                <div class="cg-field">
+                    <label class="cg-label" for="addrLandmark">Landmark <span class="cg-muted">(optional)</span></label>
+                    <input class="cg-input" id="addrLandmark" name="Landmark" value="@a?.Landmark" maxlength="100" />
+                </div>
+            </div>
+            <div class="cg-form-row">
+                <div class="cg-field">
+                    <label class="cg-label" for="addrCity">City</label>
+                    <input class="cg-input" id="addrCity" name="City" value="@a?.City" maxlength="100" />
+                </div>
+                <div class="cg-field">
+                    <label class="cg-label" for="addrDistrict">District</label>
+                    <input class="cg-input" id="addrDistrict" name="District" value="@a?.District" maxlength="100" />
+                </div>
+                <div class="cg-field">
+                    <label class="cg-label" for="addrState">State</label>
+                    <input class="cg-input" id="addrState" name="State" value="@a?.State" maxlength="100" />
+                </div>
+            </div>
+            <div class="cg-form-row">
+                <div class="cg-field">
+                    <label class="cg-label" for="addrPostal">PIN / postal code</label>
+                    <input class="cg-input cg-mono" id="addrPostal" name="PostalCode" value="@a?.PostalCode" maxlength="20"
+                           pattern="[A-Za-z0-9 \-]*" title="Letters, digits, spaces or '-' only" inputmode="numeric" />
+                </div>
+                <div class="cg-field">
+                    <label class="cg-label" for="addrCountry">Country</label>
+                    <input class="cg-input" id="addrCountry" name="Country" value="@(a is null ? "India" : a.Country)" maxlength="100" />
+                </div>
+            </div>
+            <p class="cg-hint">Leave every field empty (including country) to remove the address. Changes are recorded in the audit log.</p>
+            <div class="cg-btn-group">
+                <button class="cg-btn cg-btn--primary" type="submit"><span class="cg-btn__label">Save address</span></button>
+            </div>
+        </form>
+    </div>
+</section>

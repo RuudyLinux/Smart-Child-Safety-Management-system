@@ -10,7 +10,7 @@ const VIEWPORTS = [
   { name: 'small-mobile', width: 320, height: 568 },
 ];
 const PAGES = ['/Dashboard', '/Students', '/Students/Create', '/Guardians', '/Attendance', '/Journey', '/Verification',
-  '/Verification/History', '/Transportation', '/Rfid', '/Reports', '/Profile', '/Settings'];
+  '/Verification/History', '/Transportation', '/Rfid', '/Reports', '/Profile', '/Settings', '/Audit', '/Enrollment'];
 
 function layoutProblems() {
   const vw = document.documentElement.clientWidth;

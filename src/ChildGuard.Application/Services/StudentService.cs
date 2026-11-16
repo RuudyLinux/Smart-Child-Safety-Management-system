@@ -17,6 +17,7 @@ public class StudentService : IStudentService
     private readonly IPhotoRepository _photos;
     private readonly ISafetyReadService _safety;
     private readonly SchoolClock _clock;
+    private readonly IAuditTrail _audit;
 
     public StudentService(
         IStudentRepository students,
@@ -24,9 +25,11 @@ public class StudentService : IStudentService
         IJourneyRepository journey,
         IPhotoRepository photos,
         ISafetyReadService safety,
-        SchoolClock clock)
+        SchoolClock clock,
+        IAuditTrail? audit = null)
     {
         _clock = clock;
+        _audit = audit ?? NullAuditTrail.Instance;
         _students = students;
         _guardians = guardians;
         _journey = journey;
@@ -74,7 +77,12 @@ public class StudentService : IStudentService
             Grade = request.Grade
         };
         await _students.AddAsync(student, ct);
-        await _students.SaveChangesAsync(ct);
+        await _audit.SaveWithAuditAsync(_students.SaveChangesAsync,
+            () => new AuditEvent("StudentCreated", "Student", student.StudentId, $"Student {student.FullName} created")
+            {
+                StudentId = student.StudentId,
+                Details = new { student.FullName, dateOfBirth = DateOnly.FromDateTime(student.DateOfBirth), student.Grade }
+            }, ct);
         return Result<StudentDetailDto>.Success(await ToDetailAsync(student, ct));
     }
 
@@ -83,10 +91,17 @@ public class StudentService : IStudentService
         var student = await _students.GetByIdAsync(id, ct);
         if (student is null) return Result<StudentDetailDto>.Failure("Student not found.");
 
+        var changes = AuditDetails.Changes(
+            ("fullName", student.FullName, request.FullName),
+            ("dateOfBirth", DateOnly.FromDateTime(student.DateOfBirth), DateOnly.FromDateTime(request.DateOfBirth)),
+            ("grade", student.Grade, request.Grade));
         student.FullName = request.FullName;
         student.DateOfBirth = request.DateOfBirth;
         student.Grade = request.Grade;
         student.UpdatedAt = DateTime.UtcNow;
+        if (changes.Count > 0)
+            _audit.Record(new AuditEvent("StudentUpdated", "Student", id, $"Student {student.FullName} updated: {string.Join(", ", changes.Keys)}")
+            { StudentId = id, Details = changes });
         await _students.SaveChangesAsync(ct);
 
         var withGuardians = await _students.GetWithGuardiansAsync(id, ct);
@@ -98,10 +113,35 @@ public class StudentService : IStudentService
         var student = await _students.GetByIdAsync(id, ct);
         if (student is null) return Result.Failure("Student not found.");
 
+        if (student.Status != request.Status)
+            _audit.Record(new AuditEvent(request.Status == RecordStatus.Active ? "StudentActivated" : "StudentDeactivated", "Student", id,
+                $"Student {student.FullName} {(request.Status == RecordStatus.Active ? "activated" : "deactivated")}")
+            { StudentId = id, Details = new { from = student.Status, to = request.Status } });
         student.Status = request.Status;
         student.UpdatedAt = DateTime.UtcNow;
         await _students.SaveChangesAsync(ct);
         return Result.Success();
+    }
+
+    public async Task<Result<StudentDetailDto>> UpdateAddressAsync(int id, AddressDto address, CancellationToken ct = default)
+    {
+        var student = await _students.GetByIdAsync(id, ct);
+        if (student is null) return Result<StudentDetailDto>.Failure("Student not found.");
+
+        var updated = address.ToEntity();
+        var changed = AuditDetails.ChangedAddressParts(student.Address, updated);
+        if (changed.Count > 0)
+        {
+            student.Address = updated;
+            student.UpdatedAt = DateTime.UtcNow;
+            _audit.Record(new AuditEvent("StudentAddressUpdated", "Student", id,
+                updated is null ? $"Address of {student.FullName} cleared" : $"Address of {student.FullName} updated")
+            { StudentId = id, Details = new { changedParts = changed } });
+            await _students.SaveChangesAsync(ct);
+        }
+
+        var withGuardians = await _students.GetWithGuardiansAsync(id, ct);
+        return Result<StudentDetailDto>.Success(await ToDetailAsync(withGuardians!, ct));
     }
 
     public async Task<Result> AssignGuardianAsync(int studentId, AssignGuardianRequest request, CancellationToken ct = default)
@@ -123,6 +163,11 @@ public class StudentService : IStudentService
             Relationship = request.Relationship,
             IsAuthorizedForPickup = request.IsAuthorizedForPickup
         }, ct);
+        _audit.Record(new AuditEvent("GuardianLinked", "Student", studentId, $"{guardian.FullName} linked to {student.FullName}")
+        {
+            StudentId = studentId, GuardianId = guardian.GuardianId,
+            Details = new { relationship = request.Relationship, isAuthorizedForPickup = request.IsAuthorizedForPickup }
+        });
         await _students.SaveChangesAsync(ct);
         return Result.Success();
     }
@@ -132,8 +177,15 @@ public class StudentService : IStudentService
         var link = await _students.GetStudentGuardianAsync(studentId, guardianId, ct);
         if (link is null) return Result.Failure("Guardian is not linked to this student.");
 
+        var changes = AuditDetails.Changes(
+            ("relationship", link.Relationship, request.Relationship),
+            ("isAuthorizedForPickup", link.IsAuthorizedForPickup, request.IsAuthorizedForPickup));
         link.Relationship = request.Relationship;
         link.IsAuthorizedForPickup = request.IsAuthorizedForPickup;
+        if (changes.Count > 0)
+            _audit.Record(new AuditEvent("GuardianLinkUpdated", "Student", studentId,
+                $"Link between student {studentId} and guardian {guardianId} updated: {string.Join(", ", changes.Keys)}")
+            { StudentId = studentId, GuardianId = guardianId, Details = changes });
         await _students.SaveChangesAsync(ct);
         return Result.Success();
     }
@@ -144,6 +196,12 @@ public class StudentService : IStudentService
         if (link is null) return Result.Failure("Guardian is not linked to this student.");
 
         _students.RemoveStudentGuardian(link);
+        _audit.Record(new AuditEvent("GuardianUnlinked", "Student", studentId,
+            $"Guardian {guardianId} unlinked from student {studentId}; both records kept")
+        {
+            StudentId = studentId, GuardianId = guardianId,
+            Details = new { relationship = link.Relationship, wasAuthorizedForPickup = link.IsAuthorizedForPickup }
+        });
         await _students.SaveChangesAsync(ct);
         return Result.Success();
     }

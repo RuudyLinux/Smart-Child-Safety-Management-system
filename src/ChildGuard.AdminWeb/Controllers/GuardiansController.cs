@@ -1,3 +1,4 @@
+using ChildGuard.AdminWeb.Models.ViewModels;
 using ChildGuard.AdminWeb.Services;
 using ChildGuard.Application.DTOs;
 using ChildGuard.Domain.Enums;
@@ -62,8 +63,24 @@ public class GuardiansController : BaseAdminController
         SetPage($"Edit {result.Value!.FullName}", "People");
         ViewData["GuardianId"] = id;
         ViewData["HasPhoto"] = result.Value.HasPhoto;
+        ViewData["AddressForm"] = new AddressFormModel($"/Guardians/EditAddress/{id}", id, result.Value.Address,
+            "Residential address", "Shown on the guardian's profile. Optional.");
         var g = result.Value;
         return View(new AdminUpdateGuardianRequest(g.FullName, g.Email, g.Phone ?? string.Empty, g.Status));
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> EditAddress(int id, AddressDto address, CancellationToken ct)
+    {
+        var result = await Api.PutAsync<object?>($"/api/guardians/{id}/address", address, ct);
+        if (!result.Succeeded)
+        {
+            TempData["Error"] = result.Error;
+            return RedirectToAction(nameof(Edit), null, new { id }, "address");
+        }
+        TempData["Success"] = "Address saved.";
+        return RedirectToAction(nameof(Details), new { id });
     }
 
     [HttpPost]

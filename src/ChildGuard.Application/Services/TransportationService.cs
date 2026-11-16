@@ -27,8 +27,11 @@ public class TransportationService : ITransportationService
     private readonly SchoolClock _clock;
     private readonly TransportOptions _options;
 
-    public TransportationService(ITransportationRepository repo, SchoolClock clock, TransportOptions options)
+    private readonly IAuditTrail _audit;
+
+    public TransportationService(ITransportationRepository repo, SchoolClock clock, TransportOptions options, IAuditTrail? audit = null)
     {
+        _audit = audit ?? NullAuditTrail.Instance;
         _repo = repo;
         _clock = clock;
         _options = options;
@@ -310,6 +313,9 @@ public class TransportationService : ITransportationService
             OccurredAt = _clock.UtcNow, AdminId = adminId, EntityType = entityType, EntityId = entityId, Action = action,
             Detail = detail is { Length: > 1000 } ? detail[..1000] : detail
         }, ct);
+        // Mirrored into the general audit trail, saved together with the transport entry.
+        _audit.Record(new AuditEvent(entityType + action, entityType, entityId, $"{entityType} {entityId}: {action}")
+        { Details = detail is null ? null : new { detail } });
         await _repo.SaveChangesAsync(ct);
     }
 

@@ -31,6 +31,7 @@ public class AuthService : IAuthService
     private readonly IOtpSender _otpSender;
     private readonly OtpOptions _otpOptions;
     private readonly TimeProvider _clock;
+    private readonly IAuditTrail _audit;
 
     public AuthService(
         IAdminRepository adminRepo,
@@ -40,8 +41,10 @@ public class AuthService : IAuthService
         IPasswordResetNotifier resetNotifier,
         IOtpSender otpSender,
         OtpOptions otpOptions,
-        TimeProvider clock)
+        TimeProvider clock,
+        IAuditTrail? audit = null)
     {
+        _audit = audit ?? NullAuditTrail.Instance;
         _adminRepo = adminRepo;
         _guardianRepo = guardianRepo;
         _hasher = hasher;
@@ -59,8 +62,16 @@ public class AuthService : IAuthService
     {
         var admin = await _adminRepo.GetByEmailAsync(request.Email, ct);
         if (admin is null || admin.Status != RecordStatus.Active || !_hasher.Verify(admin.PasswordHash, request.Password))
+        {
+            // Masked email only; nothing the caller typed as a password is ever recorded.
+            await _audit.RecordNowAsync(new AuditEvent("AdminSignInFailed", "Admin", admin?.AdminId,
+                $"Admin sign-in refused for {EmailMasking.Mask(request.Email)}")
+            { Details = new { email = EmailMasking.Mask(request.Email), accountExists = admin is not null } }, ct);
             return Result<LoginResponse>.Failure("Invalid email or password.");
+        }
 
+        await _audit.RecordNowAsync(new AuditEvent("AdminSignedIn", "Admin", admin.AdminId, $"{admin.FullName} signed in")
+        { ActorAdminId = admin.AdminId, ActorName = admin.FullName }, ct);
         var (token, expires) = _jwt.GenerateToken(admin.AdminId, admin.Email, admin.FullName, AppRole.Admin);
         return Result<LoginResponse>.Success(new LoginResponse(token, expires, nameof(AppRole.Admin), admin.AdminId, admin.FullName, admin.Email));
     }
@@ -387,6 +398,8 @@ public class AuthService : IAuthService
             admin.PasswordHash = _hasher.Hash(request.NewPassword);
             admin.PasswordResetToken = null;
             admin.PasswordResetTokenExpiresAt = null;
+            _audit.Record(new AuditEvent("AdminPasswordReset", "Admin", admin.AdminId, $"{admin.FullName} reset their password with an emailed link")
+            { ActorAdminId = admin.AdminId, ActorName = admin.FullName });
             await _adminRepo.SaveChangesAsync(ct);
         }
         else
@@ -402,6 +415,8 @@ public class AuthService : IAuthService
             // A self-chosen password also clears the forced first-login reset.
             guardian.PasswordResetRequired = false;
             await _guardianRepo.RevokeTrustedDevicesAsync(guardian.GuardianId, UtcNow, null, ct);
+            _audit.Record(new AuditEvent("GuardianPasswordResetByLink", "Guardian", guardian.GuardianId,
+                $"{guardian.FullName} reset their password with an emailed link") { GuardianId = guardian.GuardianId });
             await _guardianRepo.SaveChangesAsync(ct);
         }
 
@@ -417,6 +432,7 @@ public class AuthService : IAuthService
                 return Result.Failure("Current password is incorrect.");
             admin.PasswordHash = _hasher.Hash(request.NewPassword);
             admin.UpdatedAt = UtcNow;
+            _audit.Record(new AuditEvent("AdminPasswordChanged", "Admin", admin.AdminId, $"{admin.FullName} changed their password"));
             await _adminRepo.SaveChangesAsync(ct);
         }
         else
@@ -429,6 +445,8 @@ public class AuthService : IAuthService
             guardian.UpdatedAt = UtcNow;
             // A new password ends every phone's OTP exemption: they must prove the email again.
             await _guardianRepo.RevokeTrustedDevicesAsync(guardian.GuardianId, UtcNow, null, ct);
+            _audit.Record(new AuditEvent("GuardianPasswordChanged", "Guardian", guardian.GuardianId,
+                $"{guardian.FullName} changed their password") { GuardianId = guardian.GuardianId });
             await _guardianRepo.SaveChangesAsync(ct);
         }
         return Result.Success();

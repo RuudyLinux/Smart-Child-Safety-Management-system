@@ -10,6 +10,7 @@ using ChildGuard.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace ChildGuard.Infrastructure;
 
@@ -77,6 +78,10 @@ public static class DependencyInjection
         services.AddScoped<ITransportationRepository, TransportationRepository>();
         services.AddScoped<ITransportationService, TransportationService>();
         services.AddSingleton(config.GetSection("Transport").Get<TransportOptions>() ?? new TransportOptions());
+        // The API registers the request's actor over this default.
+        services.TryAddScoped<ICurrentActor, SystemActor>();
+        services.AddScoped<IAuditTrail, EfAuditTrail>();
+        services.AddScoped<IAuditQueryService, AuditQueryService>();
         services.AddScoped<IEnrollmentRepository, EnrollmentRepository>();
         services.AddScoped<IEnrollmentService, EnrollmentService>();
         services.AddScoped<IAttendanceJourneyService, AttendanceJourneyService>();

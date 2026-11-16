@@ -16,6 +16,7 @@ public class RfidService : IRfidService
     private readonly JourneyValidationService _validation;
     private readonly SchoolClock _clock;
     private readonly RfidOptions _rfidOptions;
+    private readonly IAuditTrail _audit;
 
     public RfidService(
         IRfidRepository rfid,
@@ -25,8 +26,10 @@ public class RfidService : IRfidService
         IPushNotificationSender pushSender,
         JourneyValidationService validation,
         SchoolClock clock,
-        RfidOptions rfidOptions)
+        RfidOptions rfidOptions,
+        IAuditTrail? audit = null)
     {
+        _audit = audit ?? NullAuditTrail.Instance;
         _clock = clock;
         _rfidOptions = rfidOptions;
         _rfid = rfid;
@@ -75,7 +78,10 @@ public class RfidService : IRfidService
         {
             RfidCard = card, StudentId = request.StudentId, AssignedAt = card.AssignedAt, RecordedAt = card.AssignedAt.Value
         }, ct);
-        await _rfid.SaveChangesAsync(ct);
+        await _audit.SaveWithAuditAsync(_rfid.SaveChangesAsync,
+            () => new AuditEvent("RfidCardAssigned", "RfidCard", card.RfidCardId,
+                $"Card {RfidMasking.Mask(card.CardUid)} assigned to {student.FullName}")
+            { StudentId = student.StudentId, Details = new { card = RfidMasking.Mask(card.CardUid), newCard = true } }, ct);
         return Result.Success();
     }
 
@@ -102,6 +108,10 @@ public class RfidService : IRfidService
         var card = await _rfid.GetByIdAsync(cardId, ct);
         if (card is null) return Result.Failure("RFID card not found.");
 
+        if (card.Status != request.Status)
+            _audit.Record(new AuditEvent("RfidCardStatusChanged", "RfidCard", cardId,
+                $"Card {RfidMasking.Mask(card.CardUid)} marked {request.Status}")
+            { StudentId = card.StudentId, Details = new { card = RfidMasking.Mask(card.CardUid), from = card.Status, to = request.Status } });
         card.Status = request.Status;
         await _rfid.SaveChangesAsync(ct);
         return Result.Success();
@@ -123,7 +133,8 @@ public class RfidService : IRfidService
         // pickup desk at once, and a key is issued from Settings for standalone readers.
         var device = new RfidDevice { DeviceLabel = label };
         await _rfid.AddDeviceAsync(device, ct);
-        await _rfid.SaveChangesAsync(ct);
+        await _audit.SaveWithAuditAsync(_rfid.SaveChangesAsync,
+            () => new AuditEvent("RfidDeviceCreated", "RfidDevice", device.RfidDeviceId, $"Scanner {label} added"), ct);
         return Result<RfidDeviceDto>.Success(new RfidDeviceDto(device.RfidDeviceId, device.DeviceLabel, device.ConnectionStatus, device.LastSeenAt));
     }
 
@@ -136,6 +147,9 @@ public class RfidService : IRfidService
         if (await LabelTakenAsync(label, deviceId, ct))
             return Result.Failure("A scanner with this label already exists.");
 
+        if (device.DeviceLabel != label)
+            _audit.Record(new AuditEvent("RfidDeviceRenamed", "RfidDevice", deviceId, $"Scanner {device.DeviceLabel} renamed to {label}")
+            { Details = new { from = device.DeviceLabel, to = label } });
         device.DeviceLabel = label;
         await _rfid.SaveChangesAsync(ct);
         return Result.Success();
@@ -165,8 +179,12 @@ public class RfidService : IRfidService
 
         // Issuing again rotates: the previous key stops working on save.
         var key = DeviceKeys.Generate();
+        var rotated = device.ApiKeyHash is not null;
         device.ApiKeyHash = DeviceKeys.Hash(key);
         device.ApiKeyIssuedAt = _clock.UtcNow;
+        // The action only: neither the key nor its hash is recorded.
+        _audit.Record(new AuditEvent(rotated ? "RfidDeviceKeyRotated" : "RfidDeviceKeyIssued", "RfidDevice", deviceId,
+            $"Scanner {device.DeviceLabel}: credential {(rotated ? "rotated" : "issued")}"));
         await _rfid.SaveChangesAsync(ct);
         return Result<DeviceCredentialDto>.Success(
             new DeviceCredentialDto(device.RfidDeviceId, device.DeviceLabel, key, device.ApiKeyIssuedAt.Value));
@@ -176,6 +194,8 @@ public class RfidService : IRfidService
     {
         var device = await _rfid.GetDeviceByIdAsync(deviceId, ct);
         if (device is null) return Result.Failure("Scanner device not recognized.");
+        if (device.ApiKeyHash is not null)
+            _audit.Record(new AuditEvent("RfidDeviceKeyRevoked", "RfidDevice", deviceId, $"Scanner {device.DeviceLabel}: credential revoked"));
         device.ApiKeyHash = null;
         device.ApiKeyIssuedAt = null;
         await _rfid.SaveChangesAsync(ct);

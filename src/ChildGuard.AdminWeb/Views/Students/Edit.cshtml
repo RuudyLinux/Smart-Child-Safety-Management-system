@@ -70,3 +70,8 @@
         "Student photo",
         "Helps staff match a child to their record at the pickup desk."))
 </div>
+
+@if (ViewData["AddressForm"] is AddressFormModel addressForm)
+{
+    @await Html.PartialAsync("_AddressForm", addressForm)
+}

@@ -23,5 +23,7 @@ public interface IGuardianService
     Task<Result> UpdateStatusAsync(int id, UpdateGuardianStatusRequest request, CancellationToken ct = default);
     Task<Result> UpdateProfileAsync(int id, UpdateProfileRequest request, CancellationToken ct = default);
     Task<Result> RegisterDeviceTokenAsync(int id, string fcmToken, CancellationToken ct = default);
+    /// <summary>Replaces the residential address; an address with every part blank clears it.</summary>
+    Task<Result> UpdateAddressAsync(int id, AddressDto address, CancellationToken ct = default);
     Task<Result> AdminUpdateCredentialsAsync(int id, AdminUpdateGuardianCredentialsRequest request, CancellationToken ct = default);
 }

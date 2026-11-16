@@ -52,6 +52,7 @@ public class VerificationService : IVerificationService
     private readonly VerificationOptions _options;
     private readonly IEmbeddingProtector _protector;
     private readonly IGuardianFaceReferenceService _references;
+    private readonly IAuditTrail _trail;
 
     public VerificationService(
         IVerificationRepository verifications,
@@ -65,8 +66,10 @@ public class VerificationService : IVerificationService
         SchoolClock clock,
         VerificationOptions options,
         IEmbeddingProtector protector,
-        IGuardianFaceReferenceService references)
+        IGuardianFaceReferenceService references,
+        IAuditTrail? trail = null)
     {
+        _trail = trail ?? NullAuditTrail.Instance;
         _protector = protector;
         _references = references;
         _verifications = verifications;
@@ -98,6 +101,9 @@ public class VerificationService : IVerificationService
             IsActive = true,
             RegisteredAt = _clock.UtcNow
         }, ct);
+        // The action only: neither the image nor the embedding is recorded.
+        _trail.Record(new AuditEvent("GuardianFaceRegistered", "Guardian", guardianId, $"Face registered for {guardian.FullName}")
+        { GuardianId = guardianId, Details = new { model = embeddingResult.Value.Model } });
         await _verifications.SaveChangesAsync(ct);
         return Result.Success();
     }
@@ -244,6 +250,9 @@ public class VerificationService : IVerificationService
                 Time = time
             }, lockCt);
 
+            _trail.Record(new AuditEvent("PickupApproved", "Pickup", verification.Id,
+                $"Pickup of student {verification.StudentId} by guardian {verification.GuardianId} approved")
+            { StudentId = verification.StudentId, GuardianId = verification.GuardianId });
             await _journey.SaveChangesAsync(lockCt);
             return (created, (string?)null);
         }, ct);
@@ -290,6 +299,9 @@ public class VerificationService : IVerificationService
         verification.ApprovedByAdminId = actingAdminId;
         verification.Notes = request.Reason;
         verification.Version++;
+        _trail.Record(new AuditEvent("PickupRejected", "Pickup", verification.Id,
+            $"Pickup of student {verification.StudentId} by guardian {verification.GuardianId} rejected")
+        { StudentId = verification.StudentId, GuardianId = verification.GuardianId, Reason = request.Reason });
         try
         {
             await _verifications.SaveChangesAsync(ct);

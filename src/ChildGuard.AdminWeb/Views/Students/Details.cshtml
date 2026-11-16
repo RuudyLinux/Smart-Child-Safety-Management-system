@@ -237,7 +237,12 @@
                         <dt>Gender</dt>
                         <dd>@(Model.Gender?.ToString() ?? "Not specified")</dd>
                         <dt>Address</dt>
-                        <dd>@await Html.PartialAsync("_AddressDisplay", Model.Address)</dd>
+                        <dd>
+                            @await Html.PartialAsync("_AddressDisplay", Model.Address)
+                            <div><a class="cg-text-sm" href="/Students/Edit/@Model.StudentId#address">Edit address</a></div>
+                        </dd>
+                        <dt>Audit</dt>
+                        <dd><a class="cg-text-sm" href="/Audit?studentId=@Model.StudentId">View audit history</a></dd>
                         <dt>Bus</dt>
                         <dd>@(Model.BusNumber ?? "Not assigned")</dd>
                         <dt>Route</dt>

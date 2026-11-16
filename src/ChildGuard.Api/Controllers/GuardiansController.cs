@@ -87,6 +87,15 @@ public class GuardiansController : ControllerBase
         return result.Succeeded ? Ok(new { message = "Guardian updated." }) : BadRequest(new { message = result.Error });
     }
 
+    /// <summary>Replaces the guardian's residential address. Every part blank clears it.</summary>
+    [HttpPut("{id:int}/address")]
+    public async Task<IActionResult> UpdateAddress(int id, AddressDto address, [FromServices] IValidator<AddressDto> validator, CancellationToken ct)
+    {
+        await validator.ValidateAndThrowAsync(address, ct);
+        var result = await _guardianService.UpdateAddressAsync(id, address, ct);
+        return result.Succeeded ? Ok(new { message = "Address updated." }) : NotFound(new { message = result.Error });
+    }
+
     [HttpPatch("{id:int}/status")]
     public async Task<IActionResult> UpdateStatus(int id, UpdateGuardianStatusRequest request, CancellationToken ct)
     {

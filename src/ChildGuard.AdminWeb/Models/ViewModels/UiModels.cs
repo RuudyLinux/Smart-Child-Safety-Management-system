@@ -3,6 +3,27 @@ using ChildGuard.Domain.Enums;
 
 namespace ChildGuard.AdminWeb.Models.ViewModels;
 
+/// <summary>Audit log filters, bound from the query string.</summary>
+public class AuditFilter
+{
+    public string? EntityType { get; set; }
+    public int? EntityId { get; set; }
+    public int? StudentId { get; set; }
+    public int? GuardianId { get; set; }
+    public string? ActorType { get; set; }
+    /// <summary>Not named Action: MVC binds the route's own action value to that name.</summary>
+    public string? AuditAction { get; set; }
+    public string? Search { get; set; }
+    public DateOnly? From { get; set; }
+    public DateOnly? To { get; set; }
+    public int Page { get; set; } = 1;
+}
+
+public record AuditPageModel(AuditFilter Filter, AuditPageDto Page);
+
+/// <summary>An address edit form: where it posts and the current value.</summary>
+public record AddressFormModel(string Action, int Id, AddressDto? Address, string Title, string Hint);
+
 /// <summary>What the enrollment wizard needs from the server: its idempotency key and the active transport options.</summary>
 public record EnrollmentPageModel(
     string IdempotencyKey,

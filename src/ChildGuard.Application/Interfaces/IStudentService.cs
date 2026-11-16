@@ -17,4 +17,7 @@ public interface IStudentService
 
     /// <summary>Removes the link between a student and a guardian, leaving both records intact.</summary>
     Task<Result> RemoveGuardianLinkAsync(int studentId, int guardianId, CancellationToken ct = default);
+
+    /// <summary>Replaces the residential address; an address with every part blank clears it.</summary>
+    Task<Result<StudentDetailDto>> UpdateAddressAsync(int id, AddressDto address, CancellationToken ct = default);
 }

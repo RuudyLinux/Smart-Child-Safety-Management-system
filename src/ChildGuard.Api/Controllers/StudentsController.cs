@@ -66,6 +66,15 @@ public class StudentsController : ControllerBase
         return result.Succeeded ? Ok(result.Value) : NotFound(new { message = result.Error });
     }
 
+    /// <summary>Replaces the student's residential address. Every part blank clears it.</summary>
+    [HttpPut("{id:int}/address")]
+    public async Task<IActionResult> UpdateAddress(int id, AddressDto address, [FromServices] IValidator<AddressDto> validator, CancellationToken ct)
+    {
+        await validator.ValidateAndThrowAsync(address, ct);
+        var result = await _studentService.UpdateAddressAsync(id, address, ct);
+        return result.Succeeded ? Ok(result.Value) : NotFound(new { message = result.Error });
+    }
+
     [HttpPatch("{id:int}/status")]
     public async Task<IActionResult> UpdateStatus(int id, UpdateStudentStatusRequest request, CancellationToken ct)
     {

@@ -3,47 +3,47 @@
 <div class="cg-form">
     <div class="cg-form-row">
         <div class="cg-field">
-            <label class="cg-label">Address line 1</label>
-            <input class="cg-input" data-a="line1" maxlength="200" placeholder="House / flat number, building, street" />
+            <label class="cg-label" for="@(Model)-line1">Address line 1</label>
+            <input class="cg-input" id="@(Model)-line1" data-a="line1" maxlength="200" placeholder="House / flat number, building, street" />
         </div>
         <div class="cg-field">
-            <label class="cg-label">Address line 2 <span class="cg-muted">(optional)</span></label>
-            <input class="cg-input" data-a="line2" maxlength="200" />
-        </div>
-    </div>
-    <div class="cg-form-row">
-        <div class="cg-field">
-            <label class="cg-label">Area / locality</label>
-            <input class="cg-input" data-a="locality" maxlength="100" />
-        </div>
-        <div class="cg-field">
-            <label class="cg-label">Landmark <span class="cg-muted">(optional)</span></label>
-            <input class="cg-input" data-a="landmark" maxlength="100" />
+            <label class="cg-label" for="@(Model)-line2">Address line 2 <span class="cg-muted">(optional)</span></label>
+            <input class="cg-input" id="@(Model)-line2" data-a="line2" maxlength="200" />
         </div>
     </div>
     <div class="cg-form-row">
         <div class="cg-field">
-            <label class="cg-label">City</label>
-            <input class="cg-input" data-a="city" maxlength="100" />
+            <label class="cg-label" for="@(Model)-locality">Area / locality</label>
+            <input class="cg-input" id="@(Model)-locality" data-a="locality" maxlength="100" />
         </div>
         <div class="cg-field">
-            <label class="cg-label">District</label>
-            <input class="cg-input" data-a="district" maxlength="100" />
-        </div>
-        <div class="cg-field">
-            <label class="cg-label">State</label>
-            <input class="cg-input" data-a="state" maxlength="100" />
+            <label class="cg-label" for="@(Model)-landmark">Landmark <span class="cg-muted">(optional)</span></label>
+            <input class="cg-input" id="@(Model)-landmark" data-a="landmark" maxlength="100" />
         </div>
     </div>
     <div class="cg-form-row">
         <div class="cg-field">
-            <label class="cg-label">PIN / postal code</label>
-            <input class="cg-input cg-mono" data-a="postalCode" maxlength="20" inputmode="numeric" />
+            <label class="cg-label" for="@(Model)-city">City</label>
+            <input class="cg-input" id="@(Model)-city" data-a="city" maxlength="100" />
+        </div>
+        <div class="cg-field">
+            <label class="cg-label" for="@(Model)-district">District</label>
+            <input class="cg-input" id="@(Model)-district" data-a="district" maxlength="100" />
+        </div>
+        <div class="cg-field">
+            <label class="cg-label" for="@(Model)-state">State</label>
+            <input class="cg-input" id="@(Model)-state" data-a="state" maxlength="100" />
+        </div>
+    </div>
+    <div class="cg-form-row">
+        <div class="cg-field">
+            <label class="cg-label" for="@(Model)-postalCode">PIN / postal code</label>
+            <input class="cg-input cg-mono" id="@(Model)-postalCode" data-a="postalCode" maxlength="20" inputmode="numeric" />
             <span class="cg-error-text" data-a-error="postalCode"></span>
         </div>
         <div class="cg-field">
-            <label class="cg-label">Country</label>
-            <input class="cg-input" data-a="country" maxlength="100" value="India" />
+            <label class="cg-label" for="@(Model)-country">Country</label>
+            <input class="cg-input" id="@(Model)-country" data-a="country" maxlength="100" value="India" />
         </div>
     </div>
 </div>

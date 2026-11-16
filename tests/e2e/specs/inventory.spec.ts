@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import { test, expect } from '../support/fixtures';
 
 const PAGES = ['/Dashboard', '/Students', '/Students/Create', '/Guardians', '/Guardians/Create', '/Attendance', '/Journey',
-  '/Verification', '/Verification/History', '/Transportation', '/Rfid', '/Reports', '/Profile', '/Settings'];
+  '/Verification', '/Verification/History', '/Transportation', '/Rfid', '/Reports', '/Profile', '/Settings', '/Audit', '/Enrollment'];
 
 test('inventory of interactive elements on every page', async ({ page, data }) => {
   // Give detail/edit pages something to show.

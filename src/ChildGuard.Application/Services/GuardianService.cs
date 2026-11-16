@@ -17,6 +17,7 @@ public class GuardianService : IGuardianService
     private readonly IPhotoRepository _photos;
     private readonly ISafetyReadService _safety;
     private readonly IVerificationRepository _verifications;
+    private readonly IAuditTrail _audit;
 
     public GuardianService(
         IGuardianRepository guardians,
@@ -24,8 +25,10 @@ public class GuardianService : IGuardianService
         IEmailSender email,
         IPhotoRepository photos,
         ISafetyReadService safety,
-        IVerificationRepository verifications)
+        IVerificationRepository verifications,
+        IAuditTrail? audit = null)
     {
+        _audit = audit ?? NullAuditTrail.Instance;
         _guardians = guardians;
         _hasher = hasher;
         _email = email;
@@ -59,12 +62,20 @@ public class GuardianService : IGuardianService
         };
 
         await _guardians.AddAsync(guardian, ct);
-        await _guardians.SaveChangesAsync(ct);
+        await _audit.SaveWithAuditAsync(_guardians.SaveChangesAsync,
+            () => new AuditEvent("GuardianCreated", "Guardian", guardian.GuardianId, $"Guardian {guardian.FullName} created")
+            {
+                GuardianId = guardian.GuardianId,
+                Details = new { guardian.FullName, guardian.Email, contactNumber = guardian.Phone }
+            }, ct);
 
         // Sent to the Guardian's own registered address, never the admin's.
         var message = GuardianEmails.BuildCredentialEmail(
             guardian.FullName, guardian.Email, contactNumber, initialPassword);
         var delivery = await _email.SendAsync(message, ct);
+        if (!delivery.Succeeded)
+            await _audit.RecordNowAsync(new AuditEvent("CredentialEmailFailed", "Guardian", guardian.GuardianId,
+                $"Sign-in details could not be emailed to {guardian.FullName}") { GuardianId = guardian.GuardianId, Details = new { error = delivery.Error } }, ct);
 
         // A delivery failure does not undo the account, but it is reported to the
         // admin rather than swallowed.
@@ -163,11 +174,17 @@ public class GuardianService : IGuardianService
         if (contactNumber != g.Phone && await _guardians.ContactNumberExistsAsync(contactNumber, ct))
             return Result.Failure("Contact number already in use by another guardian.");
 
+        var changes = AuditDetails.Changes(
+            ("fullName", g.FullName, request.FullName), ("email", g.Email, request.Email),
+            ("contactNumber", g.Phone, contactNumber), ("status", g.Status, request.Status));
         g.FullName = request.FullName;
         g.Email = request.Email;
         g.Phone = contactNumber;
         g.Status = request.Status;
         g.UpdatedAt = DateTime.UtcNow;
+        if (changes.Count > 0)
+            _audit.Record(new AuditEvent("GuardianUpdated", "Guardian", id, $"Guardian {g.FullName} updated: {string.Join(", ", changes.Keys)}")
+            { GuardianId = id, Details = changes });
         await _guardians.SaveChangesAsync(ct);
         return Result.Success();
     }
@@ -176,8 +193,30 @@ public class GuardianService : IGuardianService
     {
         var g = await _guardians.GetByIdAsync(id, ct);
         if (g is null) return Result.Failure("Guardian not found.");
+        if (g.Status != request.Status)
+            _audit.Record(new AuditEvent(request.Status == RecordStatus.Active ? "GuardianActivated" : "GuardianDeactivated", "Guardian", id,
+                $"Guardian {g.FullName} {(request.Status == RecordStatus.Active ? "activated" : "deactivated")}")
+            { GuardianId = id, Details = new { from = g.Status, to = request.Status } });
         g.Status = request.Status;
         g.UpdatedAt = DateTime.UtcNow;
+        await _guardians.SaveChangesAsync(ct);
+        return Result.Success();
+    }
+
+    public async Task<Result> UpdateAddressAsync(int id, AddressDto address, CancellationToken ct = default)
+    {
+        var g = await _guardians.GetByIdAsync(id, ct);
+        if (g is null) return Result.Failure("Guardian not found.");
+
+        var updated = address.ToEntity();
+        var changed = AuditDetails.ChangedAddressParts(g.Address, updated);
+        if (changed.Count == 0) return Result.Success();
+
+        g.Address = updated;
+        g.UpdatedAt = DateTime.UtcNow;
+        _audit.Record(new AuditEvent("GuardianAddressUpdated", "Guardian", id,
+            updated is null ? $"Address of {g.FullName} cleared" : $"Address of {g.FullName} updated")
+        { GuardianId = id, Details = new { changedParts = changed } });
         await _guardians.SaveChangesAsync(ct);
         return Result.Success();
     }
@@ -195,9 +234,13 @@ public class GuardianService : IGuardianService
         if (contactNumber != g.Phone && await _guardians.ContactNumberExistsAsync(contactNumber, ct))
             return Result.Failure("Contact number already in use by another guardian.");
 
+        var changes = AuditDetails.Changes(("fullName", g.FullName, request.FullName), ("contactNumber", g.Phone, contactNumber));
         g.FullName = request.FullName;
         g.Phone = contactNumber;
         g.UpdatedAt = DateTime.UtcNow;
+        if (changes.Count > 0)
+            _audit.Record(new AuditEvent("GuardianProfileUpdated", "Guardian", id, $"{g.FullName} updated their profile: {string.Join(", ", changes.Keys)}")
+            { GuardianId = id, Details = changes });
         await _guardians.SaveChangesAsync(ct);
         return Result.Success();
     }
@@ -222,7 +265,11 @@ public class GuardianService : IGuardianService
         g.PasswordResetRequired = true;
         g.UpdatedAt = DateTime.UtcNow;
         // A password the admin chose resets trust: every phone must pass the OTP again.
-        await _guardians.RevokeTrustedDevicesAsync(g.GuardianId, DateTime.UtcNow, null, ct);
+        var revoked = await _guardians.RevokeTrustedDevicesAsync(g.GuardianId, DateTime.UtcNow, null, ct);
+        // The action only: the password itself is never recorded.
+        _audit.Record(new AuditEvent("GuardianPasswordReset", "Guardian", id,
+            $"Admin set a new password for {g.FullName}; change required at next sign-in")
+        { GuardianId = id, Details = new { trustedDevicesRevoked = revoked } });
         await _guardians.SaveChangesAsync(ct);
         return Result.Success();
     }

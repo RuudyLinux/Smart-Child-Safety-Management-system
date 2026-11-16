@@ -18,11 +18,13 @@ public class GuardianFaceReferenceService : IGuardianFaceReferenceService
     private readonly IFaceAuditLog _audit;
     private readonly BiometricsOptions _options;
     private readonly TimeProvider _time;
+    private readonly IAuditTrail _trail;
 
     public GuardianFaceReferenceService(
         IVerificationRepository verifications, IGuardianRepository guardians, IFaceServiceClient faces,
-        IEmbeddingProtector protector, IFaceAuditLog audit, BiometricsOptions options, TimeProvider time)
+        IEmbeddingProtector protector, IFaceAuditLog audit, BiometricsOptions options, TimeProvider time, IAuditTrail? trail = null)
     {
+        _trail = trail ?? NullAuditTrail.Instance;
         _verifications = verifications;
         _guardians = guardians;
         _faces = faces;
@@ -130,7 +132,11 @@ public class GuardianFaceReferenceService : IGuardianFaceReferenceService
             };
             await _verifications.AddReferenceAsync(added, ct);
         }
-        await _verifications.SaveChangesAsync(ct);
+        // The action only: neither the photo nor the embedding is recorded.
+        await _trail.SaveWithAuditAsync(_verifications.SaveChangesAsync,
+            () => new AuditEvent(added is null ? "GuardianFaceRegistered" : "GuardianFaceReferenceAdded", "Guardian", guardianId,
+                added is null ? $"Face registered for guardian {guardianId}" : $"Reference face {added.Id} added for guardian {guardianId}")
+            { GuardianId = guardianId, Details = new { referenceId = added?.Id, label } }, ct);
 
         var referenceId = added?.Id ?? PrimaryReferenceId;
         await Audit(guardianId, actor, "Added", added is null ? "primary" : $"reference {referenceId}");
@@ -148,6 +154,8 @@ public class GuardianFaceReferenceService : IGuardianFaceReferenceService
             return Result.Failure("Reference photo not found.");
 
         reference.IsActive = false;
+        _trail.Record(new AuditEvent("GuardianFaceReferenceRemoved", "Guardian", guardianId, $"Reference face {referenceId} removed for guardian {guardianId}")
+        { GuardianId = guardianId, Details = new { referenceId } });
         await _verifications.SaveChangesAsync(ct);
         await Audit(guardianId, actor, "Removed", $"reference {referenceId}");
         return Result.Success();

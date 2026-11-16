@@ -1,3 +1,4 @@
+using ChildGuard.AdminWeb.Models.ViewModels;
 using ChildGuard.AdminWeb.Services;
 using ChildGuard.Application.DTOs;
 using ChildGuard.Domain.Enums;
@@ -74,7 +75,23 @@ public class StudentsController : BaseAdminController
         SetPage($"Edit {result.Value!.FullName}", "People");
         ViewData["StudentId"] = id;
         ViewData["HasPhoto"] = result.Value.HasPhoto;
+        ViewData["AddressForm"] = new AddressFormModel($"/Students/EditAddress/{id}", id, result.Value.Address,
+            "Residential address", "Where the student lives. Shown on the profile and used for transport planning.");
         return View(new UpdateStudentRequest(result.Value.FullName, result.Value.DateOfBirth, result.Value.Grade));
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> EditAddress(int id, AddressDto address, CancellationToken ct)
+    {
+        var result = await Api.PutAsync<StudentDetailDto>($"/api/students/{id}/address", address, ct);
+        if (!result.Succeeded)
+        {
+            TempData["Error"] = result.Error;
+            return RedirectToAction(nameof(Edit), null, new { id }, "address");
+        }
+        TempData["Success"] = "Address saved.";
+        return RedirectToAction(nameof(Details), new { id });
     }
 
     [HttpPost]

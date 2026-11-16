@@ -13,7 +13,13 @@ public class PhotoService : IPhotoService
     private const string NoStudentPhoto = "This student has no profile photo.";
 
     private readonly IPhotoRepository _photos;
-    public PhotoService(IPhotoRepository photos) => _photos = photos;
+    private readonly IAuditTrail _audit;
+
+    public PhotoService(IPhotoRepository photos, IAuditTrail? audit = null)
+    {
+        _photos = photos;
+        _audit = audit ?? NullAuditTrail.Instance;
+    }
 
     public async Task<Result<PhotoContentDto>> GetGuardianPhotoAsync(int guardianId, CancellationToken ct = default)
     {
@@ -37,6 +43,7 @@ public class PhotoService : IPhotoService
         var photo = existing ?? new GuardianPhoto { GuardianId = guardianId };
         Apply(photo, request.Data, validation.Value!);
         if (existing is null) await _photos.AddAsync(photo, ct);
+        _audit.Record(new AuditEvent(existing is null ? "GuardianPhotoAdded" : "GuardianPhotoReplaced", "Guardian", guardianId, $"Profile photo of guardian {guardianId} {(existing is null ? "added" : "replaced")}") { GuardianId = guardianId, Details = new { photo.ContentType, photo.ByteSize } });
         await _photos.SaveChangesAsync(ct);
 
         return Result<PhotoStateDto>.Success(new PhotoStateDto(true, photo.UpdatedAt, photo.ByteSize, photo.ContentType));
@@ -47,6 +54,7 @@ public class PhotoService : IPhotoService
         var photo = await _photos.GetGuardianPhotoAsync(guardianId, ct);
         if (photo is null) return Result.Failure(NoGuardianPhoto);
         _photos.Remove(photo);
+        _audit.Record(new AuditEvent("GuardianPhotoRemoved", "Guardian", guardianId, $"Profile photo of guardian {guardianId} removed") { GuardianId = guardianId });
         await _photos.SaveChangesAsync(ct);
         return Result.Success();
     }
@@ -71,6 +79,7 @@ public class PhotoService : IPhotoService
         var photo = existing ?? new StudentPhoto { StudentId = studentId };
         Apply(photo, request.Data, validation.Value!);
         if (existing is null) await _photos.AddAsync(photo, ct);
+        _audit.Record(new AuditEvent(existing is null ? "StudentPhotoAdded" : "StudentPhotoReplaced", "Student", studentId, $"Profile photo of student {studentId} {(existing is null ? "added" : "replaced")}") { StudentId = studentId, Details = new { photo.ContentType, photo.ByteSize } });
         await _photos.SaveChangesAsync(ct);
 
         return Result<PhotoStateDto>.Success(new PhotoStateDto(true, photo.UpdatedAt, photo.ByteSize, photo.ContentType));
@@ -81,6 +90,7 @@ public class PhotoService : IPhotoService
         var photo = await _photos.GetStudentPhotoAsync(studentId, ct);
         if (photo is null) return Result.Failure(NoStudentPhoto);
         _photos.Remove(photo);
+        _audit.Record(new AuditEvent("StudentPhotoRemoved", "Student", studentId, $"Profile photo of student {studentId} removed") { StudentId = studentId });
         await _photos.SaveChangesAsync(ct);
         return Result.Success();
     }

@@ -148,9 +148,13 @@ public class ApiClient
         try
         {
             using var doc = JsonDocument.Parse(raw);
+            // Field-level validation messages say what to fix; prefer them over the generic "Validation failed.".
+            if (doc.RootElement.TryGetProperty("errors", out var errs) && errs.ValueKind == JsonValueKind.Array && errs.GetArrayLength() > 0)
+                return string.Join(" ", errs.EnumerateArray().Select(e =>
+                    e.ValueKind == JsonValueKind.Object && (e.TryGetProperty("ErrorMessage", out var em) || e.TryGetProperty("errorMessage", out em))
+                        ? em.GetString()
+                        : e.ToString()).Distinct());
             if (doc.RootElement.TryGetProperty("message", out var m)) return m.GetString();
-            if (doc.RootElement.TryGetProperty("errors", out var errs))
-                return string.Join(" ", errs.EnumerateArray().Select(e => e.TryGetProperty("errorMessage", out var em) ? em.GetString() : e.ToString()));
         }
         catch { /* not JSON — fall through */ }
         return null;
