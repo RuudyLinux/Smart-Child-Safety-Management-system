@@ -11,6 +11,11 @@ public class StudentConfiguration : IEntityTypeConfiguration<Student>
         b.HasKey(x => x.StudentId);
         b.Property(x => x.FullName).IsRequired().HasMaxLength(150);
         b.Property(x => x.Grade).HasMaxLength(50);
+        b.Property(x => x.Section).HasMaxLength(20);
+        b.Property(x => x.AdmissionNumber).HasMaxLength(50);
+        // Unique when present; NULLs (no number recorded) are allowed many times on both engines.
+        b.HasIndex(x => x.AdmissionNumber).IsUnique();
+        b.OwnsOne(x => x.Address, PostalAddressMapping.Map);
 
         b.HasOne(x => x.RfidCard)
             .WithOne(x => x.Student)

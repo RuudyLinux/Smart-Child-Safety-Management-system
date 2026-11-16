@@ -8,6 +8,8 @@ public interface IRfidService
     Task<List<RfidCardListItemDto>> GetAllAsync(CancellationToken ct = default);
     Task<Result<RfidCardDetailDto>> GetByIdAsync(int cardId, CancellationToken ct = default);
     Task<Result> AssignAsync(AssignRfidRequest request, CancellationToken ct = default);
+    /// <summary>Whether this UID could be given to a student right now. Read-only.</summary>
+    Task<RfidCardCheckDto> CheckCardAsync(string cardUid, CancellationToken ct = default);
     Task<Result> UpdateStatusAsync(int cardId, UpdateRfidStatusRequest request, CancellationToken ct = default);
     Task<List<RfidDeviceDto>> GetDevicesAsync(CancellationToken ct = default);
     Task<Result<RfidDeviceDto>> CreateDeviceAsync(CreateRfidDeviceRequest request, CancellationToken ct = default);

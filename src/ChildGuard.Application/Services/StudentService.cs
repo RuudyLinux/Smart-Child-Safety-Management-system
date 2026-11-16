@@ -184,7 +184,8 @@ public class StudentService : IStudentService
             snap.Status, snap.PresentToday, snap.CheckInTime, snap.LastEventAt, snap.LastEventType,
             snap.BusNumber, snap.RouteName, snap.DriverName,
             s.RfidCard?.Status, s.RfidCard?.AssignedAt,
-            stats, journey, attendance);
+            stats, journey, attendance,
+            s.Section, s.AdmissionNumber, s.Gender, AddressDto.From(s.Address));
     }
 
     /// <summary>

@@ -1,0 +1,27 @@
+@model AddressDto?
+@{
+    var lines = Model is null
+        ? new List<string>()
+        : new[]
+        {
+            Model.Line1, Model.Line2, Model.Locality,
+            Model.Landmark is null ? null : $"Near {Model.Landmark}",
+            string.Join(", ", new[] { Model.City, Model.District }.Where(v => !string.IsNullOrWhiteSpace(v))),
+            string.Join(" ", new[] { Model.State, Model.PostalCode }.Where(v => !string.IsNullOrWhiteSpace(v))),
+            Model.Country
+        }.Where(v => !string.IsNullOrWhiteSpace(v)).Select(v => v!).ToList();
+}
+@if (lines.Count == 0)
+{
+    <span class="cg-muted">Not recorded</span>
+}
+else
+{
+    <address style="font-style:normal">
+        @for (var i = 0; i < lines.Count; i++)
+        {
+            @lines[i]
+            if (i < lines.Count - 1) { <br /> }
+        }
+    </address>
+}

@@ -1,0 +1,421 @@
+@model EnrollmentPageModel
+@{
+    ViewData["Title"] = "Enroll new student";
+    var steps = new[]
+    {
+        ("Student", "Details & address"),
+        ("Guardians", "Parents / guardians"),
+        ("RFID card", "Scan or enter"),
+        ("Transport", "Optional"),
+        ("Review", "Check & complete")
+    };
+}
+
+<div class="cg-page-head">
+    <div class="cg-page-head__text">
+        <nav class="cg-breadcrumb" style="margin-bottom:6px">
+            <a href="/Students">@await Html.PartialAsync("_Icon", "arrow-left") Back to students</a>
+        </nav>
+        <h1 class="cg-page-head__title">Enroll new student</h1>
+        <p class="cg-page-head__sub">
+            Student, guardians, RFID card and transport in one guided flow. Nothing is saved until you complete the last step.
+        </p>
+    </div>
+</div>
+
+@if (ViewBag.LoadError is string loadError)
+{
+    <div class="cg-alert cg-alert--warning" role="alert">
+        <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "alert-triangle")</span>
+        <div class="cg-alert__body">Transport options could not be loaded: @loadError</div>
+    </div>
+}
+
+<div class="cg-enrol" data-cg-enrol
+     data-idempotency-key="@Model.IdempotencyKey"
+     data-allow-route-override="@(Model.AllowRouteOverride ? "true" : "false")">
+
+    <ol class="cg-stepper" aria-label="Enrollment steps">
+        @for (var i = 0; i < steps.Length; i++)
+        {
+            <li class="cg-step@(i == 0 ? " cg-step--active" : "")" data-en-step="@(i + 1)" aria-current="@(i == 0 ? "step" : null)">
+                <span class="cg-step__num">@(i + 1)</span>
+                <span class="cg-step__text">
+                    <span class="cg-step__label">@steps[i].Item1</span>
+                    <span class="cg-step__state" data-en-step-state>@steps[i].Item2</span>
+                </span>
+            </li>
+        }
+    </ol>
+
+    <form id="enrolForm" novalidate autocomplete="off">
+
+        @* ------------------------------------------------------------ 1. Student *@
+        <section class="cg-card" data-en-panel="1" aria-labelledby="enStudentTitle">
+            <div class="cg-card__head">
+                <div>
+                    <h2 class="cg-card__title" id="enStudentTitle">Student information</h2>
+                    <div class="cg-card__sub">As it appears on the school roll. A photo can be added from the profile once enrolled.</div>
+                </div>
+            </div>
+            <div class="cg-card__body">
+                <div class="cg-form">
+                    <div class="cg-form-row">
+                        <div class="cg-field">
+                            <label class="cg-label" for="enFullName">Full name <span class="cg-label__req">*</span></label>
+                            <input class="cg-input" id="enFullName" data-en="student.fullName" maxlength="150" required />
+                            <span class="cg-error-text" data-en-error="student.fullName"></span>
+                        </div>
+                        <div class="cg-field">
+                            <label class="cg-label" for="enAdmission">Admission number</label>
+                            <input class="cg-input cg-mono" id="enAdmission" data-en="student.admissionNumber" maxlength="50" placeholder="e.g. 2026/0418" />
+                            <span class="cg-hint">Optional. Must be unique when given.</span>
+                            <span class="cg-error-text" data-en-error="student.admissionNumber"></span>
+                        </div>
+                    </div>
+                    <div class="cg-form-row">
+                        <div class="cg-field">
+                            <label class="cg-label" for="enDob">Date of birth <span class="cg-label__req">*</span></label>
+                            <input class="cg-input" id="enDob" type="date" data-en="student.dateOfBirth" required
+                                   max="@DateTime.Today.AddDays(-1).ToString("yyyy-MM-dd")" />
+                            <span class="cg-error-text" data-en-error="student.dateOfBirth"></span>
+                        </div>
+                        <div class="cg-field">
+                            <label class="cg-label" for="enGender">Gender</label>
+                            <select class="cg-select" id="enGender" data-en="student.gender">
+                                <option value="">Not specified</option>
+                                <option value="Female">Female</option>
+                                <option value="Male">Male</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="cg-form-row">
+                        <div class="cg-field">
+                            <label class="cg-label" for="enGrade">Grade / class</label>
+                            <input class="cg-input" id="enGrade" data-en="student.grade" maxlength="50" placeholder="e.g. 5" />
+                        </div>
+                        <div class="cg-field">
+                            <label class="cg-label" for="enSection">Section</label>
+                            <input class="cg-input" id="enSection" data-en="student.section" maxlength="20" placeholder="e.g. A" />
+                        </div>
+                    </div>
+
+                    <div class="cg-divider"></div>
+                    <div class="cg-section-head"><span class="cg-section-head__title">Residential address</span></div>
+                    <div data-en-address="student">
+                        @await Html.PartialAsync("_AddressFields", "student")
+                    </div>
+
+                    <div class="cg-alert cg-alert--warning" data-en-dup hidden role="alert">
+                        <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "alert-triangle")</span>
+                        <div class="cg-alert__body">
+                            <div class="cg-alert__title">Possible duplicate student</div>
+                            <div>A student with the same name and date of birth is already on record:</div>
+                            <ul class="cg-enrol-duplist" data-en-dup-list></ul>
+                            <div>If this is the same child, cancel and open the existing record. If it is a different child (for example a twin), give the reason below. It is recorded with the enrollment.</div>
+                            <div class="cg-field" style="margin-top:10px">
+                                <label class="cg-label" for="enDupReason">Reason for enrolling anyway <span class="cg-label__req">*</span></label>
+                                <textarea class="cg-textarea" id="enDupReason" data-en="duplicateReason" rows="2" maxlength="500"
+                                          placeholder="e.g. Twin sibling of the student above, separate admission"></textarea>
+                                <span class="cg-error-text" data-en-error="duplicateReason"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        @* ------------------------------------------------------------ 2. Guardians *@
+        <section class="cg-card" data-en-panel="2" hidden aria-labelledby="enGuardianTitle">
+            <div class="cg-card__head">
+                <div>
+                    <h2 class="cg-card__title" id="enGuardianTitle">Parent / guardian information</h2>
+                    <div class="cg-card__sub">Create a new guardian account, or link one that already exists (for example a sibling's parent).</div>
+                </div>
+            </div>
+            <div class="cg-card__body">
+                <div class="cg-alert cg-alert--info">
+                    <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "info")</span>
+                    <div class="cg-alert__body">
+                        New guardians receive their sign-in details by email after enrollment and must set their own password at first sign-in.
+                        Passwords are never shown here. Face registration is done later from the guardian's profile.
+                    </div>
+                </div>
+                <div class="cg-enrol-guardians" data-en-guardians></div>
+                <button type="button" class="cg-btn cg-btn--secondary" data-en-add-guardian>
+                    @await Html.PartialAsync("_Icon", "plus") Add another guardian
+                </button>
+                <span class="cg-error-text" data-en-error="guardians"></span>
+            </div>
+        </section>
+
+        @* ------------------------------------------------------------ 3. RFID *@
+        <section class="cg-card" data-en-panel="3" hidden aria-labelledby="enRfidTitle">
+            <div class="cg-card__head">
+                <div>
+                    <h2 class="cg-card__title" id="enRfidTitle">RFID card</h2>
+                    <div class="cg-card__sub">The card is linked to this student automatically. No need to pick the student again.</div>
+                </div>
+            </div>
+            <div class="cg-card__body">
+                <div class="cg-segment" role="radiogroup" aria-label="RFID card option" style="margin-bottom:16px">
+                    <button type="button" class="cg-segment__btn is-active" role="radio" aria-checked="true" data-en-rfid-mode="assign">Assign a card now</button>
+                    <button type="button" class="cg-segment__btn" role="radio" aria-checked="false" data-en-rfid-mode="pending">Leave RFID pending</button>
+                </div>
+
+                <div data-en-rfid-assign>
+                    <div class="cg-enrol-scan" data-en-scan data-state="waiting">
+                        <span class="cg-enrol-scan__icon">@await Html.PartialAsync("_Icon", "scan")</span>
+                        <div class="cg-enrol-scan__body">
+                            <label class="cg-label" for="enCardUid">Card UID</label>
+                            <div class="cg-enrol-scan__row">
+                                <input class="cg-input cg-mono cg-enrol-scan__input" id="enCardUid" data-en="cardUid"
+                                       maxlength="100" placeholder="Tap the card on the USB reader…" spellcheck="false" />
+                                <button type="button" class="cg-btn cg-btn--secondary" data-en-check-card>Check card</button>
+                            </div>
+                            <div class="cg-enrol-scan__status" role="status" aria-live="polite" data-en-scan-status>
+                                Ready. Keep this field focused and tap the card on the reader, or type the UID and press Enter.
+                            </div>
+                        </div>
+                        <button type="button" class="cg-btn cg-btn--ghost cg-btn--sm" data-en-clear-card hidden>Scan another card</button>
+                    </div>
+                    <p class="cg-hint" style="margin-top:10px">
+                        The USB reader works in keyboard mode: it types the UID into the focused field and presses Enter.
+                        Cards already assigned to a student, or marked inactive or lost, cannot be used.
+                    </p>
+                </div>
+
+                <div data-en-rfid-pending hidden>
+                    <div class="cg-alert cg-alert--warning">
+                        <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "alert-triangle")</span>
+                        <div class="cg-alert__body">
+                            <div class="cg-alert__title">RFID pending</div>
+                            Until a card is assigned, this student cannot be identified at a checkpoint. Assign one later from the RFID Cards page.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        @* ------------------------------------------------------------ 4. Transport *@
+        <section class="cg-card" data-en-panel="4" hidden aria-labelledby="enTransportTitle">
+            <div class="cg-card__head">
+                <div>
+                    <h2 class="cg-card__title" id="enTransportTitle">Transportation <span class="cg-badge cg-badge--neutral">Optional</span></h2>
+                    <div class="cg-card__sub">Assign the school bus the student travels on. This can also be done later from Transportation.</div>
+                </div>
+            </div>
+            <div class="cg-card__body">
+                <div class="cg-segment" role="radiogroup" aria-label="Transport option" style="margin-bottom:16px">
+                    <button type="button" class="cg-segment__btn is-active" role="radio" aria-checked="true" data-en-transport-mode="none">No school transport</button>
+                    <button type="button" class="cg-segment__btn" role="radio" aria-checked="false" data-en-transport-mode="bus"
+                            disabled="@(Model.Buses.Count == 0 ? "disabled" : null)">Travels by school bus</button>
+                </div>
+                @if (Model.Buses.Count == 0)
+                {
+                    <p class="cg-hint">No buses are in service, so transport can be assigned later.</p>
+                }
+                <div class="cg-form" data-en-transport-bus hidden>
+                    <div class="cg-form-row">
+                        <div class="cg-field">
+                            <label class="cg-label" for="enBus">Bus <span class="cg-label__req">*</span></label>
+                            <select class="cg-select" id="enBus" data-en="transport.busId">
+                                <option value="">Choose a bus</option>
+                                @foreach (var b in Model.Buses)
+                                {
+                                    <option value="@b.BusId" data-route-id="@b.RouteId" data-route="@b.RouteName" data-driver="@b.DriverName"
+                                            data-students="@b.ActiveStudentCount" data-number="@b.BusNumber">
+                                        @b.BusNumber@(b.RouteName is null ? "" : $" · {b.RouteName}")
+                                    </option>
+                                }
+                            </select>
+                            <span class="cg-error-text" data-en-error="transport.busId"></span>
+                        </div>
+                        @if (Model.AllowRouteOverride)
+                        {
+                            <div class="cg-field">
+                                <label class="cg-label" for="enRoute">Route</label>
+                                <select class="cg-select" id="enRoute" data-en="transport.routeId">
+                                    <option value="">The bus's own route</option>
+                                    @foreach (var r in Model.Routes)
+                                    {
+                                        <option value="@r.RouteId">@r.RouteName</option>
+                                    }
+                                </select>
+                                <span class="cg-hint">This school allows a route other than the bus's own.</span>
+                            </div>
+                        }
+                    </div>
+                    <dl class="cg-deflist" data-en-bus-summary hidden>
+                        <dt>Route</dt><dd data-en-bus-route>—</dd>
+                        <dt>Driver</dt><dd data-en-bus-driver>—</dd>
+                        <dt>Students assigned</dt><dd data-en-bus-students>—</dd>
+                    </dl>
+                </div>
+            </div>
+        </section>
+
+        @* ------------------------------------------------------------ 5. Review *@
+        <section class="cg-card" data-en-panel="5" hidden aria-labelledby="enReviewTitle">
+            <div class="cg-card__head">
+                <div>
+                    <h2 class="cg-card__title" id="enReviewTitle">Review &amp; complete</h2>
+                    <div class="cg-card__sub">Check everything below. Use Edit to go back; nothing you entered is lost.</div>
+                </div>
+            </div>
+            <div class="cg-card__body">
+                <div class="cg-alert cg-alert--danger" role="alert" data-en-submit-error hidden>
+                    <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "alert-circle")</span>
+                    <div class="cg-alert__body">
+                        <div class="cg-alert__title">Enrollment was not completed</div>
+                        <div data-en-submit-error-text></div>
+                        <div class="cg-text-sm">Nothing was saved. Correct the details and try again.</div>
+                    </div>
+                </div>
+                <div class="cg-enrol-review" data-en-review></div>
+            </div>
+        </section>
+
+        <div class="cg-enrol-nav" data-en-nav>
+            <button type="button" class="cg-btn cg-btn--secondary" data-en-back hidden>
+                @await Html.PartialAsync("_Icon", "arrow-left") Back
+            </button>
+            <span class="cg-toolbar__spacer"></span>
+            <a class="cg-btn cg-btn--ghost" href="/Students" data-en-cancel>Cancel</a>
+            <button type="button" class="cg-btn cg-btn--primary" data-en-next>
+                <span class="cg-btn__label">Next</span>
+            </button>
+            <button type="button" class="cg-btn cg-btn--success" data-en-submit hidden>
+                <span class="cg-btn__label">Complete enrollment</span>
+            </button>
+        </div>
+    </form>
+
+    @* ------------------------------------------------------------ Done *@
+    <section class="cg-card" data-en-done hidden aria-labelledby="enDoneTitle" tabindex="-1">
+        <div class="cg-card__body cg-enrol-done">
+            <span class="cg-enrol-done__icon">@await Html.PartialAsync("_Icon", "check-circle")</span>
+            <h2 class="cg-card__title" id="enDoneTitle" data-en-done-title>Enrollment complete</h2>
+            <p class="cg-muted" data-en-done-sub></p>
+            <div class="cg-enrol-review" data-en-done-summary></div>
+            <div class="cg-btn-group" style="justify-content:center">
+                <a class="cg-btn cg-btn--primary" data-en-done-profile href="#">Open student profile</a>
+                <a class="cg-btn cg-btn--secondary" data-en-done-photo href="#">Add a photo</a>
+                <a class="cg-btn cg-btn--secondary" href="/Enrollment">Enroll another student</a>
+            </div>
+        </div>
+    </section>
+</div>
+
+<template id="enGuardianTemplate">
+    <article class="cg-enrol-guardian" data-en-guardian>
+        <header class="cg-enrol-guardian__head">
+            <h3 class="cg-enrol-guardian__title" data-en-guardian-title>Guardian</h3>
+            <div class="cg-segment" role="radiogroup" aria-label="Guardian account">
+                <button type="button" class="cg-segment__btn is-active" role="radio" aria-checked="true" data-en-gmode="new">Create new</button>
+                <button type="button" class="cg-segment__btn" role="radio" aria-checked="false" data-en-gmode="existing">Link existing</button>
+            </div>
+            <button type="button" class="cg-btn cg-btn--ghost cg-btn--sm cg-btn--icon" data-en-remove-guardian title="Remove this guardian" aria-label="Remove this guardian">
+                @await Html.PartialAsync("_Icon", "x")
+            </button>
+        </header>
+
+        <div class="cg-form" data-en-gnew>
+            <div class="cg-form-row">
+                <div class="cg-field">
+                    <label class="cg-label">Full name <span class="cg-label__req">*</span></label>
+                    <input class="cg-input" data-g="fullName" maxlength="150" />
+                    <span class="cg-error-text" data-g-error="fullName"></span>
+                </div>
+                <div class="cg-field">
+                    <label class="cg-label">Email <span class="cg-label__req">*</span></label>
+                    <input class="cg-input" type="email" data-g="email" maxlength="200" />
+                    <span class="cg-error-text" data-g-error="email"></span>
+                </div>
+                <div class="cg-field">
+                    <label class="cg-label">Contact number <span class="cg-label__req">*</span></label>
+                    <input class="cg-input" type="tel" data-g="contactNumber" maxlength="30" placeholder="Used to sign in to the app" />
+                    <span class="cg-error-text" data-g-error="contactNumber"></span>
+                </div>
+            </div>
+            <div class="cg-alert cg-alert--warning" data-en-gdup hidden>
+                <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "alert-triangle")</span>
+                <div class="cg-alert__body">
+                    <div data-en-gdup-text></div>
+                    <button type="button" class="cg-btn cg-btn--secondary cg-btn--sm" style="margin-top:8px" data-en-gdup-link>Link this guardian instead</button>
+                </div>
+            </div>
+            <label class="cg-check">
+                <input type="checkbox" data-g="sameAsStudentAddress" checked />
+                <span class="cg-check__text">Same as student address</span>
+            </label>
+            <div data-en-gaddress hidden>
+                @await Html.PartialAsync("_AddressFields", "guardian")
+            </div>
+        </div>
+
+        <div class="cg-form" data-en-gexisting hidden>
+            <div class="cg-field" data-en-gsearch>
+                <label class="cg-label">Find a guardian <span class="cg-label__req">*</span></label>
+                <div class="cg-input-group">
+                    <span class="cg-input-group__icon">@await Html.PartialAsync("_Icon", "search")</span>
+                    <input class="cg-input" data-en-gquery placeholder="Email, contact number or name (3+ characters)" />
+                </div>
+                <div class="cg-enrol-results" data-en-gresults role="listbox" aria-label="Matching guardians"></div>
+                <span class="cg-error-text" data-g-error="existing"></span>
+            </div>
+            <div class="cg-personcard" data-en-gselected hidden>
+                <div class="cg-personcard__body">
+                    <div class="cg-personcard__name" data-en-gselected-name></div>
+                    <div class="cg-personcard__meta" data-en-gselected-meta></div>
+                    <div class="cg-personcard__facts" data-en-gselected-facts></div>
+                    <div class="cg-alert cg-alert--warning" data-en-ginactive hidden style="margin-top:10px">
+                        <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "alert-triangle")</span>
+                        <div class="cg-alert__body">
+                            <div class="cg-alert__title">This account is deactivated</div>
+                            <label class="cg-check">
+                                <input type="checkbox" data-g="confirmInactiveAccount" />
+                                <span class="cg-check__text">I confirm linking this deactivated account
+                                    <span class="cg-check__sub">It stays deactivated: the guardian cannot sign in or be verified for pickup until it is reactivated from their profile.</span>
+                                </span>
+                            </label>
+                            <span class="cg-error-text" data-g-error="inactive"></span>
+                        </div>
+                    </div>
+                </div>
+                <button type="button" class="cg-btn cg-btn--ghost cg-btn--sm" data-en-gchange>Change</button>
+            </div>
+        </div>
+
+        <div class="cg-form-row" style="margin-top:14px">
+            <div class="cg-field">
+                <label class="cg-label">Relationship to student</label>
+                <input class="cg-input" data-g="relationship" maxlength="50" list="enRelationships" placeholder="e.g. Mother" />
+            </div>
+            <div class="cg-field" style="justify-content:flex-end">
+                <label class="cg-check">
+                    <input type="checkbox" data-g="isAuthorizedForPickup" checked />
+                    <span class="cg-check__text">Authorised for pickup
+                        <span class="cg-check__sub">May collect the student after face verification.</span>
+                    </span>
+                </label>
+            </div>
+        </div>
+    </article>
+</template>
+
+<datalist id="enRelationships">
+    <option value="Mother"></option>
+    <option value="Father"></option>
+    <option value="Guardian"></option>
+    <option value="Grandmother"></option>
+    <option value="Grandfather"></option>
+    <option value="Aunt"></option>
+    <option value="Uncle"></option>
+    <option value="Sibling"></option>
+</datalist>
+
+@section Scripts {
+    <script src="~/js/enrollment.js" asp-append-version="true"></script>
+}

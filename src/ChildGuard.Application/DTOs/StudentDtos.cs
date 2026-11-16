@@ -19,7 +19,8 @@ public record StudentDetailDto(
     RfidCardStatus? RfidStatus, DateTime? RfidAssignedAt,
     AttendanceStatsDto AttendanceStats,
     IReadOnlyList<JourneyEventDto> RecentJourney,
-    IReadOnlyList<AttendanceRecordDto> RecentAttendance);
+    IReadOnlyList<AttendanceRecordDto> RecentAttendance,
+    string? Section = null, string? AdmissionNumber = null, Gender? Gender = null, AddressDto? Address = null);
 
 /// <summary>Attendance counted over the trailing window shown on a student profile.</summary>
 public record AttendanceStatsDto(int WindowDays, int DaysPresent, int DaysLate, int SchoolDaysObserved, double PresentRate);

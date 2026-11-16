@@ -36,6 +36,27 @@ public class GuardianRepository : IGuardianRepository
             .OrderBy(g => g.FullName)
             .ToListAsync(ct);
 
+    public Task<List<Guardian>> SearchAsync(string text, string? digits, int take, CancellationToken ct = default)
+    {
+        var query = _db.Guardians.AsNoTracking()
+            .Include(g => g.FaceData)
+            .Include(g => g.StudentGuardians).ThenInclude(sg => sg.Student)
+            .AsQueryable();
+
+        // MySQL's collation makes Contains case-insensitive; PostgreSQL needs ILIKE to match.
+        if (_db.Database.IsNpgsql())
+        {
+            var pattern = "%" + text.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_") + "%";
+            query = query.Where(g => EF.Functions.ILike(g.Email, pattern, "\\") || EF.Functions.ILike(g.FullName, pattern, "\\")
+                                     || (digits != null && g.Phone != null && g.Phone.Contains(digits)));
+        }
+        else
+            query = query.Where(g => g.Email.Contains(text) || g.FullName.Contains(text)
+                                     || (digits != null && g.Phone != null && g.Phone.Contains(digits)));
+
+        return query.OrderBy(g => g.FullName).ThenBy(g => g.GuardianId).Take(take).AsSplitQuery().ToListAsync(ct);
+    }
+
     public Task<bool> EmailExistsAsync(string email, CancellationToken ct = default) =>
         _db.Guardians.AnyAsync(g => g.Email == email, ct);
 

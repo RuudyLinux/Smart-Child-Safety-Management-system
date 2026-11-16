@@ -74,7 +74,8 @@ test.describe('Transportation', () => {
     const opener = page.locator('[data-cg-modal-open]', { hasText: /assign student/i }).first();
     await expect(opener, 'a button opens the "Assign student" modal').toBeVisible();
     await opener.click();
-    const form = page.locator('form[action$="/Transportation/AddAssignment"]');
+    // Scoped to the modal: every existing assignment's "Change bus" form posts to AddAssignment too.
+    const form = page.locator('#assignStudentModal form[action$="/Transportation/AddAssignment"]');
     await form.locator('select[name="studentId"]').selectOption(String(s.id));
     await form.locator('select[name="busId"]').selectOption(String(b.id));
     await form.getByRole('button', { name: 'Assign student' }).click();

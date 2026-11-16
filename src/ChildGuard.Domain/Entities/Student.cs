@@ -8,6 +8,11 @@ public class Student
     public string FullName { get; set; } = default!;
     public DateTime DateOfBirth { get; set; }
     public string? Grade { get; set; }
+    public string? Section { get; set; }
+    /// <summary>School admission number. Optional; unique when present.</summary>
+    public string? AdmissionNumber { get; set; }
+    public Gender? Gender { get; set; }
+    public PostalAddress? Address { get; set; }
     public RecordStatus Status { get; set; } = RecordStatus.Active;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

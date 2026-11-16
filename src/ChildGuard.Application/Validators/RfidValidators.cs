@@ -33,6 +33,11 @@ public class RfidIdentifyRequestValidator : AbstractValidator<RfidIdentifyReques
     }
 }
 
+public class RfidCardCheckRequestValidator : AbstractValidator<RfidCardCheckRequest>
+{
+    public RfidCardCheckRequestValidator() => RuleFor(x => x.CardUid).NotEmpty().MaximumLength(100);
+}
+
 public class CreateRfidDeviceRequestValidator : AbstractValidator<CreateRfidDeviceRequest>
 {
     public CreateRfidDeviceRequestValidator() => RuleFor(x => x.DeviceLabel).NotEmpty().MaximumLength(50);

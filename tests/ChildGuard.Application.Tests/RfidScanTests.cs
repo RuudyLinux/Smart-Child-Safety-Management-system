@@ -20,6 +20,8 @@ public class RfidScanTests
         public Task<RfidCard?> GetByIdAsync(int id, CancellationToken ct = default) => Task.FromResult(Cards.FirstOrDefault(c => c.RfidCardId == id));
         public Task<RfidCard?> GetByCardUidAsync(string cardUid, CancellationToken ct = default) => Task.FromResult(Cards.FirstOrDefault(c => c.CardUid == cardUid));
         public Task AddAsync(RfidCard card, CancellationToken ct = default) { Cards.Add(card); return Task.CompletedTask; }
+        public List<RfidCardAssignment> History { get; } = new();
+        public Task AddAssignmentHistoryAsync(RfidCardAssignment entry, CancellationToken ct = default) { History.Add(entry); return Task.CompletedTask; }
         public Task<List<RfidDevice>> GetDevicesAsync(CancellationToken ct = default) => Task.FromResult(Devices.ToList());
         public Task<RfidDevice?> GetDeviceByIdAsync(int id, CancellationToken ct = default) => Task.FromResult(Devices.FirstOrDefault(d => d.RfidDeviceId == id));
         public Task AddDeviceAsync(RfidDevice device, CancellationToken ct = default) { Devices.Add(device); return Task.CompletedTask; }

@@ -77,6 +77,8 @@ public static class DependencyInjection
         services.AddScoped<ITransportationRepository, TransportationRepository>();
         services.AddScoped<ITransportationService, TransportationService>();
         services.AddSingleton(config.GetSection("Transport").Get<TransportOptions>() ?? new TransportOptions());
+        services.AddScoped<IEnrollmentRepository, EnrollmentRepository>();
+        services.AddScoped<IEnrollmentService, EnrollmentService>();
         services.AddScoped<IAttendanceJourneyService, AttendanceJourneyService>();
         services.AddScoped<INotificationService, NotificationService>();
 

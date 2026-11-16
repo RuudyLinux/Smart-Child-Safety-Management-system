@@ -66,6 +66,11 @@ public class GuardiansController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = result.Value!.GuardianId }, result.Value);
     }
 
+    /// <summary>Finds existing guardians by email, contact number or name, so one can be selected and linked. Links nothing.</summary>
+    [HttpGet("lookup")]
+    public async Task<IActionResult> Lookup([FromQuery] string? q, CancellationToken ct) =>
+        Ok(await _guardianService.LookupAsync(q ?? "", ct));
+
     [HttpGet("{id:int}")]
     public async Task<IActionResult> GetById(int id, CancellationToken ct)
     {

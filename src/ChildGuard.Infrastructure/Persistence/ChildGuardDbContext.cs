@@ -35,6 +35,8 @@ public class ChildGuardDbContext : DbContext
     public DbSet<TemporaryPickupAuditEntry> TemporaryPickupAuditEntries => Set<TemporaryPickupAuditEntry>();
     public DbSet<DataImport> DataImports => Set<DataImport>();
     public DbSet<TransportAuditEntry> TransportAuditEntries => Set<TransportAuditEntry>();
+    public DbSet<RfidCardAssignment> RfidCardAssignments => Set<RfidCardAssignment>();
+    public DbSet<EnrollmentRequest> EnrollmentRequests => Set<EnrollmentRequest>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -75,6 +77,7 @@ public class ChildGuardDbContext : DbContext
         modelBuilder.Entity<Guardian>().Property(x => x.Phone).HasColumnType("citext");
         modelBuilder.Entity<Guardian>().Property(x => x.FullName).HasColumnType("citext");
         modelBuilder.Entity<Student>().Property(x => x.FullName).HasColumnType("citext");
+        modelBuilder.Entity<Student>().Property(x => x.AdmissionNumber).HasColumnType("citext");
         modelBuilder.Entity<Driver>().Property(x => x.FullName).HasColumnType("citext");
         modelBuilder.Entity<Route>().Property(x => x.RouteName).HasColumnType("citext");
         modelBuilder.Entity<Bus>().Property(x => x.BusNumber).HasColumnType("citext");

@@ -1,6 +1,14 @@
+using ChildGuard.Application.DTOs;
 using ChildGuard.Domain.Enums;
 
 namespace ChildGuard.AdminWeb.Models.ViewModels;
+
+/// <summary>What the enrollment wizard needs from the server: its idempotency key and the active transport options.</summary>
+public record EnrollmentPageModel(
+    string IdempotencyKey,
+    IReadOnlyList<BusDto> Buses,
+    IReadOnlyList<RouteDto> Routes,
+    bool AllowRouteOverride);
 
 /// <summary>
 /// Everything the shared avatar partial needs. <paramref name="PhotoUrl"/> is an

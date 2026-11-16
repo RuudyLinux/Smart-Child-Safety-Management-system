@@ -76,6 +76,15 @@ public class TransportationRepository : ITransportationRepository
     public async Task<Result> RunLockedAsync(IReadOnlyCollection<int> studentIds, IReadOnlyCollection<int> busIds,
         Func<CancellationToken, Task<Result>> work, CancellationToken ct = default)
     {
+        // Inside a caller's transaction (enrollment): take the same locks there and leave commit or
+        // rollback to the caller, so a failed assignment undoes everything the caller wrote too.
+        if (_db.Database.CurrentTransaction is not null)
+        {
+            foreach (var id in studentIds.Distinct().OrderBy(i => i)) await LockStudentAsync(id, ct);
+            foreach (var id in busIds.Distinct().OrderBy(i => i)) await LockBusAsync(id, ct);
+            return await work(ct);
+        }
+
         // READ COMMITTED so counts read after the lock see whatever the previous holder committed.
         await using var tx = await _db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
         // Fixed order (students, then buses, ascending ids) on every path, so two callers never deadlock.

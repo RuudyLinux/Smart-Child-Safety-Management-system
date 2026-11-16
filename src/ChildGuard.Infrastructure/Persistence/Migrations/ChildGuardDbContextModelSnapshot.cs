@@ -238,6 +238,52 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                     b.ToTable("Drivers");
                 });
 
+            modelBuilder.Entity("ChildGuard.Domain.Entities.EnrollmentRequest", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<int?>("AdminId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ConfirmedInactiveGuardianIds")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("DuplicateOverrideReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<string>("IdempotencyKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("char(64)")
+                        .IsFixedLength();
+
+                    b.Property<int>("StudentId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IdempotencyKey")
+                        .IsUnique();
+
+                    b.HasIndex("StudentId");
+
+                    b.ToTable("EnrollmentRequests");
+                });
+
             modelBuilder.Entity("ChildGuard.Domain.Entities.FaceAuditLog", b =>
                 {
                     b.Property<long>("Id")
@@ -796,6 +842,44 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                     b.ToTable("RfidCards");
                 });
 
+            modelBuilder.Entity("ChildGuard.Domain.Entities.RfidCardAssignment", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime?>("AssignedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int?>("AssignedByAdminId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("EndedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<bool>("IsMigratedSnapshot")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<DateTime>("RecordedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("RfidCardId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("StudentId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StudentId");
+
+                    b.HasIndex("RfidCardId", "RecordedAt");
+
+                    b.ToTable("RfidCardAssignments");
+                });
+
             modelBuilder.Entity("ChildGuard.Domain.Entities.RfidDevice", b =>
                 {
                     b.Property<int>("RfidDeviceId")
@@ -872,6 +956,10 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("StudentId"));
 
+                    b.Property<string>("AdmissionNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
 
@@ -883,9 +971,16 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("varchar(150)");
 
+                    b.Property<int?>("Gender")
+                        .HasColumnType("int");
+
                     b.Property<string>("Grade")
                         .HasMaxLength(50)
                         .HasColumnType("varchar(50)");
+
+                    b.Property<string>("Section")
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
 
                     b.Property<int>("Status")
                         .HasColumnType("int");
@@ -894,6 +989,9 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                         .HasColumnType("datetime(6)");
 
                     b.HasKey("StudentId");
+
+                    b.HasIndex("AdmissionNumber")
+                        .IsUnique();
 
                     b.ToTable("Students");
                 });
@@ -1352,6 +1450,80 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                     b.Navigation("Admin");
                 });
 
+            modelBuilder.Entity("ChildGuard.Domain.Entities.EnrollmentRequest", b =>
+                {
+                    b.HasOne("ChildGuard.Domain.Entities.Student", "Student")
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Student");
+                });
+
+            modelBuilder.Entity("ChildGuard.Domain.Entities.Guardian", b =>
+                {
+                    b.OwnsOne("ChildGuard.Domain.Entities.PostalAddress", "Address", b1 =>
+                        {
+                            b1.Property<int>("GuardianId")
+                                .HasColumnType("int");
+
+                            b1.Property<string>("City")
+                                .HasMaxLength(100)
+                                .HasColumnType("varchar(100)")
+                                .HasColumnName("AddressCity");
+
+                            b1.Property<string>("Country")
+                                .HasMaxLength(100)
+                                .HasColumnType("varchar(100)")
+                                .HasColumnName("AddressCountry");
+
+                            b1.Property<string>("District")
+                                .HasMaxLength(100)
+                                .HasColumnType("varchar(100)")
+                                .HasColumnName("AddressDistrict");
+
+                            b1.Property<string>("Landmark")
+                                .HasMaxLength(100)
+                                .HasColumnType("varchar(100)")
+                                .HasColumnName("AddressLandmark");
+
+                            b1.Property<string>("Line1")
+                                .HasMaxLength(200)
+                                .HasColumnType("varchar(200)")
+                                .HasColumnName("AddressLine1");
+
+                            b1.Property<string>("Line2")
+                                .HasMaxLength(200)
+                                .HasColumnType("varchar(200)")
+                                .HasColumnName("AddressLine2");
+
+                            b1.Property<string>("Locality")
+                                .HasMaxLength(100)
+                                .HasColumnType("varchar(100)")
+                                .HasColumnName("AddressLocality");
+
+                            b1.Property<string>("PostalCode")
+                                .HasMaxLength(20)
+                                .HasColumnType("varchar(20)")
+                                .HasColumnName("AddressPostalCode");
+
+                            b1.Property<string>("State")
+                                .HasMaxLength(100)
+                                .HasColumnType("varchar(100)")
+                                .HasColumnName("AddressState");
+
+                            b1.HasKey("GuardianId");
+
+                            b1.ToTable("Guardians");
+
+                            b1.WithOwner()
+                                .HasForeignKey("GuardianId");
+                        });
+
+                    b.Navigation("Address");
+                });
+
             modelBuilder.Entity("ChildGuard.Domain.Entities.GuardianFaceData", b =>
                 {
                     b.HasOne("ChildGuard.Domain.Entities.Guardian", "Guardian")
@@ -1507,6 +1679,88 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                     b.Navigation("Student");
                 });
 
+            modelBuilder.Entity("ChildGuard.Domain.Entities.RfidCardAssignment", b =>
+                {
+                    b.HasOne("ChildGuard.Domain.Entities.RfidCard", "RfidCard")
+                        .WithMany("Assignments")
+                        .HasForeignKey("RfidCardId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ChildGuard.Domain.Entities.Student", "Student")
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("RfidCard");
+
+                    b.Navigation("Student");
+                });
+
+            modelBuilder.Entity("ChildGuard.Domain.Entities.Student", b =>
+                {
+                    b.OwnsOne("ChildGuard.Domain.Entities.PostalAddress", "Address", b1 =>
+                        {
+                            b1.Property<int>("StudentId")
+                                .HasColumnType("int");
+
+                            b1.Property<string>("City")
+                                .HasMaxLength(100)
+                                .HasColumnType("varchar(100)")
+                                .HasColumnName("AddressCity");
+
+                            b1.Property<string>("Country")
+                                .HasMaxLength(100)
+                                .HasColumnType("varchar(100)")
+                                .HasColumnName("AddressCountry");
+
+                            b1.Property<string>("District")
+                                .HasMaxLength(100)
+                                .HasColumnType("varchar(100)")
+                                .HasColumnName("AddressDistrict");
+
+                            b1.Property<string>("Landmark")
+                                .HasMaxLength(100)
+                                .HasColumnType("varchar(100)")
+                                .HasColumnName("AddressLandmark");
+
+                            b1.Property<string>("Line1")
+                                .HasMaxLength(200)
+                                .HasColumnType("varchar(200)")
+                                .HasColumnName("AddressLine1");
+
+                            b1.Property<string>("Line2")
+                                .HasMaxLength(200)
+                                .HasColumnType("varchar(200)")
+                                .HasColumnName("AddressLine2");
+
+                            b1.Property<string>("Locality")
+                                .HasMaxLength(100)
+                                .HasColumnType("varchar(100)")
+                                .HasColumnName("AddressLocality");
+
+                            b1.Property<string>("PostalCode")
+                                .HasMaxLength(20)
+                                .HasColumnType("varchar(20)")
+                                .HasColumnName("AddressPostalCode");
+
+                            b1.Property<string>("State")
+                                .HasMaxLength(100)
+                                .HasColumnType("varchar(100)")
+                                .HasColumnName("AddressState");
+
+                            b1.HasKey("StudentId");
+
+                            b1.ToTable("Students");
+
+                            b1.WithOwner()
+                                .HasForeignKey("StudentId");
+                        });
+
+                    b.Navigation("Address");
+                });
+
             modelBuilder.Entity("ChildGuard.Domain.Entities.StudentBusAssignment", b =>
                 {
                     b.HasOne("ChildGuard.Domain.Entities.Bus", "Bus")
@@ -1645,6 +1899,8 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("ChildGuard.Domain.Entities.RfidCard", b =>
                 {
+                    b.Navigation("Assignments");
+
                     b.Navigation("AttendanceRecords");
 
                     b.Navigation("JourneyEvents");

@@ -71,8 +71,30 @@ public class RfidService : IRfidService
             AssignedAt = _clock.UtcNow
         };
         await _rfid.AddAsync(card, ct);
+        await _rfid.AddAssignmentHistoryAsync(new RfidCardAssignment
+        {
+            RfidCard = card, StudentId = request.StudentId, AssignedAt = card.AssignedAt, RecordedAt = card.AssignedAt.Value
+        }, ct);
         await _rfid.SaveChangesAsync(ct);
         return Result.Success();
+    }
+
+    public async Task<RfidCardCheckDto> CheckCardAsync(string cardUid, CancellationToken ct = default)
+    {
+        var uid = cardUid.Trim();
+        var masked = RfidMasking.Mask(uid);
+        var card = await _rfid.GetByCardUidAsync(uid, ct);
+        if (card is null)
+            return new RfidCardCheckDto(masked, RfidCardAvailability.New, true, null, null, null,
+                "New card. It will be registered and assigned to this student.");
+        if (card.StudentId is not null)
+            return new RfidCardCheckDto(masked, RfidCardAvailability.AssignedToStudent, false, card.Status, card.StudentId, card.Student?.FullName,
+                $"This card is already assigned to {card.Student?.FullName ?? "another student"}. Scan a different card.");
+        if (card.Status != RfidCardStatus.Active)
+            return new RfidCardCheckDto(masked, RfidCardAvailability.Blocked, false, card.Status, null, null,
+                $"This card is marked {card.Status} and cannot be assigned. Scan a different card.");
+        return new RfidCardCheckDto(masked, RfidCardAvailability.Available, true, card.Status, null, null,
+            "Registered card, not assigned to anyone. It will be assigned to this student.");
     }
 
     public async Task<Result> UpdateStatusAsync(int cardId, UpdateRfidStatusRequest request, CancellationToken ct = default)

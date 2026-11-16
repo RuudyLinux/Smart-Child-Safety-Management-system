@@ -33,6 +33,18 @@ public class ApiClient
         return await ReadResultAsync<T>(response, ct);
     }
 
+    /// <summary>
+    /// Posts and hands back the API's status and JSON body unchanged, for the few browser calls that need a
+    /// structured error (e.g. the enrollment's confirmation request) rather than just its message.
+    /// </summary>
+    public async Task<(int StatusCode, string Json)> PostRawAsync(string url, object body, CancellationToken ct = default)
+    {
+        var response = await _http.PostAsJsonAsync(url, body, JsonOptions, ct);
+        var raw = await response.Content.ReadAsStringAsync(ct);
+        var isJson = response.Content.Headers.ContentType?.MediaType?.Contains("json") == true && !string.IsNullOrWhiteSpace(raw);
+        return ((int)response.StatusCode, isJson ? raw : JsonSerializer.Serialize(new { message = $"Request failed ({(int)response.StatusCode})." }));
+    }
+
     public async Task<ApiResult<object?>> PostAsync(string url, object body, CancellationToken ct = default) =>
         await PostAsync<object?>(url, body, ct);
 

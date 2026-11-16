@@ -8,6 +8,7 @@ public class Guardian
     public string FullName { get; set; } = default!;
     public string Email { get; set; } = default!;
     public string? Phone { get; set; }
+    public PostalAddress? Address { get; set; }
     public string PasswordHash { get; set; } = default!;
     public RecordStatus Status { get; set; } = RecordStatus.Active;
     public string? PasswordResetToken { get; set; }

@@ -11,6 +11,11 @@ public interface IGuardianRepository
     Task<Guardian?> GetByIdAsync(int id, CancellationToken ct = default);
     Task<Guardian?> GetWithStudentsAsync(int id, CancellationToken ct = default);
     Task<List<Guardian>> GetAllAsync(CancellationToken ct = default);
+    /// <summary>
+    /// Guardians whose email or name contains <paramref name="text"/> (case-insensitive), or whose contact number
+    /// contains <paramref name="digits"/>, with their linked students and face data.
+    /// </summary>
+    Task<List<Guardian>> SearchAsync(string text, string? digits, int take, CancellationToken ct = default);
     Task<bool> EmailExistsAsync(string email, CancellationToken ct = default);
     Task<bool> EmailExistsAsync(string email, int excludeGuardianId, CancellationToken ct = default);
     Task<bool> ContactNumberExistsAsync(string contactNumber, CancellationToken ct = default);

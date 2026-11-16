@@ -231,7 +231,13 @@
                         <dt>Date of birth</dt>
                         <dd>@Model.DateOfBirth.ToString("d MMMM yyyy")</dd>
                         <dt>Grade</dt>
-                        <dd>@(Model.Grade ?? "—")</dd>
+                        <dd>@(Model.Grade ?? "—")@(Model.Section is null ? "" : $" · Section {Model.Section}")</dd>
+                        <dt>Admission no.</dt>
+                        <dd>@(Model.AdmissionNumber ?? "—")</dd>
+                        <dt>Gender</dt>
+                        <dd>@(Model.Gender?.ToString() ?? "Not specified")</dd>
+                        <dt>Address</dt>
+                        <dd>@await Html.PartialAsync("_AddressDisplay", Model.Address)</dd>
                         <dt>Bus</dt>
                         <dd>@(Model.BusNumber ?? "Not assigned")</dd>
                         <dt>Route</dt>

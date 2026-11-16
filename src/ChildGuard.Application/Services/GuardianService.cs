@@ -126,7 +126,27 @@ public class GuardianService : IGuardianService
             photos.ContainsKey(id),
             photos.TryGetValue(id, out var photoAt) ? photoAt : null,
             history.FirstOrDefault()?.AttemptedAt,
-            history));
+            history,
+            AddressDto.From(g.Address)));
+    }
+
+    public async Task<List<GuardianLookupDto>> LookupAsync(string query, CancellationToken ct = default)
+    {
+        var text = query?.Trim() ?? "";
+        if (text.Length < 3) return new List<GuardianLookupDto>();
+        var digits = new string(text.Where(char.IsDigit).ToArray());
+        var normalized = ContactNumber.Normalize(text);
+
+        var found = await _guardians.SearchAsync(text, digits.Length >= 4 ? digits : null, 10, ct);
+        // An exact email or contact-number match is the account the admin is most likely looking for.
+        return found
+            .OrderByDescending(g => string.Equals(g.Email, text, StringComparison.OrdinalIgnoreCase) || (normalized is not null && g.Phone == normalized))
+            .ThenBy(g => g.FullName, StringComparer.OrdinalIgnoreCase)
+            .Select(g => new GuardianLookupDto(
+                g.GuardianId, g.FullName, g.Email, g.Phone, g.Status,
+                g.FaceData is not null && g.FaceData.IsActive,
+                g.StudentGuardians.Select(sg => sg.Student.FullName).OrderBy(n => n).ToList()))
+            .ToList();
     }
 
     public async Task<Result> AdminUpdateAsync(int id, AdminUpdateGuardianRequest request, CancellationToken ct = default)

@@ -29,6 +29,12 @@ internal sealed class FakeGuardianRepository : IGuardianRepository
 
     public Task<Guardian?> GetWithStudentsAsync(int id, CancellationToken ct = default) => GetByIdAsync(id, ct);
 
+    public Task<List<Guardian>> SearchAsync(string text, string? digits, int take, CancellationToken ct = default) =>
+        Task.FromResult(Guardians.Where(g =>
+                g.Email.Contains(text, StringComparison.OrdinalIgnoreCase) || g.FullName.Contains(text, StringComparison.OrdinalIgnoreCase)
+                || (digits != null && g.Phone != null && g.Phone.Contains(digits)))
+            .OrderBy(g => g.FullName).Take(take).ToList());
+
     public Task<List<Guardian>> GetAllAsync(CancellationToken ct = default) => Task.FromResult(Guardians.ToList());
 
     public Task<bool> EmailExistsAsync(string email, CancellationToken ct = default) =>

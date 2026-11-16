@@ -8,6 +8,7 @@ public interface IRfidRepository
     Task<RfidCard?> GetByIdAsync(int id, CancellationToken ct = default);
     Task<RfidCard?> GetByCardUidAsync(string cardUid, CancellationToken ct = default);
     Task AddAsync(RfidCard card, CancellationToken ct = default);
+    Task AddAssignmentHistoryAsync(RfidCardAssignment entry, CancellationToken ct = default);
     Task<List<RfidDevice>> GetDevicesAsync(CancellationToken ct = default);
     Task<RfidDevice?> GetDeviceByIdAsync(int id, CancellationToken ct = default);
     Task AddDeviceAsync(RfidDevice device, CancellationToken ct = default);

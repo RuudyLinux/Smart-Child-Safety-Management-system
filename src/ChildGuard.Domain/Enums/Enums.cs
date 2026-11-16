@@ -13,6 +13,25 @@ public enum RfidCardStatus
     Lost = 3
 }
 
+public enum Gender
+{
+    Male = 1,
+    Female = 2,
+    Other = 3
+}
+
+/// <summary>Whether a scanned card UID can be given to a student being enrolled.</summary>
+public enum RfidCardAvailability
+{
+    /// <summary>Never registered: it will be registered and assigned.</summary>
+    New = 1,
+    /// <summary>Registered, active and not linked to anyone.</summary>
+    Available = 2,
+    AssignedToStudent = 3,
+    /// <summary>Registered but inactive or lost.</summary>
+    Blocked = 4
+}
+
 public enum RfidConnectionStatus
 {
     Disconnected = 0,

@@ -22,6 +22,9 @@ public class RfidRepository : IRfidRepository
     public async Task AddAsync(RfidCard card, CancellationToken ct = default) =>
         await _db.RfidCards.AddAsync(card, ct);
 
+    public async Task AddAssignmentHistoryAsync(RfidCardAssignment entry, CancellationToken ct = default) =>
+        await _db.RfidCardAssignments.AddAsync(entry, ct);
+
     public Task<List<RfidDevice>> GetDevicesAsync(CancellationToken ct = default) =>
         _db.RfidDevices.ToListAsync(ct);
 

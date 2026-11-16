@@ -17,7 +17,8 @@
     </div>
     <div class="cg-page-head__actions">
         <a class="cg-btn cg-btn--secondary" href="/Reports">@await Html.PartialAsync("_Icon", "reports") Reports</a>
-        <a class="cg-btn cg-btn--primary" href="/Students/Create">@await Html.PartialAsync("_Icon", "plus") Add student</a>
+        <a class="cg-btn cg-btn--secondary" href="/Students/Create" title="Create the student record only">Add student</a>
+        <a class="cg-btn cg-btn--primary" href="/Enrollment">@await Html.PartialAsync("_Icon", "plus") Enroll New Student</a>
     </div>
 </div>
 

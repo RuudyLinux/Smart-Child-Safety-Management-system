@@ -334,6 +334,8 @@
                     <dd>@Model.Email</dd>
                     <dt>Contact number</dt>
                     <dd class="cg-mono">@(Model.Phone ?? "Not set")</dd>
+                    <dt>Address</dt>
+                    <dd>@await Html.PartialAsync("_AddressDisplay", Model.Address)</dd>
                     <dt>Status</dt>
                     <dd>@Model.Status</dd>
                     <dt>Password</dt>

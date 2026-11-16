@@ -53,6 +53,15 @@ public class RfidController : ControllerBase
         return result.Succeeded ? Ok(new { message = "RFID card assigned." }) : BadRequest(new { message = result.Error });
     }
 
+    /// <summary>Can this UID be given to a student? POST so the UID stays out of URLs and access logs.</summary>
+    [HttpPost("cards/check")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> CheckCard(RfidCardCheckRequest request, [FromServices] IValidator<RfidCardCheckRequest> validator, CancellationToken ct)
+    {
+        await validator.ValidateAndThrowAsync(request, ct);
+        return Ok(await _rfidService.CheckCardAsync(request.CardUid, ct));
+    }
+
     [HttpPatch("cards/{id:int}/status")]
     [Authorize(Policy = "AdminOnly")]
     public async Task<IActionResult> UpdateStatus(int id, UpdateRfidStatusRequest request, CancellationToken ct)

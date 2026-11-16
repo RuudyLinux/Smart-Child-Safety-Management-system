@@ -10,7 +10,8 @@ public record GuardianDetailDto(
     int GuardianId, string FullName, string Email, string? Phone, RecordStatus Status,
     bool FaceRegistered, bool PasswordResetRequired, IReadOnlyList<StudentSummaryDto> Students, DateTime CreatedAt,
     bool HasPhoto, DateTime? PhotoUpdatedAt, DateTime? LastActivityAt,
-    IReadOnlyList<GuardianVerificationHistoryDto> RecentVerifications);
+    IReadOnlyList<GuardianVerificationHistoryDto> RecentVerifications,
+    AddressDto? Address = null);
 
 /// <summary>
 /// A child as seen from their guardian — identity, relationship, and the live

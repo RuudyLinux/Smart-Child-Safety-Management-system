@@ -14,6 +14,9 @@ public interface IGuardianService
     /// </summary>
     Task<Result<CreateGuardianResultDto>> CreateAsync(CreateGuardianRequest request, CancellationToken ct = default);
     Task<Result<GuardianDetailDto>> GetByIdAsync(int id, CancellationToken ct = default);
+
+    /// <summary>Guardians whose email, contact number or name match <paramref name="query"/> (at most 10). Read-only: links nothing.</summary>
+    Task<List<GuardianLookupDto>> LookupAsync(string query, CancellationToken ct = default);
     /// <summary>Admin edit of name, email, contact number and status in one operation.</summary>
     Task<Result> AdminUpdateAsync(int id, AdminUpdateGuardianRequest request, CancellationToken ct = default);
 

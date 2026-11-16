@@ -239,6 +239,52 @@ namespace ChildGuard.Infrastructure.Postgres.Migrations
                     b.ToTable("Drivers");
                 });
 
+            modelBuilder.Entity("ChildGuard.Domain.Entities.EnrollmentRequest", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<int?>("AdminId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ConfirmedInactiveGuardianIds")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DuplicateOverrideReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("IdempotencyKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .IsFixedLength();
+
+                    b.Property<int>("StudentId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IdempotencyKey")
+                        .IsUnique();
+
+                    b.HasIndex("StudentId");
+
+                    b.ToTable("EnrollmentRequests");
+                });
+
             modelBuilder.Entity("ChildGuard.Domain.Entities.FaceAuditLog", b =>
                 {
                     b.Property<long>("Id")
@@ -797,6 +843,44 @@ namespace ChildGuard.Infrastructure.Postgres.Migrations
                     b.ToTable("RfidCards");
                 });
 
+            modelBuilder.Entity("ChildGuard.Domain.Entities.RfidCardAssignment", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime?>("AssignedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("AssignedByAdminId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("EndedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsMigratedSnapshot")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("RecordedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("RfidCardId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("StudentId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StudentId");
+
+                    b.HasIndex("RfidCardId", "RecordedAt");
+
+                    b.ToTable("RfidCardAssignments");
+                });
+
             modelBuilder.Entity("ChildGuard.Domain.Entities.RfidDevice", b =>
                 {
                     b.Property<int>("RfidDeviceId")
@@ -873,6 +957,10 @@ namespace ChildGuard.Infrastructure.Postgres.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("StudentId"));
 
+                    b.Property<string>("AdmissionNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("citext");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -884,9 +972,16 @@ namespace ChildGuard.Infrastructure.Postgres.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("citext");
 
+                    b.Property<int?>("Gender")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Grade")
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Section")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
 
                     b.Property<int>("Status")
                         .HasColumnType("integer");
@@ -895,6 +990,9 @@ namespace ChildGuard.Infrastructure.Postgres.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("StudentId");
+
+                    b.HasIndex("AdmissionNumber")
+                        .IsUnique();
 
                     b.ToTable("Students");
                 });
@@ -1353,6 +1451,80 @@ namespace ChildGuard.Infrastructure.Postgres.Migrations
                     b.Navigation("Admin");
                 });
 
+            modelBuilder.Entity("ChildGuard.Domain.Entities.EnrollmentRequest", b =>
+                {
+                    b.HasOne("ChildGuard.Domain.Entities.Student", "Student")
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Student");
+                });
+
+            modelBuilder.Entity("ChildGuard.Domain.Entities.Guardian", b =>
+                {
+                    b.OwnsOne("ChildGuard.Domain.Entities.PostalAddress", "Address", b1 =>
+                        {
+                            b1.Property<int>("GuardianId")
+                                .HasColumnType("integer");
+
+                            b1.Property<string>("City")
+                                .HasMaxLength(100)
+                                .HasColumnType("character varying(100)")
+                                .HasColumnName("AddressCity");
+
+                            b1.Property<string>("Country")
+                                .HasMaxLength(100)
+                                .HasColumnType("character varying(100)")
+                                .HasColumnName("AddressCountry");
+
+                            b1.Property<string>("District")
+                                .HasMaxLength(100)
+                                .HasColumnType("character varying(100)")
+                                .HasColumnName("AddressDistrict");
+
+                            b1.Property<string>("Landmark")
+                                .HasMaxLength(100)
+                                .HasColumnType("character varying(100)")
+                                .HasColumnName("AddressLandmark");
+
+                            b1.Property<string>("Line1")
+                                .HasMaxLength(200)
+                                .HasColumnType("character varying(200)")
+                                .HasColumnName("AddressLine1");
+
+                            b1.Property<string>("Line2")
+                                .HasMaxLength(200)
+                                .HasColumnType("character varying(200)")
+                                .HasColumnName("AddressLine2");
+
+                            b1.Property<string>("Locality")
+                                .HasMaxLength(100)
+                                .HasColumnType("character varying(100)")
+                                .HasColumnName("AddressLocality");
+
+                            b1.Property<string>("PostalCode")
+                                .HasMaxLength(20)
+                                .HasColumnType("character varying(20)")
+                                .HasColumnName("AddressPostalCode");
+
+                            b1.Property<string>("State")
+                                .HasMaxLength(100)
+                                .HasColumnType("character varying(100)")
+                                .HasColumnName("AddressState");
+
+                            b1.HasKey("GuardianId");
+
+                            b1.ToTable("Guardians");
+
+                            b1.WithOwner()
+                                .HasForeignKey("GuardianId");
+                        });
+
+                    b.Navigation("Address");
+                });
+
             modelBuilder.Entity("ChildGuard.Domain.Entities.GuardianFaceData", b =>
                 {
                     b.HasOne("ChildGuard.Domain.Entities.Guardian", "Guardian")
@@ -1508,6 +1680,88 @@ namespace ChildGuard.Infrastructure.Postgres.Migrations
                     b.Navigation("Student");
                 });
 
+            modelBuilder.Entity("ChildGuard.Domain.Entities.RfidCardAssignment", b =>
+                {
+                    b.HasOne("ChildGuard.Domain.Entities.RfidCard", "RfidCard")
+                        .WithMany("Assignments")
+                        .HasForeignKey("RfidCardId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ChildGuard.Domain.Entities.Student", "Student")
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("RfidCard");
+
+                    b.Navigation("Student");
+                });
+
+            modelBuilder.Entity("ChildGuard.Domain.Entities.Student", b =>
+                {
+                    b.OwnsOne("ChildGuard.Domain.Entities.PostalAddress", "Address", b1 =>
+                        {
+                            b1.Property<int>("StudentId")
+                                .HasColumnType("integer");
+
+                            b1.Property<string>("City")
+                                .HasMaxLength(100)
+                                .HasColumnType("character varying(100)")
+                                .HasColumnName("AddressCity");
+
+                            b1.Property<string>("Country")
+                                .HasMaxLength(100)
+                                .HasColumnType("character varying(100)")
+                                .HasColumnName("AddressCountry");
+
+                            b1.Property<string>("District")
+                                .HasMaxLength(100)
+                                .HasColumnType("character varying(100)")
+                                .HasColumnName("AddressDistrict");
+
+                            b1.Property<string>("Landmark")
+                                .HasMaxLength(100)
+                                .HasColumnType("character varying(100)")
+                                .HasColumnName("AddressLandmark");
+
+                            b1.Property<string>("Line1")
+                                .HasMaxLength(200)
+                                .HasColumnType("character varying(200)")
+                                .HasColumnName("AddressLine1");
+
+                            b1.Property<string>("Line2")
+                                .HasMaxLength(200)
+                                .HasColumnType("character varying(200)")
+                                .HasColumnName("AddressLine2");
+
+                            b1.Property<string>("Locality")
+                                .HasMaxLength(100)
+                                .HasColumnType("character varying(100)")
+                                .HasColumnName("AddressLocality");
+
+                            b1.Property<string>("PostalCode")
+                                .HasMaxLength(20)
+                                .HasColumnType("character varying(20)")
+                                .HasColumnName("AddressPostalCode");
+
+                            b1.Property<string>("State")
+                                .HasMaxLength(100)
+                                .HasColumnType("character varying(100)")
+                                .HasColumnName("AddressState");
+
+                            b1.HasKey("StudentId");
+
+                            b1.ToTable("Students");
+
+                            b1.WithOwner()
+                                .HasForeignKey("StudentId");
+                        });
+
+                    b.Navigation("Address");
+                });
+
             modelBuilder.Entity("ChildGuard.Domain.Entities.StudentBusAssignment", b =>
                 {
                     b.HasOne("ChildGuard.Domain.Entities.Bus", "Bus")
@@ -1646,6 +1900,8 @@ namespace ChildGuard.Infrastructure.Postgres.Migrations
 
             modelBuilder.Entity("ChildGuard.Domain.Entities.RfidCard", b =>
                 {
+                    b.Navigation("Assignments");
+
                     b.Navigation("AttendanceRecords");
 
                     b.Navigation("JourneyEvents");
