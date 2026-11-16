@@ -38,6 +38,27 @@ public enum RfidCardAvailability
     Blocked = 4
 }
 
+/// <summary>
+/// A bus's state. Active and Inactive keep the values RecordStatus gave them, so stored rows are unchanged. Only an
+/// Active bus takes new student assignments; students already on it stay until moved.
+/// </summary>
+public enum BusStatus
+{
+    Active = 1,
+    Inactive = 2,
+    UnderMaintenance = 3,
+    OutOfService = 4
+}
+
+/// <summary>Validity of a driver's licence relative to today at the school.</summary>
+public enum LicenceState
+{
+    NotRecorded = 0,
+    Valid = 1,
+    ExpiringSoon = 2,
+    Expired = 3
+}
+
 public enum RfidConnectionStatus
 {
     Disconnected = 0,

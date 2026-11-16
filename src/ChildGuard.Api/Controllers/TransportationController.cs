@@ -143,6 +143,61 @@ public class TransportationController : ControllerBase
     }
 
     // 404 for a missing record (its error ends in "not found."), 400 for any other refusal.
+    // ---- driver and bus profiles, live rosters, controlled deletion
+
+    [HttpGet("drivers/{id:int}")]
+    public async Task<IActionResult> GetDriver(int id, CancellationToken ct)
+    {
+        var r = await _service.GetDriverDetailAsync(id, ct);
+        return r.Succeeded ? Ok(r.Value) : NotFound(new { message = r.Error });
+    }
+
+    [HttpPut("drivers/{id:int}/profile")]
+    public async Task<IActionResult> UpdateDriverProfile(int id, UpdateDriverProfileRequest request,
+        [FromServices] IValidator<UpdateDriverProfileRequest> v, CancellationToken ct)
+    {
+        await v.ValidateAndThrowAsync(request, ct);
+        return Answer(await _service.UpdateDriverProfileAsync(id, request, ct, this.GetUserId()), "Driver profile updated.");
+    }
+
+    [HttpDelete("drivers/{id:int}")]
+    public async Task<IActionResult> DeleteDriver(int id, [FromBody] DeleteRecordRequest request, [FromServices] IValidator<DeleteRecordRequest> v, CancellationToken ct)
+    {
+        await v.ValidateAndThrowAsync(request, ct);
+        return this.ToResult(await _service.DeleteDriverAsync(id, request.Reason, ct, this.GetUserId()));
+    }
+
+    [HttpGet("buses/{id:int}")]
+    public async Task<IActionResult> GetBus(int id, CancellationToken ct)
+    {
+        var r = await _service.GetBusDetailAsync(id, ct);
+        return r.Succeeded ? Ok(r.Value) : NotFound(new { message = r.Error });
+    }
+
+    [HttpPut("buses/{id:int}/details")]
+    public async Task<IActionResult> UpdateBusDetails(int id, UpdateBusDetailsRequest request,
+        [FromServices] IValidator<UpdateBusDetailsRequest> v, CancellationToken ct)
+    {
+        await v.ValidateAndThrowAsync(request, ct);
+        return Answer(await _service.UpdateBusDetailsAsync(id, request, ct, this.GetUserId()), "Bus details updated.");
+    }
+
+    /// <summary>Active, Inactive, UnderMaintenance or OutOfService. Only an active bus takes new students.</summary>
+    [HttpPatch("buses/{id:int}/operational-status")]
+    public async Task<IActionResult> SetBusOperationalStatus(int id, BusOperationalStatusRequest request,
+        [FromServices] IValidator<BusOperationalStatusRequest> v, CancellationToken ct)
+    {
+        await v.ValidateAndThrowAsync(request, ct);
+        return Answer(await _service.SetBusOperationalStatusAsync(id, request.Status, request.Reason, ct, this.GetUserId()), "Bus status updated.");
+    }
+
+    [HttpDelete("buses/{id:int}")]
+    public async Task<IActionResult> DeleteBus(int id, [FromBody] DeleteRecordRequest request, [FromServices] IValidator<DeleteRecordRequest> v, CancellationToken ct)
+    {
+        await v.ValidateAndThrowAsync(request, ct);
+        return this.ToResult(await _service.DeleteBusAsync(id, request.Reason, ct, this.GetUserId()));
+    }
+
     private IActionResult Answer(Result result, string success) =>
         result.Succeeded ? Ok(new { message = success })
         : result.Error!.EndsWith("not found.", StringComparison.Ordinal) ? NotFound(new { message = result.Error })

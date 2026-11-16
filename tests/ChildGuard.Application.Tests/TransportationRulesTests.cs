@@ -250,7 +250,7 @@ public class TransportationRulesTests
     {
         var repo = new FakeBulkImportRepository();
         repo.Buses.Add(new BusImportKey(1, "B1", 7, Capacity: 3, ActiveStudents: 1));
-        repo.Buses.Add(new BusImportKey(2, "OFF", null, Capacity: 30, Status: RecordStatus.Inactive));
+        repo.Buses.Add(new BusImportKey(2, "OFF", null, Capacity: 30, Status: BusStatus.Inactive));
         var handler = new StudentImportHandler(repo, new CreateStudentRequestValidator());
 
         ImportRowDto Kid(int n, string bus, string dob = "2016-01-01") =>

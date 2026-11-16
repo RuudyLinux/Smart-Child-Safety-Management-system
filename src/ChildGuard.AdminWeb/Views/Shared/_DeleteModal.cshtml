@@ -1,0 +1,50 @@
+@model (string ModalId, string Name, string Noun, string Action, DeletionCheckDto Check)
+@{ var check = Model.Check; }
+<div class="cg-modal" id="@Model.ModalId" hidden role="dialog" aria-modal="true" aria-labelledby="@(Model.ModalId)Title">
+    <div class="cg-modal__panel">
+        <div class="cg-modal__head">
+            <div>
+                <h2 class="cg-modal__title" id="@(Model.ModalId)Title">Permanently delete @Model.Name?</h2>
+                <div class="cg-modal__sub">This cannot be undone. The audit log keeps a note of the deletion.</div>
+            </div>
+            <button type="button" class="cg-iconbtn" data-cg-modal-close aria-label="Close">@await Html.PartialAsync("_Icon", "x")</button>
+        </div>
+        @if (!check.CanDelete)
+        {
+            <div class="cg-modal__body">
+                <div class="cg-alert cg-alert--danger" role="alert">
+                    <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "alert-circle")</span>
+                    <div class="cg-alert__body">
+                        <div class="cg-alert__title">This @Model.Noun cannot be deleted</div>
+                        <ul style="margin:6px 0 0;padding-left:18px" data-delete-blockers>
+                            @foreach (var b in check.Blockers) { <li>@b</li> }
+                        </ul>
+                        <div style="margin-top:6px">Deactivate it instead: it stays on record with its history.</div>
+                    </div>
+                </div>
+            </div>
+            <div class="cg-modal__foot"><button type="button" class="cg-btn cg-btn--secondary" data-cg-modal-close>Close</button></div>
+        }
+        else
+        {
+            <form action="@Model.Action" method="post" data-cg-busy>
+                @Html.AntiForgeryToken()
+                <div class="cg-modal__body cg-form">
+                    <div class="cg-field">
+                        <label class="cg-label" for="@(Model.ModalId)Reason">Reason <span class="cg-label__req">*</span></label>
+                        <textarea class="cg-textarea" id="@(Model.ModalId)Reason" name="reason" rows="2" minlength="10" maxlength="500" required
+                                  placeholder="e.g. Added by mistake"></textarea>
+                    </div>
+                    <label class="cg-check">
+                        <input type="checkbox" name="confirmed" value="true" required />
+                        <span class="cg-check__text">I understand this permanently deletes the @Model.Noun.</span>
+                    </label>
+                </div>
+                <div class="cg-modal__foot">
+                    <button type="button" class="cg-btn cg-btn--secondary" data-cg-modal-close>Cancel</button>
+                    <button type="submit" class="cg-btn cg-btn--danger"><span class="cg-btn__label">Delete permanently</span></button>
+                </div>
+            </form>
+        }
+    </div>
+</div>

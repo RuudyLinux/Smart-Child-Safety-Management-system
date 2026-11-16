@@ -8,7 +8,7 @@ public sealed record StudentImportKey(string FullName, DateTime DateOfBirth);
 public sealed record DriverImportKey(int DriverId, string FullName, string? Phone, string? LicenseNumber, RecordStatus Status = RecordStatus.Active);
 public sealed record RouteImportKey(int RouteId, string RouteName, RecordStatus Status = RecordStatus.Active);
 /// <param name="ActiveStudents">Seats already taken by active assignments.</param>
-public sealed record BusImportKey(int BusId, string BusNumber, int? RouteId, int Capacity = int.MaxValue, RecordStatus Status = RecordStatus.Active, int ActiveStudents = 0);
+public sealed record BusImportKey(int BusId, string BusNumber, int? RouteId, int Capacity = int.MaxValue, BusStatus Status = BusStatus.Active, int ActiveStudents = 0);
 
 /// <summary>Outcome of saving an import.</summary>
 public enum ImportSaveOutcome

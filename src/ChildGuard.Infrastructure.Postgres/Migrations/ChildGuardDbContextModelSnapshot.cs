@@ -201,6 +201,18 @@ namespace ChildGuard.Infrastructure.Postgres.Migrations
                     b.Property<int?>("DriverId")
                         .HasColumnType("integer");
 
+                    b.Property<string>("Manufacturer")
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<string>("Model")
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<string>("RegistrationNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("citext");
+
                     b.Property<int?>("RouteId")
                         .HasColumnType("integer");
 
@@ -213,6 +225,9 @@ namespace ChildGuard.Infrastructure.Postgres.Migrations
                         .IsUnique();
 
                     b.HasIndex("DriverId");
+
+                    b.HasIndex("RegistrationNumber")
+                        .IsUnique();
 
                     b.HasIndex("RouteId");
 
@@ -288,10 +303,36 @@ namespace ChildGuard.Infrastructure.Postgres.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("Email")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("EmergencyContactName")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<string>("EmergencyContactPhone")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("EmployeeCode")
+                        .HasMaxLength(30)
+                        .HasColumnType("citext");
+
                     b.Property<string>("FullName")
                         .IsRequired()
                         .HasMaxLength(150)
                         .HasColumnType("citext");
+
+                    b.Property<DateOnly?>("JoinedOn")
+                        .HasColumnType("date");
+
+                    b.Property<string>("LicenseCategory")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateOnly?>("LicenseExpiresOn")
+                        .HasColumnType("date");
 
                     b.Property<string>("LicenseNumber")
                         .HasMaxLength(50)
@@ -305,6 +346,9 @@ namespace ChildGuard.Infrastructure.Postgres.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("DriverId");
+
+                    b.HasIndex("EmployeeCode")
+                        .IsUnique();
 
                     b.ToTable("Drivers");
                 });
@@ -1546,6 +1590,69 @@ namespace ChildGuard.Infrastructure.Postgres.Migrations
                         .IsRequired();
 
                     b.Navigation("Admin");
+                });
+
+            modelBuilder.Entity("ChildGuard.Domain.Entities.Driver", b =>
+                {
+                    b.OwnsOne("ChildGuard.Domain.Entities.PostalAddress", "Address", b1 =>
+                        {
+                            b1.Property<int>("DriverId")
+                                .HasColumnType("integer");
+
+                            b1.Property<string>("City")
+                                .HasMaxLength(100)
+                                .HasColumnType("character varying(100)")
+                                .HasColumnName("AddressCity");
+
+                            b1.Property<string>("Country")
+                                .HasMaxLength(100)
+                                .HasColumnType("character varying(100)")
+                                .HasColumnName("AddressCountry");
+
+                            b1.Property<string>("District")
+                                .HasMaxLength(100)
+                                .HasColumnType("character varying(100)")
+                                .HasColumnName("AddressDistrict");
+
+                            b1.Property<string>("Landmark")
+                                .HasMaxLength(100)
+                                .HasColumnType("character varying(100)")
+                                .HasColumnName("AddressLandmark");
+
+                            b1.Property<string>("Line1")
+                                .HasMaxLength(200)
+                                .HasColumnType("character varying(200)")
+                                .HasColumnName("AddressLine1");
+
+                            b1.Property<string>("Line2")
+                                .HasMaxLength(200)
+                                .HasColumnType("character varying(200)")
+                                .HasColumnName("AddressLine2");
+
+                            b1.Property<string>("Locality")
+                                .HasMaxLength(100)
+                                .HasColumnType("character varying(100)")
+                                .HasColumnName("AddressLocality");
+
+                            b1.Property<string>("PostalCode")
+                                .HasMaxLength(20)
+                                .HasColumnType("character varying(20)")
+                                .HasColumnName("AddressPostalCode");
+
+                            b1.Property<string>("State")
+                                .HasMaxLength(100)
+                                .HasColumnType("character varying(100)")
+                                .HasColumnName("AddressState");
+
+                            b1.HasKey("DriverId");
+
+                            b1.ToTable("Drivers");
+
+                            b1.WithOwner()
+                                .HasForeignKey("DriverId");
+                        });
+
+                    b.Navigation("Address");
                 });
 
             modelBuilder.Entity("ChildGuard.Domain.Entities.EnrollmentRequest", b =>

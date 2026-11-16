@@ -47,8 +47,158 @@ public class TransportationService : ITransportationService
 
     // ------------------------------------------------------------------ drivers
 
-    public async Task<List<DriverDto>> GetDriversAsync(CancellationToken ct = default) =>
-        (await _repo.GetDriversAsync(ct)).Select(d => new DriverDto(d.DriverId, d.FullName, d.Phone, d.LicenseNumber, d.Status)).ToList();
+    public async Task<List<DriverDto>> GetDriversAsync(CancellationToken ct = default)
+    {
+        var buses = await _repo.GetBusesAsync(ct);
+        var counts = await _repo.GetActiveAssignmentCountsAsync(ct);
+        return (await _repo.GetDriversAsync(ct)).Select(d => ToDto(d, buses, counts)).ToList();
+    }
+
+    private DriverDto ToDto(Driver d, IReadOnlyCollection<Bus> buses, IReadOnlyDictionary<int, int> counts)
+    {
+        var driven = buses.Where(b => b.DriverId == d.DriverId).ToList();
+        return new DriverDto(d.DriverId, d.FullName, d.Phone, d.LicenseNumber, d.Status,
+            d.EmployeeCode, d.Email, d.LicenseCategory, d.LicenseExpiresOn, LicenceRules.State(d.LicenseExpiresOn, _clock.Today),
+            driven.Select(b => b.BusNumber).OrderBy(n => n).ToList(),
+            driven.Sum(b => counts.TryGetValue(b.BusId, out var n) ? n : 0));
+    }
+
+    private static List<RosterEntryDto> Roster(IEnumerable<StudentBusAssignment> active) =>
+        active.Select(a => new RosterEntryDto(a.Id, a.StudentId, a.Student.FullName, a.Student.Grade, a.Student.Section, a.Student.AdmissionNumber,
+            a.BusId, a.Bus.BusNumber, a.RouteId, a.Route?.RouteName, a.AssignedAt)).ToList();
+
+    public async Task<Result<DriverDetailDto>> GetDriverDetailAsync(int id, CancellationToken ct = default)
+    {
+        var d = await _repo.GetDriverByIdAsync(id, ct);
+        if (d is null) return Result<DriverDetailDto>.Failure(DriverNotFound);
+        var buses = (await _repo.GetBusesAsync(ct)).Where(b => b.DriverId == id).ToList();
+        var counts = await _repo.GetActiveAssignmentCountsAsync(ct);
+        var roster = Roster(await _repo.GetActiveRosterAsync(buses.Select(b => b.BusId).ToList(), ct));
+        return Result<DriverDetailDto>.Success(new DriverDetailDto(
+            ToDto(d, buses, counts), AddressDto.From(d.Address), d.EmergencyContactName, d.EmergencyContactPhone, d.JoinedOn, d.CreatedAt,
+            buses.Select(b => new BusSummaryDto(b.BusId, b.BusNumber, b.RegistrationNumber, b.RouteId, b.Route?.RouteName, b.Status,
+                counts.TryGetValue(b.BusId, out var n) ? n : 0)).ToList(),
+            roster, DriverCheck(buses)));
+    }
+
+    private static DeletionCheckDto DriverCheck(IReadOnlyCollection<Bus> driven)
+    {
+        var blockers = driven.Count == 0
+            ? new List<string>()
+            : new List<string> { $"drives {string.Join(", ", driven.Select(b => b.BusNumber))}; assign another driver to {(driven.Count == 1 ? "that bus" : "those buses")} first" };
+        var warnings = driven.Count == 0 ? new List<string>()
+            : new List<string> { "Deactivating keeps the driver on their buses; they just cannot be assigned to another." };
+        return new DeletionCheckDto(blockers.Count == 0, blockers, new List<string>(), warnings);
+    }
+
+    public const string DuplicateEmployeeCode = "Another driver already has this driver ID.";
+    public const string DuplicateRegistration = "Another bus already has this registration number.";
+
+    public async Task<Result> UpdateDriverProfileAsync(int id, UpdateDriverProfileRequest r, CancellationToken ct = default, int? actorAdminId = null)
+    {
+        var d = await _repo.GetDriverByIdAsync(id, ct);
+        if (d is null) return Result.Failure(DriverNotFound);
+        var code = Blank(r.EmployeeCode);
+        if (code is not null && await _repo.EmployeeCodeTakenAsync(code, id, ct)) return Result.Failure(DuplicateEmployeeCode);
+
+        var address = r.Address?.ToEntity();
+        var changes = AuditDetails.Changes(
+            ("fullName", d.FullName, r.FullName.Trim()), ("phone", d.Phone, Blank(r.Phone)), ("licenseNumber", d.LicenseNumber, Blank(r.LicenseNumber)),
+            ("employeeCode", d.EmployeeCode, code), ("email", d.Email, Blank(r.Email)),
+            ("emergencyContactName", d.EmergencyContactName, Blank(r.EmergencyContactName)), ("emergencyContactPhone", d.EmergencyContactPhone, Blank(r.EmergencyContactPhone)),
+            ("licenseCategory", d.LicenseCategory, Blank(r.LicenseCategory)), ("licenseExpiresOn", d.LicenseExpiresOn, r.LicenseExpiresOn), ("joinedOn", d.JoinedOn, r.JoinedOn));
+        var addressParts = AuditDetails.ChangedAddressParts(d.Address, address);
+        if (changes.Count == 0 && addressParts.Count == 0) return Result.Success();
+
+        d.FullName = r.FullName.Trim();
+        d.Phone = Blank(r.Phone);
+        d.LicenseNumber = Blank(r.LicenseNumber);
+        d.EmployeeCode = code;
+        d.Email = Blank(r.Email);
+        d.Address = address;
+        d.EmergencyContactName = Blank(r.EmergencyContactName);
+        d.EmergencyContactPhone = Blank(r.EmergencyContactPhone);
+        d.LicenseCategory = Blank(r.LicenseCategory);
+        d.LicenseExpiresOn = r.LicenseExpiresOn;
+        d.JoinedOn = r.JoinedOn;
+        if (!await _repo.TrySaveChangesAsync(ct)) return Result.Failure(DuplicateEmployeeCode);
+        var fields = changes.Keys.Concat(addressParts.Count > 0 ? new[] { "address" } : Array.Empty<string>());
+        await AuditAsync(actorAdminId, "Driver", id, "ProfileUpdated", $"{d.FullName}: {string.Join(", ", fields)}", ct);
+        return Result.Success();
+    }
+
+    public async Task<LifecycleOutcome> DeleteDriverAsync(int id, string reason, CancellationToken ct = default, int? actorAdminId = null)
+    {
+        var d = await _repo.GetDriverByIdAsync(id, ct);
+        if (d is null) return LifecycleOutcome.Missing("Driver");
+        var check = DriverCheck((await _repo.GetBusesAsync(ct)).Where(b => b.DriverId == id).ToList());
+        if (!check.CanDelete) return LifecycleOutcome.Refused(check);
+        var name = d.FullName;
+        _repo.RemoveDriver(d);
+        await _repo.SaveChangesAsync(ct);
+        await AuditAsync(actorAdminId, "Driver", id, "Deleted", $"{name} permanently deleted. Reason: {reason.Trim()}", ct);
+        return LifecycleOutcome.Ok($"Driver {name} permanently deleted.");
+    }
+
+    // ------------------------------------------------------------------ bus details
+
+    public async Task<Result<BusDetailDto>> GetBusDetailAsync(int id, CancellationToken ct = default)
+    {
+        var b = (await _repo.GetBusesAsync(ct)).FirstOrDefault(x => x.BusId == id);
+        if (b is null) return Result<BusDetailDto>.Failure(BusNotFound);
+        var roster = Roster(await _repo.GetActiveRosterAsync(new[] { id }, ct));
+        var dto = new BusDto(b.BusId, b.BusNumber, b.Capacity, b.Driver?.FullName, b.Route?.RouteName, b.Status, b.DriverId, b.RouteId,
+            roster.Count, b.RegistrationNumber, b.Manufacturer, b.Model);
+        var driver = b.Driver is { } d
+            ? new DriverSummaryDto(d.DriverId, d.FullName, d.Phone, d.Email, d.LicenseNumber, d.LicenseCategory, d.LicenseExpiresOn,
+                LicenceRules.State(d.LicenseExpiresOn, _clock.Today), d.Status)
+            : null;
+        var route = b.Route is { } r ? new RouteSummaryDto(r.RouteId, r.RouteName, r.Description, r.Status) : null;
+        return Result<BusDetailDto>.Success(new BusDetailDto(dto, b.CreatedAt, driver, route, roster, await BusCheckAsync(b, roster.Count, ct)));
+    }
+
+    private async Task<DeletionCheckDto> BusCheckAsync(Bus b, int activeStudents, CancellationToken ct)
+    {
+        var (assignments, events) = await _repo.CountBusHistoryAsync(b.BusId, ct);
+        var blockers = new List<string>();
+        if (assignments > 0) blockers.Add($"{assignments} student assignment{(assignments == 1 ? "" : "s")} (current or past)");
+        if (events > 0) blockers.Add($"{events} journey event{(events == 1 ? "" : "s")}");
+        var warnings = new List<string>();
+        if (activeStudents > 0)
+            warnings.Add($"{activeStudents} student{(activeStudents == 1 ? " is" : "s are")} on this bus. Taking it out of service keeps them assigned until you move them.");
+        return new DeletionCheckDto(blockers.Count == 0, blockers, new List<string>(), warnings);
+    }
+
+    public async Task<Result> UpdateBusDetailsAsync(int id, UpdateBusDetailsRequest r, CancellationToken ct = default, int? actorAdminId = null)
+    {
+        var b = await _repo.GetBusByIdAsync(id, ct);
+        if (b is null) return Result.Failure(BusNotFound);
+        var registration = Blank(r.RegistrationNumber)?.ToUpperInvariant();
+        if (registration is not null && await _repo.RegistrationTakenAsync(registration, id, ct)) return Result.Failure(DuplicateRegistration);
+        var changes = AuditDetails.Changes(("registrationNumber", b.RegistrationNumber, registration),
+            ("manufacturer", b.Manufacturer, Blank(r.Manufacturer)), ("model", b.Model, Blank(r.Model)));
+        if (changes.Count == 0) return Result.Success();
+        b.RegistrationNumber = registration;
+        b.Manufacturer = Blank(r.Manufacturer);
+        b.Model = Blank(r.Model);
+        if (!await _repo.TrySaveChangesAsync(ct)) return Result.Failure(DuplicateRegistration);
+        await AuditAsync(actorAdminId, "Bus", id, "DetailsUpdated",
+            $"{b.BusNumber}: " + string.Join(", ", changes.Select(c => c.Key)), ct);
+        return Result.Success();
+    }
+
+    public async Task<LifecycleOutcome> DeleteBusAsync(int id, string reason, CancellationToken ct = default, int? actorAdminId = null)
+    {
+        var b = await _repo.GetBusByIdAsync(id, ct);
+        if (b is null) return LifecycleOutcome.Missing("Bus");
+        var check = await BusCheckAsync(b, 0, ct);
+        if (!check.CanDelete) return LifecycleOutcome.Refused(check);
+        var number = b.BusNumber;
+        _repo.RemoveBus(b);
+        await _repo.SaveChangesAsync(ct);
+        await AuditAsync(actorAdminId, "Bus", id, "Deleted", $"{number} permanently deleted. Reason: {reason.Trim()}", ct);
+        return LifecycleOutcome.Ok($"Bus {number} permanently deleted.");
+    }
 
     public async Task<DriverDto> AddDriverAsync(CreateDriverRequest request, CancellationToken ct = default, int? actorAdminId = null)
     {
@@ -140,7 +290,7 @@ public class TransportationService : ITransportationService
         var counts = await _repo.GetActiveAssignmentCountsAsync(ct);
         return (await _repo.GetBusesAsync(ct)).Select(b => new BusDto(
             b.BusId, b.BusNumber, b.Capacity, b.Driver?.FullName, b.Route?.RouteName, b.Status, b.DriverId, b.RouteId,
-            counts.TryGetValue(b.BusId, out var n) ? n : 0)).ToList();
+            counts.TryGetValue(b.BusId, out var n) ? n : 0, b.RegistrationNumber, b.Manufacturer, b.Model)).ToList();
     }
 
     public async Task<Result<BusDto>> AddBusAsync(CreateBusRequest request, CancellationToken ct = default, int? actorAdminId = null)
@@ -203,10 +353,28 @@ public class TransportationService : ITransportationService
     {
         var bus = await _repo.GetBusByIdAsync(id, ct);
         if (bus is null) return Result.Failure(BusNotFound);
+        var target = status == RecordStatus.Active ? BusStatus.Active : BusStatus.Inactive;
+        if (bus.Status == target) return Result.Success();
+        bus.Status = target;
+        await _repo.SaveChangesAsync(ct);
+        await AuditAsync(actorAdminId, "Bus", id, target == BusStatus.Active ? "ReturnedToService" : "TakenOutOfService", bus.BusNumber, ct);
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// Sets a bus's state, including UnderMaintenance and OutOfService. Like deactivation, a non-active bus keeps
+    /// its students but takes no new ones; the change and its reason are audited.
+    /// </summary>
+    public async Task<Result> SetBusOperationalStatusAsync(int id, BusStatus status, string? reason, CancellationToken ct = default, int? actorAdminId = null)
+    {
+        var bus = await _repo.GetBusByIdAsync(id, ct);
+        if (bus is null) return Result.Failure(BusNotFound);
         if (bus.Status == status) return Result.Success();
+        var from = bus.Status;
         bus.Status = status;
         await _repo.SaveChangesAsync(ct);
-        await AuditAsync(actorAdminId, "Bus", id, status == RecordStatus.Active ? "ReturnedToService" : "TakenOutOfService", bus.BusNumber, ct);
+        var text = reason is { Length: > 0 } ? $"{bus.BusNumber}: {from} → {status} ({reason.Trim()})" : $"{bus.BusNumber}: {from} → {status}";
+        await AuditAsync(actorAdminId, "Bus", id, status == BusStatus.Active ? "ReturnedToService" : $"Set{status}", text, ct);
         return Result.Success();
     }
 
@@ -234,7 +402,7 @@ public class TransportationService : ITransportationService
         {
             var bus = await _repo.GetBusByIdAsync(request.BusId, lockCt);
             if (bus is null) return Result.Failure(BusNotFound);
-            if (bus.Status != RecordStatus.Active) return Result.Failure(BusOutOfService);
+            if (bus.Status != BusStatus.Active) return Result.Failure(BusOutOfService);
 
             var (routeId, routeError) = await ResolveAssignmentRouteAsync(bus, request.RouteId, lockCt);
             if (routeError is not null) return Result.Failure(routeError);

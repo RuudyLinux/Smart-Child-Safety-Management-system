@@ -80,6 +80,8 @@ public class ChildGuardDbContext : DbContext
         modelBuilder.Entity<Student>().Property(x => x.FullName).HasColumnType("citext");
         modelBuilder.Entity<Student>().Property(x => x.AdmissionNumber).HasColumnType("citext");
         modelBuilder.Entity<Driver>().Property(x => x.FullName).HasColumnType("citext");
+        modelBuilder.Entity<Driver>().Property(x => x.EmployeeCode).HasColumnType("citext");
+        modelBuilder.Entity<Bus>().Property(x => x.RegistrationNumber).HasColumnType("citext");
         modelBuilder.Entity<Route>().Property(x => x.RouteName).HasColumnType("citext");
         modelBuilder.Entity<Bus>().Property(x => x.BusNumber).HasColumnType("citext");
         modelBuilder.Entity<RfidCard>().Property(x => x.CardUid).HasColumnType("citext");

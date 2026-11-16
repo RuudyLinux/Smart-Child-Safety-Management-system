@@ -126,7 +126,7 @@ public sealed class StudentImportHandler : ImportHandler
             {
                 if (!buses.TryGetValue(Fold(busNumber), out bus))
                     plan.Error(K.BusNumber, "No bus has this number.");
-                else if (bus.Status != RecordStatus.Active)
+                else if (bus.Status != BusStatus.Active)
                     plan.Error(K.BusNumber, "This bus is out of service. Students cannot be assigned to it.");
             }
 
@@ -522,6 +522,6 @@ public sealed class BusImportHandler : ImportHandler
     public override void Stage(IReadOnlyList<RowPlan> validRows, ImportWriteSet set, DateTime nowUtc)
     {
         foreach (var p in validRows.Select(r => (Parsed)r.Parsed!))
-            set.Buses.Add(new Bus { BusNumber = p.BusNumber, Capacity = p.Capacity, DriverId = p.DriverId, RouteId = p.RouteId, Status = RecordStatus.Active, CreatedAt = nowUtc });
+            set.Buses.Add(new Bus { BusNumber = p.BusNumber, Capacity = p.Capacity, DriverId = p.DriverId, RouteId = p.RouteId, Status = BusStatus.Active, CreatedAt = nowUtc });
     }
 }

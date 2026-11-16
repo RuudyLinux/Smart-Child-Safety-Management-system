@@ -27,7 +27,7 @@ internal sealed class FakeTransportationRepository : ITransportationRepository
         return s;
     }
 
-    public Bus AddBus(string number, int capacity, int? routeId = null, RecordStatus status = RecordStatus.Active, int? driverId = null)
+    public Bus AddBus(string number, int capacity, int? routeId = null, BusStatus status = BusStatus.Active, int? driverId = null)
     {
         var b = new Bus { BusId = ++_id, BusNumber = number, Capacity = capacity, RouteId = routeId, DriverId = driverId, Status = status };
         Buses.Add(b);
@@ -108,6 +108,17 @@ internal sealed class FakeTransportationRepository : ITransportationRepository
 
     public Task<StudentBusAssignment?> GetActiveAssignmentForStudentAsync(int studentId, CancellationToken ct = default) =>
         Task.FromResult(Assignments.FirstOrDefault(a => a.StudentId == studentId && a.Status == RecordStatus.Active));
+
+    public async Task<List<StudentBusAssignment>> GetActiveRosterAsync(IReadOnlyCollection<int> busIds, CancellationToken ct = default) =>
+        (await GetAssignmentsAsync(ct)).Where(a => busIds.Contains(a.BusId) && a.Status == RecordStatus.Active).ToList();
+    public Task<bool> EmployeeCodeTakenAsync(string employeeCode, int exceptDriverId, CancellationToken ct = default) =>
+        Task.FromResult(Drivers.Any(d => d.DriverId != exceptDriverId && string.Equals(d.EmployeeCode, employeeCode, StringComparison.OrdinalIgnoreCase)));
+    public Task<bool> RegistrationTakenAsync(string registrationNumber, int exceptBusId, CancellationToken ct = default) =>
+        Task.FromResult(Buses.Any(b => b.BusId != exceptBusId && string.Equals(b.RegistrationNumber, registrationNumber, StringComparison.OrdinalIgnoreCase)));
+    public Task<(int Assignments, int JourneyEvents)> CountBusHistoryAsync(int busId, CancellationToken ct = default) =>
+        Task.FromResult((Assignments.Count(a => a.BusId == busId), 0));
+    public void RemoveDriver(Driver driver) => Drivers.Remove(driver);
+    public void RemoveBus(Bus bus) => Buses.Remove(bus);
 
     public Task AddAuditAsync(TransportAuditEntry entry, CancellationToken ct = default) { Audit.Add(entry); return Task.CompletedTask; }
 

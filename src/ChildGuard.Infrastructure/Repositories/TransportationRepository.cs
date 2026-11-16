@@ -126,6 +126,25 @@ public class TransportationRepository : ITransportationRepository
     public Task<StudentBusAssignment?> GetActiveAssignmentForStudentAsync(int studentId, CancellationToken ct = default) =>
         _db.StudentBusAssignments.FirstOrDefaultAsync(a => a.StudentId == studentId && a.Status == RecordStatus.Active, ct);
 
+    public Task<List<StudentBusAssignment>> GetActiveRosterAsync(IReadOnlyCollection<int> busIds, CancellationToken ct = default) =>
+        _db.StudentBusAssignments.AsNoTracking()
+            .Include(a => a.Student).Include(a => a.Bus).Include(a => a.Route)
+            .Where(a => busIds.Contains(a.BusId) && a.Status == RecordStatus.Active)
+            .OrderBy(a => a.Bus.BusNumber).ThenBy(a => a.Student.FullName)
+            .ToListAsync(ct);
+
+    public Task<bool> EmployeeCodeTakenAsync(string employeeCode, int exceptDriverId, CancellationToken ct = default) =>
+        _db.Drivers.AnyAsync(d => d.EmployeeCode == employeeCode && d.DriverId != exceptDriverId, ct);
+
+    public Task<bool> RegistrationTakenAsync(string registrationNumber, int exceptBusId, CancellationToken ct = default) =>
+        _db.Buses.AnyAsync(b => b.RegistrationNumber == registrationNumber && b.BusId != exceptBusId, ct);
+
+    public async Task<(int Assignments, int JourneyEvents)> CountBusHistoryAsync(int busId, CancellationToken ct = default) =>
+        (await _db.StudentBusAssignments.CountAsync(a => a.BusId == busId, ct), await _db.JourneyEvents.CountAsync(e => e.BusId == busId, ct));
+
+    public void RemoveDriver(Driver driver) => _db.Drivers.Remove(driver);
+    public void RemoveBus(Bus bus) => _db.Buses.Remove(bus);
+
     public async Task AddAuditAsync(TransportAuditEntry entry, CancellationToken ct = default) =>
         await _db.TransportAuditEntries.AddAsync(entry, ct);
 

@@ -75,7 +75,7 @@ public class TransportAndScannerCrudTests : IClassFixture<ApiFactory>
         await Ok<object>(await admin.PatchAsJsonAsync($"/api/transportation/buses/{bus.BusId}/status", new UpdateTransportStatusRequest(RecordStatus.Inactive), Json.Options));
 
         var saved = (await Ok<List<BusDto>>(await admin.GetAsync("/api/transportation/buses"))).Single(b => b.BusId == bus.BusId);
-        Assert.Equal((number, 52, driver2.FullName, (string?)null, RecordStatus.Inactive), (saved.BusNumber, saved.Capacity, saved.DriverName, saved.RouteName, saved.Status));
+        Assert.Equal((number, 52, driver2.FullName, (string?)null, BusStatus.Inactive), (saved.BusNumber, saved.Capacity, saved.DriverName, saved.RouteName, saved.Status));
         Assert.Equal(driver2.DriverId, saved.DriverId);
         Assert.Null(saved.RouteId);
     }

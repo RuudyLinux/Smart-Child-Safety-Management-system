@@ -46,6 +46,14 @@ public interface ITransportationRepository
     Task<Dictionary<int, int>> GetActiveAssignmentCountsAsync(CancellationToken ct = default);
     Task<StudentBusAssignment?> GetActiveAssignmentForStudentAsync(int studentId, CancellationToken ct = default);
 
+    /// <summary>Active assignments on these buses with student, bus and route loaded (the live roster).</summary>
+    Task<List<StudentBusAssignment>> GetActiveRosterAsync(IReadOnlyCollection<int> busIds, CancellationToken ct = default);
+    Task<bool> EmployeeCodeTakenAsync(string employeeCode, int exceptDriverId, CancellationToken ct = default);
+    Task<bool> RegistrationTakenAsync(string registrationNumber, int exceptBusId, CancellationToken ct = default);
+    /// <summary>Assignments ever made to the bus (active or ended) and journey events recorded on it.</summary>
+    Task<(int Assignments, int JourneyEvents)> CountBusHistoryAsync(int busId, CancellationToken ct = default);
+    void RemoveDriver(Driver driver);
+    void RemoveBus(Bus bus);
     Task AddAuditAsync(TransportAuditEntry entry, CancellationToken ct = default);
     Task<List<(TransportAuditEntry Entry, string? AdminName)>> GetAuditAsync(int take, CancellationToken ct = default);
 }

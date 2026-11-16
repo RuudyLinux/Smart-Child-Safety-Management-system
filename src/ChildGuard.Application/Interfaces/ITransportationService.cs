@@ -38,4 +38,17 @@ public interface ITransportationService
     Task<Result> SetAssignmentStatusAsync(int id, RecordStatus status, CancellationToken ct = default, int? actorAdminId = null);
 
     Task<List<TransportAuditDto>> GetAuditAsync(int take, CancellationToken ct = default);
+
+    // ---- profiles, live rosters and controlled deletion
+
+    Task<Result<DriverDetailDto>> GetDriverDetailAsync(int id, CancellationToken ct = default);
+    Task<Result> UpdateDriverProfileAsync(int id, UpdateDriverProfileRequest request, CancellationToken ct = default, int? actorAdminId = null);
+    /// <summary>Only for a driver who drives no bus; refused with the reason otherwise.</summary>
+    Task<LifecycleOutcome> DeleteDriverAsync(int id, string reason, CancellationToken ct = default, int? actorAdminId = null);
+
+    Task<Result<BusDetailDto>> GetBusDetailAsync(int id, CancellationToken ct = default);
+    Task<Result> UpdateBusDetailsAsync(int id, UpdateBusDetailsRequest request, CancellationToken ct = default, int? actorAdminId = null);
+    Task<Result> SetBusOperationalStatusAsync(int id, BusStatus status, string? reason, CancellationToken ct = default, int? actorAdminId = null);
+    /// <summary>Only for a bus that never carried a student or recorded a journey; refused otherwise.</summary>
+    Task<LifecycleOutcome> DeleteBusAsync(int id, string reason, CancellationToken ct = default, int? actorAdminId = null);
 }

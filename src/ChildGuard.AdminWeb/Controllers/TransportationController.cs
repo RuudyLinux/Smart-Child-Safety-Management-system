@@ -1,3 +1,4 @@
+using ChildGuard.AdminWeb.Models.ViewModels;
 using ChildGuard.Domain.Enums;
 using ChildGuard.AdminWeb.Services;
 using ChildGuard.Application.DTOs;
@@ -30,6 +31,73 @@ public class TransportationController : BaseAdminController
         ViewBag.Settings = settings.Value ?? new TransportSettingsDto(false);
         ViewBag.Audit = audit.Value ?? new();
         return View(buses.Value ?? new());
+    }
+
+    // ---- driver and bus pages
+
+    public async Task<IActionResult> Driver(int id, CancellationToken ct)
+    {
+        var r = await Api.GetAsync<DriverDetailDto>($"/api/transportation/drivers/{id}", ct);
+        if (!r.Succeeded) return NotFound();
+        SetPage(r.Value!.Driver.FullName, "Transport");
+        return View(r.Value);
+    }
+
+    public async Task<IActionResult> Bus(int id, CancellationToken ct)
+    {
+        var r = await Api.GetAsync<BusDetailDto>($"/api/transportation/buses/{id}", ct);
+        if (!r.Succeeded) return NotFound();
+        SetPage($"Bus {r.Value!.Bus.BusNumber}", "Transport");
+        return View(r.Value);
+    }
+
+    private void Flash(ApiResult<object?> r, string success) => TempData[r.Succeeded ? "Success" : "Error"] = r.Succeeded ? success : r.Error;
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> EditDriverProfile(int id, UpdateDriverProfileRequest request, CancellationToken ct)
+    {
+        Flash(await Api.PutAsync<object?>($"/api/transportation/drivers/{id}/profile", request, ct), "Driver profile saved.");
+        return RedirectToAction(nameof(Driver), new { id });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> EditBusDetails(int id, UpdateBusDetailsRequest request, CancellationToken ct)
+    {
+        Flash(await Api.PutAsync<object?>($"/api/transportation/buses/{id}/details", request, ct), "Bus details saved.");
+        return RedirectToAction(nameof(Bus), new { id });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SetBusOperationalStatus(int id, ChildGuard.Domain.Enums.BusStatus status, string? reason, CancellationToken ct)
+    {
+        Flash(await Api.PatchAsync<object?>($"/api/transportation/buses/{id}/operational-status", new BusOperationalStatusRequest(status, reason), ct),
+            $"Bus status set to {BusStatusText.Label(status).ToLowerInvariant()}.");
+        return RedirectToAction(nameof(Bus), new { id });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteDriver(int id, string? reason, bool confirmed, CancellationToken ct) =>
+        await DeleteAsync($"/api/transportation/drivers/{id}", reason, confirmed, nameof(Driver), id, ct);
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteBus(int id, string? reason, bool confirmed, CancellationToken ct) =>
+        await DeleteAsync($"/api/transportation/buses/{id}", reason, confirmed, nameof(Bus), id, ct);
+
+    private async Task<IActionResult> DeleteAsync(string url, string? reason, bool confirmed, string backAction, int id, CancellationToken ct)
+    {
+        if (!confirmed)
+        {
+            TempData["Error"] = "Confirm that you understand the deletion cannot be undone.";
+            return RedirectToAction(backAction, new { id });
+        }
+        var r = await Api.DeleteAsync<LifecycleResultDto>(url, new DeleteRecordRequest(reason ?? ""), ct);
+        TempData[r.Succeeded ? "Success" : "Error"] = r.Succeeded ? r.Value!.Message : r.Error;
+        return r.Succeeded ? RedirectToAction(nameof(Index)) : RedirectToAction(backAction, new { id });
     }
 
     [HttpPost]
@@ -103,9 +171,10 @@ public class TransportationController : BaseAdminController
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> BusStatus(int id, RecordStatus status, CancellationToken ct) =>
-        Done(await Api.PatchAsync<object?>($"/api/transportation/buses/{id}/status", new UpdateTransportStatusRequest(status), ct),
-            status == RecordStatus.Active ? "Bus returned to service." : "Bus taken out of service.");
+    public async Task<IActionResult> BusStatus(int id, ChildGuard.Domain.Enums.BusStatus status, CancellationToken ct) =>
+        // The quick toggle on the fleet card: in service, or out of service. Other states are set on the bus page.
+        Done(await Api.PatchAsync<object?>($"/api/transportation/buses/{id}/operational-status", new BusOperationalStatusRequest(status, null), ct),
+            status == ChildGuard.Domain.Enums.BusStatus.Active ? "Bus returned to service." : "Bus taken out of service.");
 
     [HttpPost]
     [ValidateAntiForgeryToken]

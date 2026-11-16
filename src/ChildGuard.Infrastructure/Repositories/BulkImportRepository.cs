@@ -62,7 +62,7 @@ public class BulkImportRepository : IBulkImportRepository
                 var bus = await _db.Buses.AsNoTracking().Where(b => b.BusId == busId)
                     .Select(b => new { b.Capacity, b.Status, Taken = b.StudentBusAssignments.Count(a => a.Status == RecordStatus.Active) })
                     .SingleAsync(ct);
-                if (bus.Status != RecordStatus.Active || bus.Taken + seatsNeeded[busId] > bus.Capacity)
+                if (bus.Status != BusStatus.Active || bus.Taken + seatsNeeded[busId] > bus.Capacity)
                 {
                     await tx.RollbackAsync(CancellationToken.None);
                     _db.ChangeTracker.Clear();

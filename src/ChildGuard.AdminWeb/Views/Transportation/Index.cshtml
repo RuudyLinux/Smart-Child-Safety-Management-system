@@ -6,11 +6,11 @@
     var assignments = (List<StudentBusAssignmentDto>)ViewBag.Assignments;
     var students = (List<StudentListItemDto>)ViewBag.Students;
 
-    var activeBuses = Model.Count(b => b.Status == RecordStatus.Active);
+    var activeBuses = Model.Count(b => b.Status == BusStatus.Active);
     var withoutDriver = Model.Count(b => string.IsNullOrEmpty(b.DriverName));
     var activeAssignments = assignments.Where(a => a.Status == RecordStatus.Active).ToList();
     var assignedStudentIds = activeAssignments.Select(a => a.StudentId).Distinct().ToHashSet();
-    var inServiceBuses = Model.Where(b => b.Status == RecordStatus.Active).ToList();
+    var inServiceBuses = Model.Where(b => b.Status == BusStatus.Active).ToList();
     // Pickers offer active drivers and routes, plus whatever a bus already has.
     bool Offer(RecordStatus status, bool current) => status == RecordStatus.Active || current;
     var unassignedStudents = students.Where(s => !assignedStudentIds.Contains(s.StudentId)).ToList();
@@ -119,22 +119,15 @@
                             <div class="cg-row--between" style="flex-wrap:wrap">
 
                                 <div class="cg-row">
-                                    <span class="cg-kpi__icon @(b.Status == RecordStatus.Active ? "cg-kpi__icon--success" : "cg-kpi__icon--neutral")">
+                                    <span class="cg-kpi__icon @(b.Status == BusStatus.Active ? "cg-kpi__icon--success" : "cg-kpi__icon--neutral")">
                                         @await Html.PartialAsync("_Icon", "bus")
                                     </span>
                                     <div>
-                                        <div class="cg-personcard__name cg-nowrap">@b.BusNumber</div>
+                                        <div class="cg-personcard__name cg-nowrap"><a href="/Transportation/Bus/@b.BusId">@b.BusNumber</a></div>
                                         <div class="cg-personcard__meta">@(b.RouteName ?? "No route assigned")</div>
                                     </div>
                                 </div>
-                                @if (b.Status == RecordStatus.Active)
-                                {
-                                    <span class="cg-badge cg-badge--success"><span class="cg-badge__dot"></span>In service</span>
-                                }
-                                else
-                                {
-                                    <span class="cg-badge cg-badge--neutral"><span class="cg-badge__dot"></span>Out of service</span>
-                                }
+                                @await Html.PartialAsync("_Ui", ("bus", (object)b.Status))
                             </div>
 
                             <div class="cg-personcard__facts">
@@ -166,11 +159,11 @@
                                     @await Html.PartialAsync("_Icon", "edit") Edit
                                 </button>
                                 <form asp-action="BusStatus" asp-route-id="@b.BusId" method="post" class="cg-inline-form"
-                                      data-cg-confirm="@(b.Status == RecordStatus.Active ? $"Take {b.BusNumber} out of service? Students stay assigned to it until you change their bus." : $"Return {b.BusNumber} to service?")">
+                                      data-cg-confirm="@(b.Status == BusStatus.Active ? $"Take {b.BusNumber} out of service? Students stay assigned to it until you change their bus." : $"Return {b.BusNumber} to service?")">
                                     @Html.AntiForgeryToken()
-                                    <input type="hidden" name="status" value="@(b.Status == RecordStatus.Active ? "Inactive" : "Active")" />
+                                    <input type="hidden" name="status" value="@(b.Status == BusStatus.Active ? "OutOfService" : "Active")" />
                                     <button type="submit" class="cg-btn cg-btn--ghost cg-btn--sm">
-                                        @(b.Status == RecordStatus.Active ? "Take out of service" : "Return to service")
+                                        @(b.Status == BusStatus.Active ? "Take out of service" : "Return to service")
                                     </button>
                                 </form>
                             </div>
@@ -208,9 +201,10 @@
                                     <span class="cg-identity">
                                         @await Html.PartialAsync("_Avatar", new AvatarModel(null, d.FullName, "xs"))
                                         <span class="cg-identity__body">
-                                            <span class="cg-identity__name">@d.FullName</span>
+                                            <span class="cg-identity__name"><a href="/Transportation/Driver/@d.DriverId">@d.FullName</a></span>
                                             <span class="cg-identity__meta">
                                                 <span class="cg-mono">@(d.Phone ?? "No phone")</span> · Licence @(d.LicenseNumber ?? "not recorded")
+                                                @if (d.BusNumbers is { Count: > 0 } nums) { <br />@($"Drives {string.Join(", ", nums)} · {d.StudentCount} student{(d.StudentCount == 1 ? "" : "s")}") }
                                             </span>
                                         </span>
                                     </span>
@@ -219,6 +213,7 @@
                                     <span class="cg-badge @(d.Status == RecordStatus.Active ? "cg-badge--success" : "cg-badge--neutral")">
                                         <span class="cg-badge__dot"></span>@d.Status
                                     </span>
+                                    @if (d.LicenceState is LicenceState.Expired or LicenceState.ExpiringSoon) { @await Html.PartialAsync("_Ui", ("licence", (object)d.LicenceState)) }
                                 </td>
                                 <td class="cg-table__actions">
                                     <span class="cg-row" style="gap:4px;justify-content:flex-end">

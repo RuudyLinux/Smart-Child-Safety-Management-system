@@ -27,7 +27,7 @@ public class EnrollmentController : BaseAdminController
         return View(new EnrollmentPageModel(
             // One key per opened wizard: resubmitting (double click, retry after a timeout) returns the same enrollment.
             Guid.NewGuid().ToString("N"),
-            (buses.Value ?? new()).Where(b => b.Status == RecordStatus.Active).OrderBy(b => b.BusNumber).ToList(),
+            (buses.Value ?? new()).Where(b => b.Status == BusStatus.Active).OrderBy(b => b.BusNumber).ToList(),
             (routes.Value ?? new()).Where(r => r.Status == RecordStatus.Active).OrderBy(r => r.RouteName).ToList(),
             settings.Value?.AllowRouteOverride ?? false));
     }

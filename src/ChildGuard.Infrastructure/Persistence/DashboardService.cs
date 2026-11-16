@@ -43,8 +43,8 @@ public class DashboardService : IDashboardService
 
         var activeRfid = await _db.RfidCards.CountAsync(c => c.Status == RfidCardStatus.Active, ct);
         var totalGuardians = await _db.Guardians.CountAsync(g => g.Status == RecordStatus.Active, ct);
-        var activeBuses = await _db.Buses.CountAsync(b => b.Status == RecordStatus.Active, ct);
-        var inactiveBuses = await _db.Buses.CountAsync(b => b.Status != RecordStatus.Active, ct);
+        var activeBuses = await _db.Buses.CountAsync(b => b.Status == BusStatus.Active, ct);
+        var inactiveBuses = await _db.Buses.CountAsync(b => b.Status != BusStatus.Active, ct);
         var driverCount = await _db.Drivers.CountAsync(d => d.Status == RecordStatus.Active, ct);
         var routeCount = await _db.Routes.CountAsync(r => r.Status == RecordStatus.Active, ct);
         var todaysAttendance = await _db.AttendanceRecords.CountAsync(a => a.Date == today, ct);

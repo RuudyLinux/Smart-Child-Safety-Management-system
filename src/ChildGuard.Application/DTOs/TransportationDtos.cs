@@ -2,15 +2,20 @@ using ChildGuard.Domain.Enums;
 
 namespace ChildGuard.Application.DTOs;
 
-public record DriverDto(int DriverId, string FullName, string? Phone, string? LicenseNumber, RecordStatus Status);
+/// <param name="BusNumbers">Buses this driver currently drives.</param>
+/// <param name="StudentCount">Students currently assigned to those buses (live count).</param>
+public record DriverDto(int DriverId, string FullName, string? Phone, string? LicenseNumber, RecordStatus Status,
+    string? EmployeeCode = null, string? Email = null, string? LicenseCategory = null, DateOnly? LicenseExpiresOn = null,
+    LicenceState LicenceState = LicenceState.NotRecorded, IReadOnlyList<string>? BusNumbers = null, int StudentCount = 0);
 public record CreateDriverRequest(string FullName, string? Phone, string? LicenseNumber);
 
 public record RouteDto(int RouteId, string RouteName, string? Description, RecordStatus Status);
 public record CreateRouteRequest(string RouteName, string? Description);
 
 /// <param name="ActiveStudentCount">Students currently assigned (seats taken). Recalculated on every read.</param>
-public record BusDto(int BusId, string BusNumber, int Capacity, string? DriverName, string? RouteName, RecordStatus Status,
-    int? DriverId = null, int? RouteId = null, int ActiveStudentCount = 0);
+public record BusDto(int BusId, string BusNumber, int Capacity, string? DriverName, string? RouteName, BusStatus Status,
+    int? DriverId = null, int? RouteId = null, int ActiveStudentCount = 0,
+    string? RegistrationNumber = null, string? Manufacturer = null, string? Model = null);
 public record CreateBusRequest(string BusNumber, int Capacity, int? DriverId, int? RouteId);
 
 public record StudentBusAssignmentDto(int Id, int StudentId, string StudentName, string BusNumber, string? RouteName, RecordStatus Status, DateTime AssignedAt,

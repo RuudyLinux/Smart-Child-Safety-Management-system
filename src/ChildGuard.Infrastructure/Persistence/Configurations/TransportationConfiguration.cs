@@ -12,6 +12,13 @@ public class DriverConfiguration : IEntityTypeConfiguration<Driver>
         b.Property(x => x.FullName).IsRequired().HasMaxLength(150);
         b.Property(x => x.Phone).HasMaxLength(30);
         b.Property(x => x.LicenseNumber).HasMaxLength(50);
+        b.Property(x => x.EmployeeCode).HasMaxLength(30);
+        b.HasIndex(x => x.EmployeeCode).IsUnique();
+        b.Property(x => x.Email).HasMaxLength(200);
+        b.Property(x => x.EmergencyContactName).HasMaxLength(150);
+        b.Property(x => x.EmergencyContactPhone).HasMaxLength(30);
+        b.Property(x => x.LicenseCategory).HasMaxLength(30);
+        b.OwnsOne(x => x.Address, PostalAddressMapping.Map);
     }
 }
 
@@ -33,6 +40,10 @@ public class BusConfiguration : IEntityTypeConfiguration<Bus>
         b.HasKey(x => x.BusId);
         b.Property(x => x.BusNumber).IsRequired().HasMaxLength(30);
         b.HasIndex(x => x.BusNumber).IsUnique();
+        b.Property(x => x.RegistrationNumber).HasMaxLength(20);
+        b.HasIndex(x => x.RegistrationNumber).IsUnique();
+        b.Property(x => x.Manufacturer).HasMaxLength(60);
+        b.Property(x => x.Model).HasMaxLength(60);
 
         b.HasOne(x => x.Driver)
             .WithMany(x => x.Buses)

@@ -1,0 +1,143 @@
+@model BusDetailDto
+@{
+    var b = Model.Bus;
+    ViewData["Title"] = $"Bus {b.BusNumber}";
+    var statuses = new[] { BusStatus.Active, BusStatus.UnderMaintenance, BusStatus.OutOfService, BusStatus.Inactive };
+}
+
+<div class="cg-page-head">
+    <div class="cg-page-head__text">
+        <nav class="cg-breadcrumb" style="margin-bottom:6px">
+            <a href="/Transportation">@await Html.PartialAsync("_Icon", "arrow-left") Back to transportation</a>
+        </nav>
+        <h1 class="cg-page-head__title">Bus @b.BusNumber</h1>
+        <p class="cg-page-head__sub cg-row cg-row--wrap" style="gap:8px">
+            @await Html.PartialAsync("_Ui", ("bus", (object)b.Status))
+            <span>@(b.RegistrationNumber is null ? "Registration not recorded" : $"Registration {b.RegistrationNumber}")</span>
+        </p>
+    </div>
+    <div class="cg-page-head__actions">
+        <button type="button" class="cg-btn cg-btn--primary" data-cg-modal-open="busDetails">@await Html.PartialAsync("_Icon", "edit") Edit vehicle details</button>
+        <button type="button" class="cg-btn cg-btn--danger-soft" data-cg-modal-open="busDelete">Delete permanently</button>
+    </div>
+</div>
+
+<div class="cg-grid cg-grid--4">
+    <article class="cg-kpi">
+        <div class="cg-kpi__top"><div class="cg-kpi__label">Students assigned</div><span class="cg-kpi__icon cg-kpi__icon--info">@await Html.PartialAsync("_Icon", "students")</span></div>
+        <div class="cg-kpi__value cg-kpi__value--sm" data-student-count>@b.ActiveStudentCount</div>
+        <div class="cg-kpi__note">Counted live from current assignments</div>
+    </article>
+    <article class="cg-kpi">
+        <div class="cg-kpi__top"><div class="cg-kpi__label">Vehicle</div><span class="cg-kpi__icon cg-kpi__icon--neutral">@await Html.PartialAsync("_Icon", "bus")</span></div>
+        <div class="cg-kpi__value cg-kpi__value--sm" style="font-size:16px">@(string.Join(" ", new[] { b.Manufacturer, b.Model }.Where(x => x is not null)) is { Length: > 0 } v ? v : "Not recorded")</div>
+    </article>
+    <article class="cg-kpi">
+        <div class="cg-kpi__top"><div class="cg-kpi__label">Driver</div><span class="cg-kpi__icon cg-kpi__icon--neutral">@await Html.PartialAsync("_Icon", "steering")</span></div>
+        <div class="cg-kpi__value cg-kpi__value--sm" style="font-size:16px">@(Model.Driver?.FullName ?? "No driver")</div>
+    </article>
+    <article class="cg-kpi">
+        <div class="cg-kpi__top"><div class="cg-kpi__label">Route</div><span class="cg-kpi__icon cg-kpi__icon--neutral">@await Html.PartialAsync("_Icon", "route")</span></div>
+        <div class="cg-kpi__value cg-kpi__value--sm" style="font-size:16px">@(Model.Route?.RouteName ?? "No route")</div>
+    </article>
+</div>
+
+@if (b.Status != BusStatus.Active && b.ActiveStudentCount > 0)
+{
+    <div class="cg-alert cg-alert--warning" role="status">
+        <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "alert-triangle")</span>
+        <div class="cg-alert__body">@b.ActiveStudentCount student@(b.ActiveStudentCount == 1 ? " is" : "s are") still assigned to this bus while it is not in service. Move them to another bus if needed.</div>
+    </div>
+}
+
+<div class="cg-grid cg-grid--2">
+    <section class="cg-card">
+        <div class="cg-card__head"><h2 class="cg-card__title">Assigned driver</h2></div>
+        <div class="cg-card__body">
+            @if (Model.Driver is { } d)
+            {
+                <dl class="cg-deflist">
+                    <dt>Name</dt><dd><a href="/Transportation/Driver/@d.DriverId">@d.FullName</a></dd>
+                    <dt>Contact</dt><dd class="cg-mono">@(d.Phone ?? "—")</dd>
+                    <dt>Licence</dt><dd>@(d.LicenseNumber ?? "—")@(d.LicenseCategory is null ? "" : $" · {d.LicenseCategory}")</dd>
+                    <dt>Licence expiry</dt><dd>@(d.LicenseExpiresOn?.ToString("d MMM yyyy") ?? "Not recorded") @await Html.PartialAsync("_Ui", ("licence", (object)d.LicenceState))</dd>
+                </dl>
+            }
+            else
+            {
+                <p class="cg-muted cg-text-sm" style="margin:0">No driver assigned. Choose one with Edit on the Transportation page.</p>
+            }
+        </div>
+    </section>
+    <section class="cg-card">
+        <div class="cg-card__head"><h2 class="cg-card__title">Bus status</h2></div>
+        <div class="cg-card__body">
+            <form action="/Transportation/SetBusOperationalStatus/@b.BusId" method="post" class="cg-form" data-cg-busy>
+                @Html.AntiForgeryToken()
+                <div class="cg-form-row">
+                    <div class="cg-field">
+                        <label class="cg-label" for="busStatus">Status</label>
+                        <select class="cg-select" id="busStatus" name="status">
+                            @foreach (var s in statuses) { <option value="@s" selected="@(b.Status == s)">@BusStatusText.Label(s)</option> }
+                        </select>
+                    </div>
+                    <div class="cg-field">
+                        <label class="cg-label" for="busStatusReason">Reason</label>
+                        <input class="cg-input" id="busStatusReason" name="reason" maxlength="200" placeholder="e.g. Brake service" />
+                    </div>
+                </div>
+                <p class="cg-hint">Only a bus in service takes new students. Students already on it stay assigned until you move them.</p>
+                <div><button class="cg-btn cg-btn--secondary" type="submit">Update status</button></div>
+            </form>
+        </div>
+    </section>
+</div>
+
+@if (Model.Route is { } r)
+{
+    <section class="cg-card">
+        <div class="cg-card__head"><h2 class="cg-card__title">Assigned route</h2></div>
+        <div class="cg-card__body">
+            <dl class="cg-deflist">
+                <dt>Route</dt><dd>@r.RouteName</dd>
+                <dt>Description</dt><dd>@(r.Description ?? "—")</dd>
+            </dl>
+        </div>
+    </section>
+}
+
+<section class="cg-card">
+    <div class="cg-card__head">
+        <div>
+            <h2 class="cg-card__title">Students on this bus <span class="cg-badge cg-badge--neutral" data-roster-count>@Model.Students.Count</span></h2>
+            <div class="cg-card__sub">Change a student's bus from the Transportation page.</div>
+        </div>
+    </div>
+    @await Html.PartialAsync("_Roster", (Model.Students, false))
+</section>
+
+<div class="cg-modal" id="busDetails" hidden role="dialog" aria-modal="true" aria-labelledby="busDetailsTitle">
+    <div class="cg-modal__panel">
+        <div class="cg-modal__head">
+            <h2 class="cg-modal__title" id="busDetailsTitle">Edit vehicle details</h2>
+            <button type="button" class="cg-iconbtn" data-cg-modal-close aria-label="Close">@await Html.PartialAsync("_Icon", "x")</button>
+        </div>
+        <form action="/Transportation/EditBusDetails/@b.BusId" method="post" data-cg-busy>
+            @Html.AntiForgeryToken()
+            <div class="cg-modal__body cg-form">
+                <div class="cg-field"><label class="cg-label" for="bdReg">Registration number</label><input class="cg-input cg-mono" id="bdReg" name="RegistrationNumber" value="@b.RegistrationNumber" maxlength="20" placeholder="e.g. KA 01 AB 1234" /></div>
+                <div class="cg-form-row">
+                    <div class="cg-field"><label class="cg-label" for="bdMake">Manufacturer</label><input class="cg-input" id="bdMake" name="Manufacturer" value="@b.Manufacturer" maxlength="60" /></div>
+                    <div class="cg-field"><label class="cg-label" for="bdModel">Model</label><input class="cg-input" id="bdModel" name="Model" value="@b.Model" maxlength="60" /></div>
+                </div>
+                <p class="cg-hint">The bus number, driver and route are edited on the Transportation page.</p>
+            </div>
+            <div class="cg-modal__foot">
+                <button type="button" class="cg-btn cg-btn--secondary" data-cg-modal-close>Cancel</button>
+                <button type="submit" class="cg-btn cg-btn--primary"><span class="cg-btn__label">Save</span></button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@await Html.PartialAsync("_DeleteModal", ("busDelete", $"bus {b.BusNumber}", "bus", $"/Transportation/DeleteBus/{b.BusId}", Model.Deletion))
