@@ -105,11 +105,126 @@ public class DashboardService : IDashboardService
         var trend = await BuildTrendAsync(today, roster.Count, ct);
         var byGrade = BuildGradeBreakdown(roster.Select(r => (r.StudentId, r.Grade)), snapshots);
         var alerts = await BuildAlertsAsync(roster.ToDictionary(r => r.StudentId, r => r.FullName), snapshots, ct);
+        var (admin, adminAlerts) = await BuildAdminOverviewAsync(today, ct);
+        alerts = alerts.Concat(adminAlerts)
+            .OrderByDescending(a => a.Severity)
+            .ThenByDescending(a => a.OccurredAt ?? DateTime.MinValue)
+            .ToList();
 
         return new DashboardSummaryDto(
             roster.Count, activeRfid, totalGuardians, activeBuses,
             todaysAttendance, todaysJourney, todaysVerifications, verificationStatus, recent,
-            attendance, journey, transport, pendingVerifications, trend, alerts, byGrade);
+            attendance, journey, transport, pendingVerifications, trend, alerts, byGrade, admin);
+    }
+
+    /// <summary>Most records of one kind named in the alert centre; the KPI cards carry the full counts.</summary>
+    private const int AlertListLimit = 5;
+
+    /// <summary>
+    /// People, RFID inventory and fleet KPIs, plus alerts for records an admin should complete or renew:
+    /// students missing a guardian or transport, lost or damaged cards still held, licences, buses off the road.
+    /// Counts come straight from the records; nothing is estimated.
+    /// </summary>
+    private async Task<(AdminOverviewDto, List<SafetyAlertDto>)> BuildAdminOverviewAsync(DateOnly today, CancellationToken ct)
+    {
+        var students = await _db.Students.AsNoTracking()
+            .GroupBy(s => new { s.Status, Archived = s.ArchivedAt != null })
+            .Select(g => new { g.Key.Status, g.Key.Archived, Count = g.Count() }).ToListAsync(ct);
+        var guardians = await _db.Guardians.AsNoTracking()
+            .GroupBy(s => new { s.Status, Archived = s.ArchivedAt != null })
+            .Select(g => new { g.Key.Status, g.Key.Archived, Count = g.Count() }).ToListAsync(ct);
+        var people = new PeopleOverviewDto(
+            students.Sum(x => x.Count), students.Where(x => x.Status == RecordStatus.Active).Sum(x => x.Count),
+            students.Where(x => x.Status != RecordStatus.Active && !x.Archived).Sum(x => x.Count), students.Where(x => x.Archived).Sum(x => x.Count),
+            guardians.Sum(x => x.Count), guardians.Where(x => x.Status == RecordStatus.Active).Sum(x => x.Count),
+            guardians.Where(x => x.Status != RecordStatus.Active && !x.Archived).Sum(x => x.Count), guardians.Where(x => x.Archived).Sum(x => x.Count));
+
+        var cards = await _db.RfidCards.AsNoTracking()
+            .GroupBy(c => new { c.Status, Held = c.StudentId != null })
+            .Select(g => new { g.Key.Status, g.Key.Held, Count = g.Count() }).ToListAsync(ct);
+        int Cards(RfidCardStatus s) => cards.Where(x => x.Status == s).Sum(x => x.Count);
+        var rfid = new RfidOverviewDto(cards.Sum(x => x.Count), cards.Where(x => x.Held).Sum(x => x.Count),
+            cards.Where(x => x.Status == RfidCardStatus.Active && !x.Held).Sum(x => x.Count),
+            Cards(RfidCardStatus.Inactive), Cards(RfidCardStatus.Lost), Cards(RfidCardStatus.Damaged), Cards(RfidCardStatus.Retired));
+
+        var drivers = await _db.Drivers.AsNoTracking()
+            .Select(d => new { d.DriverId, d.FullName, d.Status, d.LicenseExpiresOn }).ToListAsync(ct);
+        var buses = await _db.Buses.AsNoTracking()
+            .Select(b => new { b.BusId, b.BusNumber, b.Status, b.Capacity }).ToListAsync(ct);
+        var loads = await _db.StudentBusAssignments.AsNoTracking()
+            .Where(a => a.Status == RecordStatus.Active)
+            .GroupBy(a => a.BusId).Select(g => new { BusId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.BusId, x => x.Count, ct);
+        var routes = await _db.Routes.AsNoTracking().GroupBy(r => r.Status).Select(g => new { Status = g.Key, Count = g.Count() }).ToListAsync(ct);
+        int Buses(BusStatus s) => buses.Count(b => b.Status == s);
+        var fleet = new FleetOverviewDto(
+            drivers.Count, drivers.Count(d => d.Status == RecordStatus.Active),
+            buses.Count, Buses(BusStatus.Active), Buses(BusStatus.UnderMaintenance), Buses(BusStatus.OutOfService), Buses(BusStatus.Inactive),
+            routes.Sum(r => r.Count), routes.Where(r => r.Status == RecordStatus.Active).Sum(r => r.Count),
+            loads.Values.Sum(),
+            buses.OrderBy(b => b.BusNumber)
+                .Select(b => new BusLoadDto(b.BusId, b.BusNumber, b.Status, b.Capacity, loads.GetValueOrDefault(b.BusId))).ToList());
+
+        // Gaps among active students.
+        var active = _db.Students.AsNoTracking().Where(s => s.Status == RecordStatus.Active);
+        var noGuardian = active.Where(s => !_db.StudentGuardians.Any(l => l.StudentId == s.StudentId && l.Guardian.Status == RecordStatus.Active));
+        var noTransport = active.Where(s => !_db.StudentBusAssignments.Any(a => a.StudentId == s.StudentId && a.Status == RecordStatus.Active));
+        var noCard = active.Where(s => s.RfidCard == null);
+
+        var activeDrivers = drivers.Where(d => d.Status == RecordStatus.Active)
+            .Select(d => (d.DriverId, d.FullName, d.LicenseExpiresOn, State: LicenceRules.State(d.LicenseExpiresOn, today))).ToList();
+        var gaps = new CoverageGapsDto(
+            await noGuardian.CountAsync(ct), await noCard.CountAsync(ct), await noTransport.CountAsync(ct),
+            activeDrivers.Count(d => d.State == LicenceState.Expired), activeDrivers.Count(d => d.State == LicenceState.ExpiringSoon),
+            activeDrivers.Count(d => d.State == LicenceState.NotRecorded));
+
+        var alerts = new List<SafetyAlertDto>();
+
+        foreach (var s in await noGuardian.OrderBy(s => s.StudentId).Take(AlertListLimit).Select(s => new { s.StudentId, s.FullName }).ToListAsync(ct))
+            alerts.Add(new SafetyAlertDto($"no-guardian-{s.StudentId}", AlertSeverity.Warning, "Guardians",
+                "Student has no active guardian",
+                $"{s.FullName} has no active guardian linked, so nobody can be notified or collect them.",
+                "Link a guardian from the student's profile.", null, s.StudentId, s.FullName, $"/Students/Details/{s.StudentId}"));
+
+        foreach (var s in await noTransport.OrderBy(s => s.StudentId).Take(AlertListLimit).Select(s => new { s.StudentId, s.FullName }).ToListAsync(ct))
+            alerts.Add(new SafetyAlertDto($"no-transport-{s.StudentId}", AlertSeverity.Info, "Transport",
+                "Student has no school transport",
+                $"{s.FullName} is not assigned to a bus. Ignore this if the student travels privately.",
+                "Assign a bus on the Transportation page if the student uses school transport.", null, s.StudentId, s.FullName, "/Transportation"));
+
+        var badCards = await _db.RfidCards.AsNoTracking()
+            .Where(c => c.StudentId != null && (c.Status == RfidCardStatus.Lost || c.Status == RfidCardStatus.Damaged))
+            .OrderBy(c => c.RfidCardId).Take(AlertListLimit)
+            .Select(c => new { c.RfidCardId, c.Status, c.StudentId, StudentName = c.Student!.FullName }).ToListAsync(ct);
+        foreach (var c in badCards)
+            alerts.Add(new SafetyAlertDto($"card-{c.RfidCardId}", AlertSeverity.Warning, "RFID",
+                $"Student's card is {(c.Status == RfidCardStatus.Lost ? "lost" : "damaged")}",
+                $"{c.StudentName} still holds a card marked {c.Status.ToString().ToLowerInvariant()} and cannot be scanned reliably.",
+                "Replace the card from the RFID page.", null, c.StudentId, c.StudentName, $"/Rfid/Details/{c.RfidCardId}"));
+
+        foreach (var d in activeDrivers.Where(d => d.State is LicenceState.Expired or LicenceState.ExpiringSoon)
+                     .OrderBy(d => d.LicenseExpiresOn).Take(AlertListLimit))
+        {
+            var expired = d.State == LicenceState.Expired;
+            alerts.Add(new SafetyAlertDto($"licence-{d.DriverId}", expired ? AlertSeverity.Critical : AlertSeverity.Warning, "Transport",
+                expired ? "Driver licence has expired" : "Driver licence expires soon",
+                $"{d.FullName}'s licence {(expired ? "expired" : "expires")} on {d.LicenseExpiresOn:d MMM yyyy}.",
+                expired ? "Do not let this driver drive until the licence is renewed, then update the profile."
+                        : "Ask the driver to renew the licence and update the profile.",
+                null, null, null, $"/Transportation/Driver/{d.DriverId}"));
+        }
+
+        foreach (var b in buses.Where(b => b.Status is BusStatus.UnderMaintenance or BusStatus.OutOfService).OrderBy(b => b.BusNumber).Take(AlertListLimit))
+        {
+            var riders = loads.GetValueOrDefault(b.BusId);
+            alerts.Add(new SafetyAlertDto($"bus-{b.BusId}", riders > 0 ? AlertSeverity.Warning : AlertSeverity.Info, "Transport",
+                $"Bus {b.BusNumber} is {(b.Status == BusStatus.UnderMaintenance ? "under maintenance" : "out of service")}",
+                riders > 0 ? $"{riders} student{(riders == 1 ? " is" : "s are")} still assigned to it." : "No students are assigned to it.",
+                riders > 0 ? "Move its students to another bus, or return it to service." : "Return it to service when it is ready.",
+                null, null, null, $"/Transportation/Bus/{b.BusId}"));
+        }
+
+        return (new AdminOverviewDto(people, rfid, fleet, gaps), alerts);
     }
 
     private AttendanceOverviewDto BuildAttendanceOverview(int rosterSize, IEnumerable<StudentSafetySnapshot> snapshots)

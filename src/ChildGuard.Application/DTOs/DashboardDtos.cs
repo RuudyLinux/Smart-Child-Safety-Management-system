@@ -13,7 +13,30 @@ public record DashboardSummaryDto(
     int PendingVerifications,
     IReadOnlyList<AttendanceTrendPointDto> AttendanceTrend,
     IReadOnlyList<SafetyAlertDto> Alerts,
-    IReadOnlyList<GradeAttendanceDto> AttendanceByGrade);
+    IReadOnlyList<GradeAttendanceDto> AttendanceByGrade,
+    AdminOverviewDto? Admin = null);
+
+/// <summary>Record-keeping KPIs for the admin: people, RFID inventory, fleet, and the gaps that need follow-up.</summary>
+public record AdminOverviewDto(PeopleOverviewDto People, RfidOverviewDto Rfid, FleetOverviewDto Fleet, CoverageGapsDto Gaps);
+
+public record PeopleOverviewDto(
+    int Students, int ActiveStudents, int InactiveStudents, int ArchivedStudents,
+    int Guardians, int ActiveGuardians, int InactiveGuardians, int ArchivedGuardians);
+
+/// <param name="Assigned">Cards currently held by a student.</param>
+/// <param name="Available">Active spare cards not held by anyone, ready to assign.</param>
+public record RfidOverviewDto(int Total, int Assigned, int Available, int Inactive, int Lost, int Damaged, int Retired);
+
+public record FleetOverviewDto(
+    int Drivers, int ActiveDrivers, int Buses, int BusesActive, int BusesUnderMaintenance, int BusesOutOfService, int BusesInactive,
+    int Routes, int ActiveRoutes, int StudentsAssigned, IReadOnlyList<BusLoadDto> BusLoads);
+
+public record BusLoadDto(int BusId, string BusNumber, BusStatus Status, int Capacity, int Students);
+
+/// <summary>Active students missing something, and drivers whose licence needs attention.</summary>
+public record CoverageGapsDto(
+    int StudentsWithoutGuardian, int StudentsWithoutRfid, int StudentsWithoutTransport,
+    int LicencesExpired, int LicencesExpiringSoon, int LicencesNotRecorded);
 
 /// <summary>Breakdown behind "Today's Verifications" so the dashboard shows outcome, not just volume.</summary>
 public record VerificationStatusDto(int Matched, int NoMatch, int PickupsApproved, int PickupsRejected);

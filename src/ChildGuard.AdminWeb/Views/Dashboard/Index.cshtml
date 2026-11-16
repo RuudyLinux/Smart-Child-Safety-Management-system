@@ -220,6 +220,97 @@
     </article>
 </div>
 
+@if (Model.Admin is { } adm)
+{
+    var g = adm.Gaps;
+    <div class="cg-grid cg-grid--4" data-admin-overview>
+        <section class="cg-card" data-kpi="people">
+            <div class="cg-card__head"><h2 class="cg-card__title">People</h2><a class="cg-text-sm" href="/Students">Students</a></div>
+            <div class="cg-card__body">
+                <dl class="cg-deflist">
+                    <dt>Students</dt><dd><strong data-kpi-value="students-active">@adm.People.ActiveStudents</strong> active of @adm.People.Students</dd>
+                    <dt>Inactive · archived</dt><dd>@adm.People.InactiveStudents · @adm.People.ArchivedStudents</dd>
+                    <dt>Guardians</dt><dd><strong data-kpi-value="guardians-active">@adm.People.ActiveGuardians</strong> active of @adm.People.Guardians</dd>
+                    <dt>Inactive · archived</dt><dd>@adm.People.InactiveGuardians · @adm.People.ArchivedGuardians</dd>
+                </dl>
+            </div>
+        </section>
+        <section class="cg-card" data-kpi="rfid">
+            <div class="cg-card__head"><h2 class="cg-card__title">RFID cards</h2><a class="cg-text-sm" href="/Rfid">Inventory</a></div>
+            <div class="cg-card__body">
+                <dl class="cg-deflist">
+                    <dt>Assigned</dt><dd data-kpi-value="rfid-assigned">@adm.Rfid.Assigned</dd>
+                    <dt>Spare, ready</dt><dd data-kpi-value="rfid-available">@adm.Rfid.Available</dd>
+                    <dt>Lost · damaged</dt><dd>@adm.Rfid.Lost · @adm.Rfid.Damaged</dd>
+                    <dt>Inactive · retired</dt><dd>@adm.Rfid.Inactive · @adm.Rfid.Retired</dd>
+                </dl>
+                <p class="cg-hint" style="margin:6px 0 0">@adm.Rfid.Total cards on record</p>
+            </div>
+        </section>
+        <section class="cg-card" data-kpi="fleet">
+            <div class="cg-card__head"><h2 class="cg-card__title">Fleet</h2><a class="cg-text-sm" href="/Transportation">Transportation</a></div>
+            <div class="cg-card__body">
+                <dl class="cg-deflist">
+                    <dt>Buses in service</dt><dd><strong data-kpi-value="buses-active">@adm.Fleet.BusesActive</strong> of @adm.Fleet.Buses</dd>
+                    <dt>Maintenance · out</dt><dd>@adm.Fleet.BusesUnderMaintenance · @adm.Fleet.BusesOutOfService</dd>
+                    <dt>Drivers</dt><dd>@adm.Fleet.ActiveDrivers active of @adm.Fleet.Drivers</dd>
+                    <dt>Routes</dt><dd>@adm.Fleet.ActiveRoutes active of @adm.Fleet.Routes</dd>
+                    <dt>Students riding</dt><dd data-kpi-value="students-assigned">@adm.Fleet.StudentsAssigned</dd>
+                </dl>
+            </div>
+        </section>
+        <section class="cg-card" data-kpi="gaps">
+            <div class="cg-card__head"><h2 class="cg-card__title">Needs follow-up</h2></div>
+            <div class="cg-card__body">
+                <dl class="cg-deflist">
+                    <dt>No active guardian</dt><dd data-kpi-value="gap-guardian">@g.StudentsWithoutGuardian</dd>
+                    <dt>No RFID card</dt><dd data-kpi-value="gap-rfid">@g.StudentsWithoutRfid</dd>
+                    <dt>No transport</dt><dd data-kpi-value="gap-transport">@g.StudentsWithoutTransport</dd>
+                    <dt>Licences expired</dt><dd data-kpi-value="licence-expired">@if (g.LicencesExpired > 0) { <span class="cg-badge cg-badge--danger">@g.LicencesExpired</span> } else { @("0") }</dd>
+                    <dt>Expiring in @ChildGuard.Application.Common.LicenceRules.WarnDays days</dt><dd data-kpi-value="licence-expiring">@if (g.LicencesExpiringSoon > 0) { <span class="cg-badge cg-badge--warning">@g.LicencesExpiringSoon</span> } else { @("0") }</dd>
+                    <dt>Licence not recorded</dt><dd>@g.LicencesNotRecorded</dd>
+                </dl>
+            </div>
+        </section>
+    </div>
+
+    @if (adm.Fleet.BusLoads.Count > 0)
+    {
+        <section class="cg-card" data-bus-loads>
+            <div class="cg-card__head">
+                <div>
+                    <h2 class="cg-card__title">Students per bus</h2>
+                    <div class="cg-card__sub">Seats taken by current assignments@(adm.Fleet.BusLoads.Count > 10 ? $", the 10 fullest of {adm.Fleet.BusLoads.Count} buses" : "")</div>
+                </div>
+                <a class="cg-text-sm" href="/Transportation">All buses</a>
+            </div>
+            <div class="cg-table-wrap">
+                <table class="cg-table">
+                    <thead><tr><th>Bus</th><th>Status</th><th>Students</th><th>Capacity</th><th style="width:35%">Load</th></tr></thead>
+                    <tbody>
+                    @foreach (var b in adm.Fleet.BusLoads
+                        .OrderByDescending(b => b.Capacity == 0 ? 0 : b.Students * 1.0 / b.Capacity).ThenBy(b => b.BusNumber).Take(10))
+                    {
+                        var pct = b.Capacity == 0 ? 0 : Math.Min(100, (int)Math.Round(b.Students * 100.0 / b.Capacity));
+                        <tr data-bus-load="@b.BusNumber">
+                            <td><a href="/Transportation/Bus/@b.BusId">@b.BusNumber</a></td>
+                            <td>@await Html.PartialAsync("~/Views/Transportation/_Ui.cshtml", ("bus", (object)b.Status))</td>
+                            <td>@b.Students</td>
+                            <td>@b.Capacity</td>
+                            <td>
+                                <div role="img" aria-label="@pct% full" style="height:8px;border-radius:4px;background:var(--cg-border, #e5e7eb);overflow:hidden">
+                                    <div style="height:100%;width:@(pct)%;background:@(pct >= 100 ? "var(--cg-danger)" : pct >= 85 ? "var(--cg-warning)" : "var(--cg-primary)")"></div>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    }
+}
+
 <div class="cg-grid cg-grid--sidebar">
     <div>
         @* --- Attendance trend ------------------------------------------------ *@
