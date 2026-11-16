@@ -45,7 +45,7 @@ public record EnrollmentGuardianDto(
     bool ConfirmInactiveAccount = false);
 
 /// <param name="RouteId">Optional; the bus's own route is used when omitted (existing transport rule).</param>
-public record EnrollmentTransportDto(int BusId, int? RouteId);
+public record EnrollmentTransportDto(int BusId, int? RouteId, int? PickupStopId = null, int? DropStopId = null);
 
 /// <param name="IdempotencyKey">Generated once per wizard session and resent on retries; a repeat returns the first result.</param>
 /// <param name="CardUid">Null or blank leaves the student with RFID pending.</param>

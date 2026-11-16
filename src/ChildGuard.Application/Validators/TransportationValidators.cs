@@ -40,6 +40,8 @@ public class CreateStudentBusAssignmentRequestValidator : AbstractValidator<Crea
         RuleFor(x => x.StudentId).GreaterThan(0);
         RuleFor(x => x.BusId).GreaterThan(0);
         RuleFor(x => x.RouteId).GreaterThan(0).When(x => x.RouteId.HasValue);
+        RuleFor(x => x.PickupStopId).GreaterThan(0).When(x => x.PickupStopId.HasValue);
+        RuleFor(x => x.DropStopId).GreaterThan(0).When(x => x.DropStopId.HasValue);
     }
 }
 

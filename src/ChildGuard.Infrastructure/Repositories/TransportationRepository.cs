@@ -39,6 +39,8 @@ public class TransportationRepository : ITransportationRepository
             .Include(a => a.Student)
             .Include(a => a.Bus)
             .Include(a => a.Route)
+            .Include(a => a.PickupStop)
+            .Include(a => a.DropStop)
             .OrderByDescending(a => a.AssignedAt)
             .ToListAsync(ct);
 
@@ -126,9 +128,44 @@ public class TransportationRepository : ITransportationRepository
     public Task<StudentBusAssignment?> GetActiveAssignmentForStudentAsync(int studentId, CancellationToken ct = default) =>
         _db.StudentBusAssignments.FirstOrDefaultAsync(a => a.StudentId == studentId && a.Status == RecordStatus.Active, ct);
 
+    public Task<List<RouteStop>> GetStopsAsync(int routeId, CancellationToken ct = default) =>
+        _db.RouteStops.Where(s => s.RouteId == routeId).OrderBy(s => s.Sequence).ThenBy(s => s.RouteStopId).ToListAsync(ct);
+
+    public Task<RouteStop?> GetStopAsync(int stopId, CancellationToken ct = default) =>
+        _db.RouteStops.FirstOrDefaultAsync(s => s.RouteStopId == stopId, ct);
+
+    public async Task AddStopAsync(RouteStop stop, CancellationToken ct = default) => await _db.RouteStops.AddAsync(stop, ct);
+    public void RemoveStop(RouteStop stop) => _db.RouteStops.Remove(stop);
+
+    public Task<int> CountStopUsageAsync(int stopId, CancellationToken ct = default) =>
+        _db.StudentBusAssignments.CountAsync(a => a.PickupStopId == stopId || a.DropStopId == stopId, ct);
+
+    public async Task<Dictionary<int, int>> CountActiveStopUsageAsync(int routeId, CancellationToken ct = default)
+    {
+        var rows = await _db.StudentBusAssignments.AsNoTracking()
+            .Where(a => a.Status == RecordStatus.Active && a.RouteId == routeId)
+            .Select(a => new { a.PickupStopId, a.DropStopId }).ToListAsync(ct);
+        return rows.SelectMany(r => new[] { r.PickupStopId, r.DropStopId }.Where(id => id is not null).Distinct())
+            .GroupBy(id => id!.Value).ToDictionary(g => g.Key, g => g.Count());
+    }
+
+    public async Task<(int Buses, int Assignments, int JourneyEvents)> CountRouteHistoryAsync(int routeId, CancellationToken ct = default) =>
+        (await _db.Buses.CountAsync(b => b.RouteId == routeId, ct),
+         await _db.StudentBusAssignments.CountAsync(a => a.RouteId == routeId, ct),
+         await _db.JourneyEvents.CountAsync(e => e.RouteId == routeId, ct));
+
+    public void RemoveRoute(Route route) => _db.Routes.Remove(route);
+
+    public Task<List<StudentBusAssignment>> GetActiveRosterByRouteAsync(int routeId, CancellationToken ct = default) =>
+        _db.StudentBusAssignments.AsNoTracking()
+            .Include(a => a.Student).Include(a => a.Bus).Include(a => a.Route).Include(a => a.PickupStop).Include(a => a.DropStop)
+            .Where(a => a.RouteId == routeId && a.Status == RecordStatus.Active)
+            .OrderBy(a => a.Bus.BusNumber).ThenBy(a => a.Student.FullName)
+            .ToListAsync(ct);
+
     public Task<List<StudentBusAssignment>> GetActiveRosterAsync(IReadOnlyCollection<int> busIds, CancellationToken ct = default) =>
         _db.StudentBusAssignments.AsNoTracking()
-            .Include(a => a.Student).Include(a => a.Bus).Include(a => a.Route)
+            .Include(a => a.Student).Include(a => a.Bus).Include(a => a.Route).Include(a => a.PickupStop).Include(a => a.DropStop)
             .Where(a => busIds.Contains(a.BusId) && a.Status == RecordStatus.Active)
             .OrderBy(a => a.Bus.BusNumber).ThenBy(a => a.Student.FullName)
             .ToListAsync(ct);

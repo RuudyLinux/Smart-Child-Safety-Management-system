@@ -168,8 +168,12 @@ export const test = base.extend<Fixtures, WorkerFixtures>({
 });
 
 /** Waits for the toast shown after a form post-redirect-get and returns its text. */
-export async function toast(page: Page) {
-  const t = page.locator('.cg-toast').first();
+/**
+ * Text of the visible toast. Pass the expected text after a form post that redirects: the old page's
+ * toast can still be on screen until the new page commits (seen on WebKit), and this waits for the right one.
+ */
+export async function toast(page: Page, expected?: string) {
+  const t = expected ? page.locator('.cg-toast', { hasText: expected }).first() : page.locator('.cg-toast').first();
   await expect(t).toBeVisible();
   return (await t.innerText()).trim();
 }

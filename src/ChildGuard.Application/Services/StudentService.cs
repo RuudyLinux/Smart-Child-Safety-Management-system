@@ -278,6 +278,16 @@ public class StudentService : IStudentService
                 a.EventType == AttendanceEventType.SchoolArrival && a.Time > TimeOnly.MinValue && IsLate(a, snap)))
             .ToList();
 
+        var assignments = await _students.GetTransportHistoryAsync(s.StudentId, ct);
+        var current = assignments.FirstOrDefault(a => a.Status == RecordStatus.Active);
+        var transport = current is null ? null : new StudentTransportDto(
+            current.Id, current.BusId, current.Bus.BusNumber, current.Bus.RegistrationNumber, current.Bus.Status,
+            current.RouteId, current.Route?.RouteName, current.PickupStop?.Name, current.PickupStop?.PickupTime,
+            current.DropStop?.Name, current.DropStop?.DropTime,
+            current.Bus.DriverId, current.Bus.Driver?.FullName, current.Bus.Driver?.Phone, current.AssignedAt);
+        var history = assignments.Select(a => new StudentTransportHistoryDto(a.Id, a.Bus.BusNumber, a.Route?.RouteName,
+            a.PickupStop?.Name, a.DropStop?.Name, a.AssignedAt, a.EndedAt, a.Status)).ToList();
+
         return new StudentDetailDto(
             s.StudentId, s.FullName, s.DateOfBirth, s.Grade, s.Status,
             s.RfidCard is not null ? RfidMasking.Mask(s.RfidCard.CardUid) : null,
@@ -294,7 +304,8 @@ public class StudentService : IStudentService
             s.RfidCard?.Status, s.RfidCard?.AssignedAt,
             stats, journey, attendance,
             s.Section, s.AdmissionNumber, s.Gender, AddressDto.From(s.Address),
-            s.ArchivedAt, s.ArchiveReason);
+            s.ArchivedAt, s.ArchiveReason,
+            transport, history);
     }
 
     /// <summary>

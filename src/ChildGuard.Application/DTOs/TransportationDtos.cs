@@ -9,7 +9,8 @@ public record DriverDto(int DriverId, string FullName, string? Phone, string? Li
     LicenceState LicenceState = LicenceState.NotRecorded, IReadOnlyList<string>? BusNumbers = null, int StudentCount = 0);
 public record CreateDriverRequest(string FullName, string? Phone, string? LicenseNumber);
 
-public record RouteDto(int RouteId, string RouteName, string? Description, RecordStatus Status);
+public record RouteDto(int RouteId, string RouteName, string? Description, RecordStatus Status,
+    string? StartPoint = null, string? Destination = null, int StopCount = 0);
 public record CreateRouteRequest(string RouteName, string? Description);
 
 /// <param name="ActiveStudentCount">Students currently assigned (seats taken). Recalculated on every read.</param>
@@ -19,14 +20,17 @@ public record BusDto(int BusId, string BusNumber, int Capacity, string? DriverNa
 public record CreateBusRequest(string BusNumber, int Capacity, int? DriverId, int? RouteId);
 
 public record StudentBusAssignmentDto(int Id, int StudentId, string StudentName, string BusNumber, string? RouteName, RecordStatus Status, DateTime AssignedAt,
-    int BusId = 0, int? RouteId = null, DateTime? EndedAt = null);
+    int BusId = 0, int? RouteId = null, DateTime? EndedAt = null,
+    int? PickupStopId = null, string? PickupStop = null, int? DropStopId = null, string? DropStop = null);
 
 /// <summary>
 /// Assigns a student to a bus. Any current assignment is ended in the same transaction.
 /// <paramref name="RouteId"/> may be omitted: the bus's own route is used. A different route is
 /// accepted only when the school allows route overrides (Transport:AllowRouteOverride).
 /// </summary>
-public record CreateStudentBusAssignmentRequest(int StudentId, int BusId, int? RouteId);
+/// <param name="PickupStopId">Optional; must be an active stop on the assignment's route.</param>
+/// <param name="DropStopId">Optional; must be an active stop on the assignment's route.</param>
+public record CreateStudentBusAssignmentRequest(int StudentId, int BusId, int? RouteId, int? PickupStopId = null, int? DropStopId = null);
 
 public record TransportSettingsDto(bool AllowRouteOverride);
 

@@ -33,7 +33,8 @@ public record EnrollmentPageModel(
     string IdempotencyKey,
     IReadOnlyList<BusDto> Buses,
     IReadOnlyList<RouteDto> Routes,
-    bool AllowRouteOverride);
+    bool AllowRouteOverride,
+    IReadOnlyDictionary<int, List<RouteStopDto>>? RouteStops = null);
 
 /// <summary>
 /// Everything the shared avatar partial needs. <paramref name="PhotoUrl"/> is an

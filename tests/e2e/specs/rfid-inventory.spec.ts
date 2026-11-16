@@ -24,14 +24,14 @@ test.describe('RFID inventory', () => {
     // The USB reader types the UID and presses Enter.
     await page.keyboard.type(spare, { delay: 5 });
     await page.keyboard.press('Enter');
-    expect(await toast(page)).toContain('registered and available');
+    expect(await toast(page, 'registered and available')).toContain('registered and available');
     await expect(page).toHaveURL(/\/Rfid\/Details\/\d+$/);
 
     await page.getByRole('button', { name: 'Assign to student' }).click();
     const assign = page.getByRole('dialog', { name: 'Assign this card' });
     await assign.locator('select[name="studentId"]').selectOption(String(s.id));
     await assign.getByRole('button', { name: 'Assign card' }).click();
-    expect(await toast(page)).toContain(`assigned to ${s.fullName}`);
+    expect(await toast(page, `assigned to ${s.fullName}`)).toContain(`assigned to ${s.fullName}`);
     await expect(page.locator('[data-history-row]')).toHaveCount(1);
 
     await page.getByRole('button', { name: 'Replace card' }).click();
@@ -45,7 +45,7 @@ test.describe('RFID inventory', () => {
     await shot(page, '01-replace-dialog');
     await replace.getByRole('button', { name: 'Replace card' }).click();
 
-    expect(await toast(page)).toContain(`replaced for ${s.fullName}`);
+    expect(await toast(page, `replaced for ${s.fullName}`)).toContain(`replaced for ${s.fullName}`);
     await expect(page.locator('h1')).toContainText(replacement.slice(-4));
     await shot(page, '02-new-card');
 
@@ -62,7 +62,7 @@ test.describe('RFID inventory', () => {
     await modal.locator('#unassignStatus').selectOption('Lost');
     await modal.locator('#unassignReason').fill('Lost at the park.');
     await modal.getByRole('button', { name: 'Unassign' }).click();
-    expect(await toast(page)).toContain('unassigned');
+    expect(await toast(page, 'unassigned')).toContain('unassigned');
     await expect(page.locator('[data-card-actions]')).toContainText('Marked Lost');
     await expect(page.locator('[data-history-row]').first()).toContainText('Lost at the park.');
     await shot(page, '03-history');
@@ -80,6 +80,6 @@ test.describe('RFID inventory', () => {
     await modal.getByLabel(/cannot be undone/).check();
     await modal.getByRole('button', { name: 'Delete permanently' }).click();
     await expect(page).toHaveURL(/\/Rfid$/);
-    expect(await toast(page)).toContain('permanently deleted');
+    expect(await toast(page, 'permanently deleted')).toContain('permanently deleted');
   });
 });

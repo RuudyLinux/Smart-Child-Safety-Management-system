@@ -42,3 +42,35 @@ public class BusOperationalStatusRequestValidator : AbstractValidator<BusOperati
         RuleFor(x => x.Reason).MaximumLength(200);
     }
 }
+
+public class RouteStopRequestValidator : AbstractValidator<RouteStopRequest>
+{
+    public RouteStopRequestValidator()
+    {
+        RuleFor(x => x.Name).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.Address).MaximumLength(200);
+    }
+}
+
+public class ReorderStopsRequestValidator : AbstractValidator<ReorderStopsRequest>
+{
+    public ReorderStopsRequestValidator() => RuleFor(x => x.StopIds).NotNull().Must(s => s.Count <= 200);
+}
+
+public class UpdateRouteDetailsRequestValidator : AbstractValidator<UpdateRouteDetailsRequest>
+{
+    public UpdateRouteDetailsRequestValidator()
+    {
+        RuleFor(x => x.StartPoint).MaximumLength(150);
+        RuleFor(x => x.Destination).MaximumLength(150);
+    }
+}
+
+public class UpdateAssignmentStopsRequestValidator : AbstractValidator<UpdateAssignmentStopsRequest>
+{
+    public UpdateAssignmentStopsRequestValidator()
+    {
+        RuleFor(x => x.PickupStopId).GreaterThan(0).When(x => x.PickupStopId.HasValue);
+        RuleFor(x => x.DropStopId).GreaterThan(0).When(x => x.DropStopId.HasValue);
+    }
+}

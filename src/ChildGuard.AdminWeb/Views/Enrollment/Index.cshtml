@@ -247,6 +247,20 @@
                             </div>
                         }
                     </div>
+                    <div class="cg-form-row" data-en-stops hidden>
+                        <div class="cg-field">
+                            <label class="cg-label" for="enPickupStop">Pickup stop</label>
+                            <select class="cg-select" id="enPickupStop" data-en="transport.pickupStopId"><option value="">Not decided yet</option></select>
+                        </div>
+                        <div class="cg-field">
+                            <label class="cg-label" for="enDropStop">Drop-off stop</label>
+                            <select class="cg-select" id="enDropStop" data-en="transport.dropStopId"><option value="">Not decided yet</option></select>
+                        </div>
+                    </div>
+                    <script type="application/json" id="enRouteStops">@Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+                        (Model.RouteStops ?? new Dictionary<int, List<RouteStopDto>>()).ToDictionary(kv => kv.Key.ToString(),
+                            kv => kv.Value.Select(s => new { id = s.RouteStopId, name = $"{s.Sequence}. {s.Name}", pickup = s.PickupTime?.ToString("HH:mm"), drop = s.DropTime?.ToString("HH:mm") })),
+                        new System.Text.Json.JsonSerializerOptions { Encoder = System.Text.Encodings.Web.JavaScriptEncoder.Default }))</script>
                     <dl class="cg-deflist" data-en-bus-summary hidden>
                         <dt>Route</dt><dd data-en-bus-route>—</dd>
                         <dt>Driver</dt><dd data-en-bus-driver>—</dd>

@@ -38,6 +38,7 @@ public class ChildGuardDbContext : DbContext
     public DbSet<RfidCardAssignment> RfidCardAssignments => Set<RfidCardAssignment>();
     public DbSet<EnrollmentRequest> EnrollmentRequests => Set<EnrollmentRequest>();
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
+    public DbSet<RouteStop> RouteStops => Set<RouteStop>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

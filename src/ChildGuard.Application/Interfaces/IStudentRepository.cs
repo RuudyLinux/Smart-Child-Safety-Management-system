@@ -14,6 +14,8 @@ public interface IStudentRepository
     Task<List<StudentGuardian>> GetAuthorizedGuardiansAsync(int studentId, CancellationToken ct = default);
     Task<List<StudentGuardian>> GetLinkedGuardiansAsync(int studentId, CancellationToken ct = default);
     Task SaveChangesAsync(CancellationToken ct = default);
+    /// <summary>Every bus assignment of the student, newest first, with bus (and driver), route and stops.</summary>
+    Task<List<StudentBusAssignment>> GetTransportHistoryAsync(int studentId, CancellationToken ct = default);
     /// <summary>Another student already has this admission number (case-insensitive).</summary>
     Task<bool> AdmissionNumberTakenAsync(string admissionNumber, int exceptStudentId, CancellationToken ct = default);
     /// <summary>Saves; false (nothing saved) when a unique index refused the write.</summary>

@@ -65,7 +65,8 @@ public class TransportationService : ITransportationService
 
     private static List<RosterEntryDto> Roster(IEnumerable<StudentBusAssignment> active) =>
         active.Select(a => new RosterEntryDto(a.Id, a.StudentId, a.Student.FullName, a.Student.Grade, a.Student.Section, a.Student.AdmissionNumber,
-            a.BusId, a.Bus.BusNumber, a.RouteId, a.Route?.RouteName, a.AssignedAt)).ToList();
+            a.BusId, a.Bus.BusNumber, a.RouteId, a.Route?.RouteName, a.AssignedAt,
+            a.PickupStopId, a.PickupStop?.Name, a.DropStopId, a.DropStop?.Name)).ToList();
 
     public async Task<Result<DriverDetailDto>> GetDriverDetailAsync(int id, CancellationToken ct = default)
     {
@@ -89,6 +90,207 @@ public class TransportationService : ITransportationService
         var warnings = driven.Count == 0 ? new List<string>()
             : new List<string> { "Deactivating keeps the driver on their buses; they just cannot be assigned to another." };
         return new DeletionCheckDto(blockers.Count == 0, blockers, new List<string>(), warnings);
+    }
+
+    // ------------------------------------------------------------------ routes and stops
+
+    public const string StopNotFound = "Stop not found.";
+    public const string StopsNeedRoute = "This assignment has no route, so pickup and drop-off stops cannot be set.";
+    public static string StopNotOnRoute(string which) => $"The {which} stop is not on this student's route.";
+    public static string StopInactive(string which) => $"The {which} stop is deactivated. Choose an active stop.";
+
+    private async Task<List<RouteStopDto>> StopDtosAsync(int routeId, CancellationToken ct)
+    {
+        var usage = await _repo.CountActiveStopUsageAsync(routeId, ct);
+        return (await _repo.GetStopsAsync(routeId, ct)).Select(s => new RouteStopDto(s.RouteStopId, s.RouteId, s.Sequence, s.Name, s.Address,
+            s.PickupTime, s.DropTime, s.Status, usage.TryGetValue(s.RouteStopId, out var n) ? n : 0)).ToList();
+    }
+
+    /// <summary>Pickup and drop-off stops must be active stops on the route the student travels on.</summary>
+    private async Task<string?> CheckStopsAsync(int? routeId, int? pickupId, int? dropId, CancellationToken ct)
+    {
+        if (pickupId is null && dropId is null) return null;
+        if (routeId is null) return StopsNeedRoute;
+        foreach (var (id, which) in new[] { (pickupId, "pickup"), (dropId, "drop-off") })
+        {
+            if (id is not int stopId) continue;
+            var stop = await _repo.GetStopAsync(stopId, ct);
+            if (stop is null || stop.RouteId != routeId) return StopNotOnRoute(which);
+            if (stop.Status != RecordStatus.Active) return StopInactive(which);
+        }
+        return null;
+    }
+
+    public async Task<Result<RouteDetailDto>> GetRouteDetailAsync(int id, CancellationToken ct = default)
+    {
+        var route = await _repo.GetRouteByIdAsync(id, ct);
+        if (route is null) return Result<RouteDetailDto>.Failure(RouteNotFound);
+        var counts = await _repo.GetActiveAssignmentCountsAsync(ct);
+        var buses = (await _repo.GetBusesAsync(ct)).Where(b => b.RouteId == id)
+            .Select(b => new BusSummaryDto(b.BusId, b.BusNumber, b.RegistrationNumber, b.RouteId, route.RouteName, b.Status,
+                counts.TryGetValue(b.BusId, out var n) ? n : 0)).ToList();
+        var roster = Roster(await _repo.GetActiveRosterByRouteAsync(id, ct));
+        return Result<RouteDetailDto>.Success(new RouteDetailDto(await RouteDtoAsync(route, ct), route.CreatedAt,
+            await StopDtosAsync(id, ct), buses, roster, await RouteCheckAsync(id, ct)));
+    }
+
+    private async Task<DeletionCheckDto> RouteCheckAsync(int routeId, CancellationToken ct)
+    {
+        var (buses, assignments, events) = await _repo.CountRouteHistoryAsync(routeId, ct);
+        var blockers = new List<string>();
+        if (buses > 0) blockers.Add($"used by {buses} bus{(buses == 1 ? "" : "es")}; give {(buses == 1 ? "it" : "them")} another route first");
+        if (assignments > 0) blockers.Add($"{assignments} student assignment{(assignments == 1 ? "" : "s")} (current or past)");
+        if (events > 0) blockers.Add($"{events} journey event{(events == 1 ? "" : "s")}");
+        var stops = (await _repo.GetStopsAsync(routeId, ct)).Count;
+        var also = stops > 0 ? new List<string> { $"{stops} stop{(stops == 1 ? "" : "s")}" } : new List<string>();
+        return new DeletionCheckDto(blockers.Count == 0, blockers, also, new List<string>());
+    }
+
+    public async Task<Result> UpdateRouteDetailsAsync(int id, UpdateRouteDetailsRequest r, CancellationToken ct = default, int? actorAdminId = null)
+    {
+        var route = await _repo.GetRouteByIdAsync(id, ct);
+        if (route is null) return Result.Failure(RouteNotFound);
+        var changes = AuditDetails.Changes(("startPoint", route.StartPoint, Blank(r.StartPoint)), ("destination", route.Destination, Blank(r.Destination)));
+        if (changes.Count == 0) return Result.Success();
+        route.StartPoint = Blank(r.StartPoint);
+        route.Destination = Blank(r.Destination);
+        await _repo.SaveChangesAsync(ct);
+        await AuditAsync(actorAdminId, "Route", id, "Updated", $"{route.RouteName}: {route.StartPoint ?? "-"} to {route.Destination ?? "-"}", ct);
+        return Result.Success();
+    }
+
+    public async Task<Result<RouteStopDto>> AddStopAsync(int routeId, RouteStopRequest r, CancellationToken ct = default, int? actorAdminId = null)
+    {
+        var route = await _repo.GetRouteByIdAsync(routeId, ct);
+        if (route is null) return Result<RouteStopDto>.Failure(RouteNotFound);
+        var existing = await _repo.GetStopsAsync(routeId, ct);
+        var stop = new RouteStop
+        {
+            RouteId = routeId, Sequence = existing.Count == 0 ? 1 : existing.Max(s => s.Sequence) + 1, Name = r.Name.Trim(),
+            Address = Blank(r.Address), PickupTime = r.PickupTime, DropTime = r.DropTime, CreatedAt = _clock.UtcNow
+        };
+        await _repo.AddStopAsync(stop, ct);
+        await _repo.SaveChangesAsync(ct);
+        await AuditAsync(actorAdminId, "RouteStop", stop.RouteStopId, "Created", $"{route.RouteName}: stop {stop.Sequence} {stop.Name}", ct);
+        return Result<RouteStopDto>.Success(new RouteStopDto(stop.RouteStopId, routeId, stop.Sequence, stop.Name, stop.Address, stop.PickupTime, stop.DropTime, stop.Status, 0));
+    }
+
+    private async Task<RouteStop?> StopOfRouteAsync(int routeId, int stopId, CancellationToken ct)
+    {
+        var stop = await _repo.GetStopAsync(stopId, ct);
+        return stop?.RouteId == routeId ? stop : null;
+    }
+
+    public async Task<Result> UpdateStopAsync(int routeId, int stopId, RouteStopRequest r, CancellationToken ct = default, int? actorAdminId = null)
+    {
+        var stop = await StopOfRouteAsync(routeId, stopId, ct);
+        if (stop is null) return Result.Failure(StopNotFound);
+        var changes = AuditDetails.Changes(("name", stop.Name, r.Name.Trim()), ("address", stop.Address, Blank(r.Address)),
+            ("pickupTime", stop.PickupTime, r.PickupTime), ("dropTime", stop.DropTime, r.DropTime));
+        if (changes.Count == 0) return Result.Success();
+        stop.Name = r.Name.Trim();
+        stop.Address = Blank(r.Address);
+        stop.PickupTime = r.PickupTime;
+        stop.DropTime = r.DropTime;
+        await _repo.SaveChangesAsync(ct);
+        await AuditAsync(actorAdminId, "RouteStop", stopId, "Updated", $"{stop.Name}: {string.Join(", ", changes.Keys)}", ct);
+        return Result.Success();
+    }
+
+    public async Task<Result<string>> RemoveStopAsync(int routeId, int stopId, CancellationToken ct = default, int? actorAdminId = null)
+    {
+        var stop = await StopOfRouteAsync(routeId, stopId, ct);
+        if (stop is null) return Result<string>.Failure(StopNotFound);
+        var current = (await _repo.CountActiveStopUsageAsync(routeId, ct)).GetValueOrDefault(stopId);
+        if (current > 0)
+            return Result<string>.Failure($"{current} student{(current == 1 ? " boards or leaves" : "s board or leave")} at this stop. Choose other stops for them first.");
+
+        string message;
+        if (await _repo.CountStopUsageAsync(stopId, ct) > 0)
+        {
+            // Past assignments still point at it: keep it as history, out of use.
+            stop.Status = RecordStatus.Inactive;
+            message = $"Stop {stop.Name} was used before, so it was deactivated and kept as history.";
+            await _repo.SaveChangesAsync(ct);
+            await AuditAsync(actorAdminId, "RouteStop", stopId, "Deactivated", stop.Name, ct);
+        }
+        else
+        {
+            _repo.RemoveStop(stop);
+            message = $"Stop {stop.Name} removed.";
+            await _repo.SaveChangesAsync(ct);
+            await AuditAsync(actorAdminId, "RouteStop", stopId, "Deleted", stop.Name, ct);
+        }
+        await RenumberAsync(routeId, null, ct);
+        return Result<string>.Success(message);
+    }
+
+    public async Task<Result> SetStopStatusAsync(int routeId, int stopId, RecordStatus status, CancellationToken ct = default, int? actorAdminId = null)
+    {
+        var stop = await StopOfRouteAsync(routeId, stopId, ct);
+        if (stop is null) return Result.Failure(StopNotFound);
+        if (stop.Status == status) return Result.Success();
+        if (status == RecordStatus.Inactive && (await _repo.CountActiveStopUsageAsync(routeId, ct)).GetValueOrDefault(stopId) > 0)
+            return Result.Failure("Students currently board or leave at this stop. Choose other stops for them first.");
+        stop.Status = status;
+        await _repo.SaveChangesAsync(ct);
+        await RenumberAsync(routeId, null, ct);
+        await AuditAsync(actorAdminId, "RouteStop", stopId, StatusAction(status), stop.Name, ct);
+        return Result.Success();
+    }
+
+    public async Task<Result> ReorderStopsAsync(int routeId, ReorderStopsRequest request, CancellationToken ct = default, int? actorAdminId = null)
+    {
+        if (await _repo.GetRouteByIdAsync(routeId, ct) is null) return Result.Failure(RouteNotFound);
+        var active = (await _repo.GetStopsAsync(routeId, ct)).Where(s => s.Status == RecordStatus.Active).Select(s => s.RouteStopId).ToHashSet();
+        if (request.StopIds.Count != active.Count || request.StopIds.Distinct().Count() != active.Count || !request.StopIds.All(active.Contains))
+            return Result.Failure("List every active stop of this route exactly once, in the new order.");
+        await RenumberAsync(routeId, request.StopIds, ct);
+        await AuditAsync(actorAdminId, "Route", routeId, "StopsReordered", string.Join(" > ", request.StopIds), ct);
+        return Result.Success();
+    }
+
+    /// <summary>Active stops get 1..n in <paramref name="order"/> (or their current order); deactivated stops follow.</summary>
+    private async Task RenumberAsync(int routeId, IReadOnlyList<int>? order, CancellationToken ct)
+    {
+        var stops = await _repo.GetStopsAsync(routeId, ct);
+        var activeInOrder = order is null
+            ? stops.Where(s => s.Status == RecordStatus.Active).ToList()
+            : order.Select(id => stops.First(s => s.RouteStopId == id)).ToList();
+        var seq = 1;
+        foreach (var s in activeInOrder.Concat(stops.Where(s => s.Status != RecordStatus.Active))) s.Sequence = seq++;
+        await _repo.SaveChangesAsync(ct);
+    }
+
+    public async Task<LifecycleOutcome> DeleteRouteAsync(int id, string reason, CancellationToken ct = default, int? actorAdminId = null)
+    {
+        var route = await _repo.GetRouteByIdAsync(id, ct);
+        if (route is null) return LifecycleOutcome.Missing("Route");
+        var check = await RouteCheckAsync(id, ct);
+        if (!check.CanDelete) return LifecycleOutcome.Refused(check);
+        var name = route.RouteName;
+        foreach (var stop in await _repo.GetStopsAsync(id, ct)) _repo.RemoveStop(stop);
+        _repo.RemoveRoute(route);
+        await _repo.SaveChangesAsync(ct);
+        await AuditAsync(actorAdminId, "Route", id, "Deleted", $"{name} permanently deleted. Reason: {reason.Trim()}", ct);
+        return LifecycleOutcome.Ok($"Route {name} permanently deleted.");
+    }
+
+    public async Task<Result> UpdateAssignmentStopsAsync(int assignmentId, UpdateAssignmentStopsRequest request, CancellationToken ct = default, int? actorAdminId = null)
+    {
+        var a = await _repo.GetAssignmentByIdAsync(assignmentId, ct);
+        if (a is null) return Result.Failure(AssignmentNotFound);
+        if (a.Status != RecordStatus.Active) return Result.Failure(EndedAssignmentIsHistory);
+        var error = await CheckStopsAsync(a.RouteId, request.PickupStopId, request.DropStopId, ct);
+        if (error is not null) return Result.Failure(error);
+        if (a.PickupStopId == request.PickupStopId && a.DropStopId == request.DropStopId) return Result.Success();
+        var before = $"{a.PickupStopId?.ToString() ?? "-"}/{a.DropStopId?.ToString() ?? "-"}";
+        a.PickupStopId = request.PickupStopId;
+        a.DropStopId = request.DropStopId;
+        await _repo.SaveChangesAsync(ct);
+        await AuditAsync(actorAdminId, "Assignment", assignmentId, "StopsChanged",
+            $"Student {a.StudentId}: stops {before} → {request.PickupStopId?.ToString() ?? "-"}/{request.DropStopId?.ToString() ?? "-"}", ct);
+        return Result.Success();
     }
 
     public const string DuplicateEmployeeCode = "Another driver already has this driver ID.";
@@ -153,7 +355,9 @@ public class TransportationService : ITransportationService
             ? new DriverSummaryDto(d.DriverId, d.FullName, d.Phone, d.Email, d.LicenseNumber, d.LicenseCategory, d.LicenseExpiresOn,
                 LicenceRules.State(d.LicenseExpiresOn, _clock.Today), d.Status)
             : null;
-        var route = b.Route is { } r ? new RouteSummaryDto(r.RouteId, r.RouteName, r.Description, r.Status) : null;
+        var route = b.Route is { } r
+            ? new RouteSummaryDto(r.RouteId, r.RouteName, r.Description, r.Status, r.StartPoint, r.Destination, await StopDtosAsync(r.RouteId, ct))
+            : null;
         return Result<BusDetailDto>.Success(new BusDetailDto(dto, b.CreatedAt, driver, route, roster, await BusCheckAsync(b, roster.Count, ct)));
     }
 
@@ -240,8 +444,17 @@ public class TransportationService : ITransportationService
 
     // ------------------------------------------------------------------ routes
 
-    public async Task<List<RouteDto>> GetRoutesAsync(CancellationToken ct = default) =>
-        (await _repo.GetRoutesAsync(ct)).Select(r => new RouteDto(r.RouteId, r.RouteName, r.Description, r.Status)).ToList();
+    public async Task<List<RouteDto>> GetRoutesAsync(CancellationToken ct = default)
+    {
+        var list = new List<RouteDto>();
+        foreach (var r in await _repo.GetRoutesAsync(ct))
+            list.Add(await RouteDtoAsync(r, ct));
+        return list;
+    }
+
+    private async Task<RouteDto> RouteDtoAsync(Route r, CancellationToken ct) =>
+        new(r.RouteId, r.RouteName, r.Description, r.Status, r.StartPoint, r.Destination,
+            (await _repo.GetStopsAsync(r.RouteId, ct)).Count(s => s.Status == RecordStatus.Active));
 
     public async Task<Result<RouteDto>> AddRouteAsync(CreateRouteRequest request, CancellationToken ct = default, int? actorAdminId = null)
     {
@@ -383,7 +596,7 @@ public class TransportationService : ITransportationService
     public async Task<List<StudentBusAssignmentDto>> GetAssignmentsAsync(CancellationToken ct = default) =>
         (await _repo.GetAssignmentsAsync(ct)).Select(a => new StudentBusAssignmentDto(
             a.Id, a.StudentId, a.Student.FullName, a.Bus.BusNumber, a.Route?.RouteName, a.Status, a.AssignedAt,
-            a.BusId, a.RouteId, a.EndedAt)).ToList();
+            a.BusId, a.RouteId, a.EndedAt, a.PickupStopId, a.PickupStop?.Name, a.DropStopId, a.DropStop?.Name)).ToList();
 
     /// <summary>
     /// One active assignment per student. Under row locks on the student and the target bus,
@@ -411,6 +624,9 @@ public class TransportationService : ITransportationService
             if (current is not null && current.BusId == bus.BusId && current.RouteId == routeId)
                 return Result.Failure(AlreadyOnThisBus);
 
+            var stopError = await CheckStopsAsync(routeId, request.PickupStopId, request.DropStopId, lockCt);
+            if (stopError is not null) return Result.Failure(stopError);
+
             // A move within the same bus (route change only) does not need a free seat.
             var taken = await _repo.CountActiveAssignmentsAsync(bus.BusId, lockCt);
             if (current?.BusId != bus.BusId && taken >= bus.Capacity)
@@ -428,7 +644,8 @@ public class TransportationService : ITransportationService
 
             var assignment = new StudentBusAssignment
             {
-                StudentId = request.StudentId, BusId = bus.BusId, RouteId = routeId, Status = RecordStatus.Active, AssignedAt = now
+                StudentId = request.StudentId, BusId = bus.BusId, RouteId = routeId, Status = RecordStatus.Active, AssignedAt = now,
+                PickupStopId = request.PickupStopId, DropStopId = request.DropStopId
             };
             await _repo.AddAssignmentAsync(assignment, lockCt);
             if (!await _repo.TrySaveChangesAsync(lockCt)) return Result.Failure(AssignmentChangedConcurrently);

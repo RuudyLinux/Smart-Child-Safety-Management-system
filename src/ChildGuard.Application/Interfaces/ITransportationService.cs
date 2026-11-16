@@ -49,6 +49,22 @@ public interface ITransportationService
     Task<Result<BusDetailDto>> GetBusDetailAsync(int id, CancellationToken ct = default);
     Task<Result> UpdateBusDetailsAsync(int id, UpdateBusDetailsRequest request, CancellationToken ct = default, int? actorAdminId = null);
     Task<Result> SetBusOperationalStatusAsync(int id, BusStatus status, string? reason, CancellationToken ct = default, int? actorAdminId = null);
+    // ---- routes and stops
+
+    Task<Result<RouteDetailDto>> GetRouteDetailAsync(int id, CancellationToken ct = default);
+    Task<Result> UpdateRouteDetailsAsync(int id, UpdateRouteDetailsRequest request, CancellationToken ct = default, int? actorAdminId = null);
+    /// <summary>Adds a stop at the end of the route.</summary>
+    Task<Result<RouteStopDto>> AddStopAsync(int routeId, RouteStopRequest request, CancellationToken ct = default, int? actorAdminId = null);
+    Task<Result> UpdateStopAsync(int routeId, int stopId, RouteStopRequest request, CancellationToken ct = default, int? actorAdminId = null);
+    /// <summary>Deletes an unused stop; a stop any assignment used is deactivated instead (refused while a current assignment uses it).</summary>
+    Task<Result<string>> RemoveStopAsync(int routeId, int stopId, CancellationToken ct = default, int? actorAdminId = null);
+    Task<Result> SetStopStatusAsync(int routeId, int stopId, RecordStatus status, CancellationToken ct = default, int? actorAdminId = null);
+    Task<Result> ReorderStopsAsync(int routeId, ReorderStopsRequest request, CancellationToken ct = default, int? actorAdminId = null);
+    /// <summary>Only for a route no bus uses and no assignment or journey ever used; refused otherwise.</summary>
+    Task<LifecycleOutcome> DeleteRouteAsync(int id, string reason, CancellationToken ct = default, int? actorAdminId = null);
+    /// <summary>Sets the pickup and drop-off stops of an active assignment; both must be active stops on its route.</summary>
+    Task<Result> UpdateAssignmentStopsAsync(int assignmentId, UpdateAssignmentStopsRequest request, CancellationToken ct = default, int? actorAdminId = null);
+
     /// <summary>Only for a bus that never carried a student or recorded a journey; refused otherwise.</summary>
     Task<LifecycleOutcome> DeleteBusAsync(int id, string reason, CancellationToken ct = default, int? actorAdminId = null);
 }

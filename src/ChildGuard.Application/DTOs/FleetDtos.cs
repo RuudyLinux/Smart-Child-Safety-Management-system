@@ -15,7 +15,7 @@ public record DriverSummaryDto(
     DateOnly? LicenseExpiresOn, LicenceState LicenceState, RecordStatus Status);
 
 public record RouteSummaryDto(int RouteId, string RouteName, string? Description, RecordStatus Status,
-    string? StartPoint = null, string? Destination = null);
+    string? StartPoint = null, string? Destination = null, IReadOnlyList<RouteStopDto>? Stops = null);
 
 public record DriverDetailDto(
     DriverDto Driver, AddressDto? Address, string? EmergencyContactName, string? EmergencyContactPhone, DateOnly? JoinedOn,
@@ -34,3 +34,28 @@ public record UpdateDriverProfileRequest(
 public record UpdateBusDetailsRequest(string? RegistrationNumber, string? Manufacturer, string? Model);
 
 public record BusOperationalStatusRequest(BusStatus Status, string? Reason);
+
+/// <param name="StudentsUsing">Students whose current assignment boards or leaves at this stop.</param>
+public record RouteStopDto(int RouteStopId, int RouteId, int Sequence, string Name, string? Address,
+    TimeOnly? PickupTime, TimeOnly? DropTime, RecordStatus Status, int StudentsUsing);
+
+public record RouteDetailDto(RouteDto Route, DateTime CreatedAt, IReadOnlyList<RouteStopDto> Stops,
+    IReadOnlyList<BusSummaryDto> Buses, IReadOnlyList<RosterEntryDto> Students, DeletionCheckDto Deletion);
+
+public record RouteStopRequest(string Name, string? Address, TimeOnly? PickupTime, TimeOnly? DropTime);
+
+/// <summary>Every active stop of the route, in the new order.</summary>
+public record ReorderStopsRequest(IReadOnlyList<int> StopIds);
+
+public record UpdateRouteDetailsRequest(string? StartPoint, string? Destination);
+
+public record UpdateAssignmentStopsRequest(int? PickupStopId, int? DropStopId);
+
+/// <summary>A student's current school transport, everything the profile shows in one place.</summary>
+public record StudentTransportDto(
+    int AssignmentId, int BusId, string BusNumber, string? RegistrationNumber, BusStatus BusStatus,
+    int? RouteId, string? RouteName, string? PickupStop, TimeOnly? PickupTime, string? DropStop, TimeOnly? DropTime,
+    int? DriverId, string? DriverName, string? DriverPhone, DateTime AssignedAt);
+
+public record StudentTransportHistoryDto(int AssignmentId, string BusNumber, string? RouteName, string? PickupStop, string? DropStop,
+    DateTime AssignedAt, DateTime? EndedAt, RecordStatus Status);

@@ -31,7 +31,7 @@ test.describe('Drivers and buses', () => {
     await modal.locator('#dpEcName').fill('Sita');
     await modal.locator('#dpCity').fill('Bengaluru');
     await modal.getByRole('button', { name: 'Save profile' }).click();
-    expect(await toast(page)).toContain('Driver profile saved');
+    expect(await toast(page, 'Driver profile saved')).toContain('Driver profile saved');
     await expect(page.locator('[data-licence-alert]')).toContainText('20 November 2026');
     await expect(page.locator('body')).toContainText('HTV');
     await shot(page, '01-driver-profile');
@@ -52,7 +52,7 @@ test.describe('Drivers and buses', () => {
     await modal.locator('#bdMake').fill('Tata');
     await modal.locator('#bdModel').fill('Starbus');
     await modal.getByRole('button', { name: 'Save' }).click();
-    expect(await toast(page)).toContain('Bus details saved');
+    expect(await toast(page, 'Bus details saved')).toContain('Bus details saved');
     await expect(page.locator('.cg-page-head')).toContainText('Registration KA 05 MN');
 
     await page.locator('#busStatus').selectOption('UnderMaintenance');
@@ -79,6 +79,6 @@ test.describe('Drivers and buses', () => {
     await modal.getByLabel(/I understand/).check();
     await modal.getByRole('button', { name: 'Delete permanently' }).click();
     await expect(page).toHaveURL(/\/Transportation$/);
-    expect(await toast(page)).toContain('permanently deleted');
+    expect(await toast(page, 'permanently deleted')).toContain('permanently deleted');
   });
 });

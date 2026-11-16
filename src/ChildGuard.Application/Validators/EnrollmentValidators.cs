@@ -52,6 +52,8 @@ public class EnrollStudentRequestValidator : AbstractValidator<EnrollStudentRequ
             .WithMessage("Give a reason of 10 to 500 characters for enrolling a student with the same name and date of birth.");
         RuleFor(x => x.Transport!.BusId).GreaterThan(0).When(x => x.Transport is not null);
         RuleFor(x => x.Transport!.RouteId).GreaterThan(0).When(x => x.Transport?.RouteId is not null);
+        RuleFor(x => x.Transport!.PickupStopId).GreaterThan(0).When(x => x.Transport?.PickupStopId is not null);
+        RuleFor(x => x.Transport!.DropStopId).GreaterThan(0).When(x => x.Transport?.DropStopId is not null);
     }
 }
 

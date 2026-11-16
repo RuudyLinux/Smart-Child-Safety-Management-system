@@ -47,6 +47,7 @@ public class StudentGuardianLinkTests
             Task.FromResult(Links.Where(l => l.StudentId == studentId).ToList());
 
         public Task SaveChangesAsync(CancellationToken ct = default) => Task.CompletedTask;
+    public Task<List<StudentBusAssignment>> GetTransportHistoryAsync(int studentId, CancellationToken ct = default) => Task.FromResult(new List<StudentBusAssignment>());
     public Task<bool> AdmissionNumberTakenAsync(string admissionNumber, int exceptStudentId, CancellationToken ct = default) => Task.FromResult(false);
     public Task<bool> TrySaveChangesAsync(CancellationToken ct = default) => Task.FromResult(true);
     }

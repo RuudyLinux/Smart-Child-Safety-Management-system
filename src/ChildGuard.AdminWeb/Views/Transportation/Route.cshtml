@@ -1,0 +1,251 @@
+@model RouteDetailDto
+@{
+    var r = Model.Route;
+    ViewData["Title"] = r.RouteName;
+    var active = Model.Stops.Where(s => s.Status == RecordStatus.Active).OrderBy(s => s.Sequence).ToList();
+    var retired = Model.Stops.Where(s => s.Status != RecordStatus.Active).OrderBy(s => s.Name).ToList();
+    static string Time(TimeOnly? t) => t?.ToString("HH:mm") ?? "—";
+}
+
+<div class="cg-page-head">
+    <div class="cg-page-head__text">
+        <nav class="cg-breadcrumb" style="margin-bottom:6px">
+            <a href="/Transportation">@await Html.PartialAsync("_Icon", "arrow-left") Back to transportation</a>
+        </nav>
+        <h1 class="cg-page-head__title">@r.RouteName</h1>
+        <p class="cg-page-head__sub cg-row cg-row--wrap" style="gap:8px">
+            <span class="cg-badge @(r.Status == RecordStatus.Active ? "cg-badge--success" : "cg-badge--neutral")"><span class="cg-badge__dot"></span>@r.Status</span>
+            <span data-route-ends>@(r.StartPoint ?? "Start not set") → @(r.Destination ?? "Destination not set")</span>
+        </p>
+    </div>
+    <div class="cg-page-head__actions">
+        <button type="button" class="cg-btn cg-btn--secondary" data-cg-modal-open="routeDetails">@await Html.PartialAsync("_Icon", "edit") Edit start and destination</button>
+        <button type="button" class="cg-btn cg-btn--primary" data-cg-modal-open="stopAdd">@await Html.PartialAsync("_Icon", "plus") Add stop</button>
+        <button type="button" class="cg-btn cg-btn--danger-soft" data-cg-modal-open="routeDelete">Delete permanently</button>
+    </div>
+</div>
+
+<div class="cg-grid cg-grid--4">
+    <article class="cg-kpi">
+        <div class="cg-kpi__top"><div class="cg-kpi__label">Stops in use</div><span class="cg-kpi__icon cg-kpi__icon--info">@await Html.PartialAsync("_Icon", "map-pin")</span></div>
+        <div class="cg-kpi__value cg-kpi__value--sm" data-stop-count>@active.Count</div>
+    </article>
+    <article class="cg-kpi">
+        <div class="cg-kpi__top"><div class="cg-kpi__label">Buses</div><span class="cg-kpi__icon cg-kpi__icon--neutral">@await Html.PartialAsync("_Icon", "bus")</span></div>
+        <div class="cg-kpi__value cg-kpi__value--sm">@Model.Buses.Count</div>
+    </article>
+    <article class="cg-kpi">
+        <div class="cg-kpi__top"><div class="cg-kpi__label">Students</div><span class="cg-kpi__icon cg-kpi__icon--neutral">@await Html.PartialAsync("_Icon", "students")</span></div>
+        <div class="cg-kpi__value cg-kpi__value--sm">@Model.Students.Count</div>
+        <div class="cg-kpi__note">Currently assigned to this route</div>
+    </article>
+    <article class="cg-kpi">
+        <div class="cg-kpi__top"><div class="cg-kpi__label">Description</div><span class="cg-kpi__icon cg-kpi__icon--neutral">@await Html.PartialAsync("_Icon", "route")</span></div>
+        <div class="cg-kpi__value cg-kpi__value--sm" style="font-size:14px">@(r.Description ?? "—")</div>
+    </article>
+</div>
+
+<section class="cg-card" id="stops">
+    <div class="cg-card__head">
+        <div>
+            <h2 class="cg-card__title">Stops, in travel order</h2>
+            <div class="cg-card__sub">Pickup times are for the morning run, drop-off times for the afternoon run.</div>
+        </div>
+    </div>
+    @if (active.Count == 0)
+    {
+        @await Html.PartialAsync("_EmptyState", ("map-pin", "No stops yet", "Add the stops this route serves, in the order the bus reaches them.", (string?)null, (string?)null))
+    }
+    else
+    {
+        <div class="cg-table-wrap">
+            <table class="cg-table" data-stops>
+                <thead><tr><th>#</th><th>Stop</th><th>Address</th><th>Pickup</th><th>Drop-off</th><th>Students</th><th class="cg-table__actions">Actions</th></tr></thead>
+                <tbody>
+                @for (var i = 0; i < active.Count; i++)
+                {
+                    var s = active[i];
+                    <tr data-stop-row="@s.RouteStopId">
+                        <td class="cg-mono">@s.Sequence</td>
+                        <td data-stop-name>@s.Name</td>
+                        <td class="cg-text-sm">@(s.Address ?? "—")</td>
+                        <td class="cg-mono">@Time(s.PickupTime)</td>
+                        <td class="cg-mono">@Time(s.DropTime)</td>
+                        <td>@s.StudentsUsing</td>
+                        <td class="cg-table__actions">
+                            <div class="cg-row" style="gap:4px;justify-content:flex-end">
+                                <form class="cg-inline-form" action="/Transportation/MoveStop/@r.RouteId?stopId=@s.RouteStopId&direction=up" method="post">
+                                    @Html.AntiForgeryToken()
+                                    <button class="cg-btn cg-btn--ghost cg-btn--sm" type="submit" disabled="@(i == 0)" aria-label="Move @s.Name up">↑</button>
+                                </form>
+                                <form class="cg-inline-form" action="/Transportation/MoveStop/@r.RouteId?stopId=@s.RouteStopId&direction=down" method="post">
+                                    @Html.AntiForgeryToken()
+                                    <button class="cg-btn cg-btn--ghost cg-btn--sm" type="submit" disabled="@(i == active.Count - 1)" aria-label="Move @s.Name down">↓</button>
+                                </form>
+                                <button type="button" class="cg-btn cg-btn--ghost cg-btn--sm" data-cg-modal-open="stopEdit@(s.RouteStopId)">Edit</button>
+                                <form class="cg-inline-form" action="/Transportation/RemoveStop/@r.RouteId?stopId=@s.RouteStopId" method="post" data-cg-busy
+                                      data-cg-confirm="Remove stop @s.Name? A stop that students have used stays on record as not in use.">
+                                    @Html.AntiForgeryToken()
+                                    <button class="cg-btn cg-btn--ghost cg-btn--sm" type="submit" disabled="@(s.StudentsUsing > 0)"
+                                            title="@(s.StudentsUsing > 0 ? "Move the students to another stop first" : "")">Remove</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+    @if (retired.Count > 0)
+    {
+        <div class="cg-card__body" data-retired-stops>
+            <h3 class="cg-text-sm" style="margin:0 0 6px">Stops no longer in use</h3>
+            <ul style="margin:0;padding-left:18px">
+                @foreach (var s in retired)
+                {
+                    <li class="cg-row" style="gap:8px">
+                        <span>@s.Name</span>
+                        <form class="cg-inline-form" action="/Transportation/ReactivateStop/@r.RouteId?stopId=@s.RouteStopId" method="post" data-cg-busy>
+                            @Html.AntiForgeryToken()
+                            <button class="cg-btn cg-btn--ghost cg-btn--sm" type="submit">Use again</button>
+                        </form>
+                    </li>
+                }
+            </ul>
+        </div>
+    }
+</section>
+
+<section class="cg-card">
+    <div class="cg-card__head"><h2 class="cg-card__title">Buses on this route</h2></div>
+    @if (Model.Buses.Count == 0)
+    {
+        <div class="cg-card__body"><p class="cg-muted cg-text-sm" style="margin:0">No bus runs this route. Set the route on a bus from the Transportation page.</p></div>
+    }
+    else
+    {
+        <div class="cg-table-wrap">
+            <table class="cg-table">
+                <thead><tr><th>Bus</th><th>Registration</th><th>Status</th><th>Students</th></tr></thead>
+                <tbody>
+                @foreach (var b in Model.Buses)
+                {
+                    <tr>
+                        <td><a href="/Transportation/Bus/@b.BusId">@b.BusNumber</a></td>
+                        <td class="cg-mono">@(b.RegistrationNumber ?? "—")</td>
+                        <td>@await Html.PartialAsync("_Ui", ("bus", (object)b.Status))</td>
+                        <td>@b.StudentCount</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+<section class="cg-card" id="students">
+    <div class="cg-card__head">
+        <div>
+            <h2 class="cg-card__title">Students and their stops</h2>
+            <div class="cg-card__sub">Pick a stop for each student. Leave a stop empty if it is not decided yet.</div>
+        </div>
+    </div>
+    @if (Model.Students.Count == 0)
+    {
+        @await Html.PartialAsync("_EmptyState", ("students", "No students on this route", "Assign students from the Transportation page or during enrollment.", (string?)null, (string?)null))
+    }
+    else
+    {
+        <div class="cg-table-wrap">
+            <table class="cg-table" data-roster>
+                <thead><tr><th>Student</th><th>Bus</th><th>Pickup stop</th><th>Drop-off stop</th><th class="cg-table__actions"></th></tr></thead>
+                <tbody>
+                @foreach (var s in Model.Students)
+                {
+                    var formId = $"stops{s.AssignmentId}";
+                    <tr data-roster-row="@s.AssignmentId">
+                        <td><a href="/Students/Details/@s.StudentId">@s.StudentName</a></td>
+                        <td>@s.BusNumber</td>
+                        <td>
+                            <select class="cg-select" name="pickupStopId" form="@formId" aria-label="Pickup stop for @s.StudentName">
+                                <option value="">Not set</option>
+                                @foreach (var st in active) { <option value="@st.RouteStopId" selected="@(s.PickupStopId == st.RouteStopId)">@st.Sequence. @st.Name</option> }
+                            </select>
+                        </td>
+                        <td>
+                            <select class="cg-select" name="dropStopId" form="@formId" aria-label="Drop-off stop for @s.StudentName">
+                                <option value="">Not set</option>
+                                @foreach (var st in active) { <option value="@st.RouteStopId" selected="@(s.DropStopId == st.RouteStopId)">@st.Sequence. @st.Name</option> }
+                            </select>
+                        </td>
+                        <td class="cg-table__actions">
+                            <form id="@formId" action="/Transportation/SetAssignmentStops/@r.RouteId?assignmentId=@s.AssignmentId" method="post" data-cg-busy>
+                                @Html.AntiForgeryToken()
+                                <button class="cg-btn cg-btn--secondary cg-btn--sm" type="submit">Save</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+@functions {
+    // Shared field set for the add and edit stop modals.
+    private static RouteStopDto Blank => new(0, 0, 0, "", null, null, null, RecordStatus.Active, 0);
+}
+
+@foreach (var (id, title, action, s) in new[] { ("stopAdd", "Add a stop", $"/Transportation/AddStop/{r.RouteId}", Blank) }
+    .Concat(active.Select(s => ($"stopEdit{s.RouteStopId}", $"Edit {s.Name}", $"/Transportation/EditStop/{r.RouteId}?stopId={s.RouteStopId}", s))))
+{
+    <div class="cg-modal" id="@id" hidden role="dialog" aria-modal="true" aria-labelledby="@(id)Title">
+        <div class="cg-modal__panel">
+            <div class="cg-modal__head">
+                <h2 class="cg-modal__title" id="@(id)Title">@title</h2>
+                <button type="button" class="cg-iconbtn" data-cg-modal-close aria-label="Close">@await Html.PartialAsync("_Icon", "x")</button>
+            </div>
+            <form action="@action" method="post" data-cg-busy>
+                @Html.AntiForgeryToken()
+                <div class="cg-modal__body cg-form">
+                    <div class="cg-field"><label class="cg-label" for="@(id)Name">Stop name <span class="cg-label__req">*</span></label><input class="cg-input" id="@(id)Name" name="Name" value="@s.Name" maxlength="100" required /></div>
+                    <div class="cg-field"><label class="cg-label" for="@(id)Address">Address or landmark</label><input class="cg-input" id="@(id)Address" name="Address" value="@s.Address" maxlength="200" /></div>
+                    <div class="cg-form-row">
+                        <div class="cg-field"><label class="cg-label" for="@(id)Pickup">Pickup time</label><input class="cg-input" type="time" id="@(id)Pickup" name="PickupTime" value="@s.PickupTime?.ToString("HH:mm")" /></div>
+                        <div class="cg-field"><label class="cg-label" for="@(id)Drop">Drop-off time</label><input class="cg-input" type="time" id="@(id)Drop" name="DropTime" value="@s.DropTime?.ToString("HH:mm")" /></div>
+                    </div>
+                    @if (s.RouteStopId == 0) { <p class="cg-hint">New stops go to the end of the route. Move them into place afterwards.</p> }
+                </div>
+                <div class="cg-modal__foot">
+                    <button type="button" class="cg-btn cg-btn--secondary" data-cg-modal-close>Cancel</button>
+                    <button type="submit" class="cg-btn cg-btn--primary"><span class="cg-btn__label">Save stop</span></button>
+                </div>
+            </form>
+        </div>
+    </div>
+}
+
+<div class="cg-modal" id="routeDetails" hidden role="dialog" aria-modal="true" aria-labelledby="routeDetailsTitle">
+    <div class="cg-modal__panel">
+        <div class="cg-modal__head">
+            <h2 class="cg-modal__title" id="routeDetailsTitle">Start and destination</h2>
+            <button type="button" class="cg-iconbtn" data-cg-modal-close aria-label="Close">@await Html.PartialAsync("_Icon", "x")</button>
+        </div>
+        <form action="/Transportation/EditRouteDetails/@r.RouteId" method="post" data-cg-busy>
+            @Html.AntiForgeryToken()
+            <div class="cg-modal__body cg-form">
+                <div class="cg-field"><label class="cg-label" for="rdStart">Start point</label><input class="cg-input" id="rdStart" name="StartPoint" value="@r.StartPoint" maxlength="150" placeholder="e.g. Bus depot" /></div>
+                <div class="cg-field"><label class="cg-label" for="rdDest">Destination</label><input class="cg-input" id="rdDest" name="Destination" value="@r.Destination" maxlength="150" placeholder="e.g. School main gate" /></div>
+                <p class="cg-hint">The route name and description are edited on the Transportation page.</p>
+            </div>
+            <div class="cg-modal__foot">
+                <button type="button" class="cg-btn cg-btn--secondary" data-cg-modal-close>Cancel</button>
+                <button type="submit" class="cg-btn cg-btn--primary"><span class="cg-btn__label">Save</span></button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@await Html.PartialAsync("_DeleteModal", ("routeDelete", $"route {r.RouteName}", "route", $"/Transportation/DeleteRoute/{r.RouteId}", Model.Deletion))

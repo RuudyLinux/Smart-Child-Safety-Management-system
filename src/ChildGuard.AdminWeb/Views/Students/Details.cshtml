@@ -522,6 +522,28 @@
                         "Assign this student to a bus so their boarding and drop-off checkpoints are attributed to a route.",
                         "Open transportation", "/Transportation"))
                 }
+                else if (Model.Transport is { } tr)
+                {
+                    <dl class="cg-deflist" data-student-transport>
+                        <dt>Bus</dt>
+                        <dd><a href="/Transportation/Bus/@tr.BusId">@tr.BusNumber</a> @await Html.PartialAsync("~/Views/Transportation/_Ui.cshtml", ("bus", (object)tr.BusStatus))</dd>
+                        <dt>Registration</dt>
+                        <dd class="cg-mono">@(tr.RegistrationNumber ?? "—")</dd>
+                        <dt>Route</dt>
+                        <dd>@if (tr.RouteId is { } rid) { <a href="/Transportation/Route/@rid">@tr.RouteName</a> } else { @("—") }</dd>
+                        <dt>Pickup stop</dt>
+                        <dd data-pickup-stop>@(tr.PickupStop ?? "Not set")@(tr.PickupTime is { } pt ? $" · {pt:HH:mm}" : "")</dd>
+                        <dt>Drop-off stop</dt>
+                        <dd data-drop-stop>@(tr.DropStop ?? "Not set")@(tr.DropTime is { } dt ? $" · {dt:HH:mm}" : "")</dd>
+                        <dt>Driver</dt>
+                        <dd>@if (tr.DriverId is { } did) { <a href="/Transportation/Driver/@did">@tr.DriverName</a> } else { @("—") }</dd>
+                        <dt>Driver contact</dt>
+                        <dd class="cg-mono">@(tr.DriverPhone ?? "—")</dd>
+                        <dt>On this bus since</dt>
+                        <dd>@tr.AssignedAt.ToSchoolTime().ToString("d MMM yyyy")</dd>
+                    </dl>
+                    <a class="cg-btn cg-btn--secondary cg-btn--sm" href="@(tr.RouteId is { } r2 ? $"/Transportation/Route/{r2}#students" : "/Transportation")">Change stops</a>
+                }
                 else
                 {
                     <dl class="cg-deflist">
@@ -537,6 +559,31 @@
             </div>
         </section>
     </div>
+
+    @if (Model.TransportHistory is { Count: > 0 } th)
+    {
+        <section class="cg-card" data-transport-history>
+            <div class="cg-card__head"><h2 class="cg-card__title">Transport history</h2></div>
+            <div class="cg-table-wrap">
+                <table class="cg-table">
+                    <thead><tr><th>Bus</th><th>Route</th><th>Pickup stop</th><th>Drop-off stop</th><th>From</th><th>To</th></tr></thead>
+                    <tbody>
+                    @foreach (var h in th)
+                    {
+                        <tr>
+                            <td>@h.BusNumber</td>
+                            <td>@(h.RouteName ?? "—")</td>
+                            <td>@(h.PickupStop ?? "—")</td>
+                            <td>@(h.DropStop ?? "—")</td>
+                            <td class="cg-text-sm">@h.AssignedAt.ToSchoolTime().ToString("d MMM yyyy")</td>
+                            <td class="cg-text-sm">@(h.EndedAt?.ToSchoolTime().ToString("d MMM yyyy") ?? (h.Status == RecordStatus.Active ? "Current" : "—"))</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    }
 </div>
 
 @* ------------------------------------------------------------------- Photo *@

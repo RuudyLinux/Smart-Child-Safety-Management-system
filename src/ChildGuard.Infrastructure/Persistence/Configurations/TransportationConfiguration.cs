@@ -30,6 +30,24 @@ public class RouteConfiguration : IEntityTypeConfiguration<Route>
         b.Property(x => x.RouteName).IsRequired().HasMaxLength(150);
         // Route names are unique (case-insensitive: MySQL collation, citext on PostgreSQL).
         b.HasIndex(x => x.RouteName).IsUnique();
+        b.Property(x => x.StartPoint).HasMaxLength(150);
+        b.Property(x => x.Destination).HasMaxLength(150);
+    }
+}
+
+public class RouteStopConfiguration : IEntityTypeConfiguration<RouteStop>
+{
+    public void Configure(EntityTypeBuilder<RouteStop> b)
+    {
+        b.HasKey(x => x.RouteStopId);
+        b.Property(x => x.Name).IsRequired().HasMaxLength(100);
+        b.Property(x => x.Address).HasMaxLength(200);
+        // Not unique: reordering rewrites sequences one row at a time. The service keeps them 1..n.
+        b.HasIndex(x => new { x.RouteId, x.Sequence });
+        b.HasOne(x => x.Route)
+            .WithMany(x => x.Stops)
+            .HasForeignKey(x => x.RouteId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }
 
@@ -89,6 +107,9 @@ public class StudentBusAssignmentConfiguration : IEntityTypeConfiguration<Studen
             .WithMany(x => x.StudentBusAssignments)
             .HasForeignKey(x => x.RouteId)
             .OnDelete(DeleteBehavior.SetNull);
+        // History: a stop used by any assignment is never deleted (it is deactivated instead).
+        b.HasOne(x => x.PickupStop).WithMany().HasForeignKey(x => x.PickupStopId).OnDelete(DeleteBehavior.Restrict);
+        b.HasOne(x => x.DropStop).WithMany().HasForeignKey(x => x.DropStopId).OnDelete(DeleteBehavior.Restrict);
     }
 }
 

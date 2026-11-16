@@ -51,6 +51,89 @@ public class TransportationController : BaseAdminController
         return View(r.Value);
     }
 
+    public async Task<IActionResult> Route(int id, CancellationToken ct)
+    {
+        var r = await Api.GetAsync<RouteDetailDto>($"/api/transportation/routes/{id}", ct);
+        if (!r.Succeeded) return NotFound();
+        SetPage(r.Value!.Route.RouteName, "Transport");
+        return View(r.Value);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> EditRouteDetails(int id, UpdateRouteDetailsRequest request, CancellationToken ct)
+    {
+        Flash(await Api.PutAsync<object?>($"/api/transportation/routes/{id}/details", request, ct), "Route saved.");
+        return RedirectToAction(nameof(Route), new { id });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> AddStop(int id, RouteStopRequest request, CancellationToken ct)
+    {
+        var r = await Api.PostAsync<RouteStopDto>($"/api/transportation/routes/{id}/stops", request, ct);
+        TempData[r.Succeeded ? "Success" : "Error"] = r.Succeeded ? $"Stop {r.Value!.Name} added." : r.Error;
+        return RedirectToAction(nameof(Route), new { id });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> EditStop(int id, int stopId, RouteStopRequest request, CancellationToken ct)
+    {
+        Flash(await Api.PutAsync<object?>($"/api/transportation/routes/{id}/stops/{stopId}", request, ct), "Stop saved.");
+        return RedirectToAction(nameof(Route), new { id });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RemoveStop(int id, int stopId, CancellationToken ct)
+    {
+        var r = await Api.DeleteAsync<MessageDto>($"/api/transportation/routes/{id}/stops/{stopId}", ct);
+        TempData[r.Succeeded ? "Success" : "Error"] = r.Succeeded ? r.Value!.Message : r.Error;
+        return RedirectToAction(nameof(Route), new { id });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ReactivateStop(int id, int stopId, CancellationToken ct)
+    {
+        Flash(await Api.PatchAsync<object?>($"/api/transportation/routes/{id}/stops/{stopId}/status", new UpdateTransportStatusRequest(RecordStatus.Active), ct), "Stop back in use.");
+        return RedirectToAction(nameof(Route), new { id });
+    }
+
+    /// <summary>Moves one stop up or down by sending the whole new order of active stops.</summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> MoveStop(int id, int stopId, string direction, CancellationToken ct)
+    {
+        var detail = await Api.GetAsync<RouteDetailDto>($"/api/transportation/routes/{id}", ct);
+        if (!detail.Succeeded) return NotFound();
+        var order = detail.Value!.Stops.Where(s => s.Status == RecordStatus.Active).OrderBy(s => s.Sequence).Select(s => s.RouteStopId).ToList();
+        var i = order.IndexOf(stopId);
+        var j = direction == "up" ? i - 1 : i + 1;
+        if (i >= 0 && j >= 0 && j < order.Count)
+        {
+            (order[i], order[j]) = (order[j], order[i]);
+            Flash(await Api.PutAsync<object?>($"/api/transportation/routes/{id}/stops/order", new ReorderStopsRequest(order), ct), "Stop order saved.");
+        }
+        return RedirectToAction(nameof(Route), null, new { id }, "stops");
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SetAssignmentStops(int id, int assignmentId, int? pickupStopId, int? dropStopId, CancellationToken ct)
+    {
+        Flash(await Api.PatchAsync<object?>($"/api/transportation/assignments/{assignmentId}/stops", new UpdateAssignmentStopsRequest(pickupStopId, dropStopId), ct), "Stops saved.");
+        return RedirectToAction(nameof(Route), null, new { id }, "students");
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteRoute(int id, string? reason, bool confirmed, CancellationToken ct) =>
+        await DeleteAsync($"/api/transportation/routes/{id}", reason, confirmed, nameof(Route), id, ct);
+
+    public sealed record MessageDto(string Message);
+
     private void Flash(ApiResult<object?> r, string success) => TempData[r.Succeeded ? "Success" : "Error"] = r.Succeeded ? success : r.Error;
 
     [HttpPost]

@@ -117,6 +117,20 @@ internal sealed class FakeTransportationRepository : ITransportationRepository
         Task.FromResult(Buses.Any(b => b.BusId != exceptBusId && string.Equals(b.RegistrationNumber, registrationNumber, StringComparison.OrdinalIgnoreCase)));
     public Task<(int Assignments, int JourneyEvents)> CountBusHistoryAsync(int busId, CancellationToken ct = default) =>
         Task.FromResult((Assignments.Count(a => a.BusId == busId), 0));
+    public List<RouteStop> Stops { get; } = new();
+    public Task<List<RouteStop>> GetStopsAsync(int routeId, CancellationToken ct = default) =>
+        Task.FromResult(Stops.Where(s => s.RouteId == routeId).OrderBy(s => s.Sequence).ToList());
+    public Task<RouteStop?> GetStopAsync(int stopId, CancellationToken ct = default) => Task.FromResult(Stops.FirstOrDefault(s => s.RouteStopId == stopId));
+    public Task AddStopAsync(RouteStop stop, CancellationToken ct = default) { stop.RouteStopId = ++_id; Stops.Add(stop); return Task.CompletedTask; }
+    public void RemoveStop(RouteStop stop) => Stops.Remove(stop);
+    public Task<int> CountStopUsageAsync(int stopId, CancellationToken ct = default) =>
+        Task.FromResult(Assignments.Count(a => a.PickupStopId == stopId || a.DropStopId == stopId));
+    public Task<Dictionary<int, int>> CountActiveStopUsageAsync(int routeId, CancellationToken ct = default) => Task.FromResult(new Dictionary<int, int>());
+    public Task<(int Buses, int Assignments, int JourneyEvents)> CountRouteHistoryAsync(int routeId, CancellationToken ct = default) =>
+        Task.FromResult((Buses.Count(b => b.RouteId == routeId), Assignments.Count(a => a.RouteId == routeId), 0));
+    public void RemoveRoute(Route route) => Routes.Remove(route);
+    public async Task<List<StudentBusAssignment>> GetActiveRosterByRouteAsync(int routeId, CancellationToken ct = default) =>
+        (await GetAssignmentsAsync(ct)).Where(a => a.RouteId == routeId && a.Status == RecordStatus.Active).ToList();
     public void RemoveDriver(Driver driver) => Drivers.Remove(driver);
     public void RemoveBus(Bus bus) => Buses.Remove(bus);
 

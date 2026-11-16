@@ -69,6 +69,14 @@ public class StudentRepository : IStudentRepository
 
     public Task SaveChangesAsync(CancellationToken ct = default) => _db.SaveChangesAsync(ct);
 
+    public Task<List<StudentBusAssignment>> GetTransportHistoryAsync(int studentId, CancellationToken ct = default) =>
+        _db.StudentBusAssignments.AsNoTracking()
+            .Include(a => a.Bus).ThenInclude(b => b.Driver)
+            .Include(a => a.Route).Include(a => a.PickupStop).Include(a => a.DropStop)
+            .Where(a => a.StudentId == studentId)
+            .OrderByDescending(a => a.AssignedAt).ThenByDescending(a => a.Id)
+            .ToListAsync(ct);
+
     public Task<bool> AdmissionNumberTakenAsync(string admissionNumber, int exceptStudentId, CancellationToken ct = default) =>
         _db.Students.AnyAsync(s => s.AdmissionNumber == admissionNumber && s.StudentId != exceptStudentId, ct);
 

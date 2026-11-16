@@ -587,8 +587,42 @@
     };
   }
 
+  // Stops of each route, rendered by the server: { "<routeId>": [{ id, name, pickup, drop }] }.
+  var routeStops = {};
+  try { routeStops = JSON.parse(($('#enRouteStops') || {}).textContent || '{}'); } catch (e) { routeStops = {}; }
+  var pickupSelect = $('[data-en="transport.pickupStopId"]');
+  var dropSelect = $('[data-en="transport.dropStopId"]');
+
+  // The route the student will ride: the override when chosen, otherwise the bus's own route.
+  function effectiveRouteId() {
+    if (routeSelect && routeSelect.value) return routeSelect.value;
+    var opt = busSelect && busSelect.selectedOptions[0];
+    return opt && opt.value ? (opt.getAttribute('data-route-id') || '') : '';
+  }
+
+  function fillStops() {
+    var wrap = $('[data-en-stops]');
+    if (!wrap) return;
+    var stops = routeStops[effectiveRouteId()] || [];
+    [[pickupSelect, 'pickup'], [dropSelect, 'drop']].forEach(function (pair) {
+      var sel = pair[0], kind = pair[1];
+      var keep = sel.value;
+      sel.length = 1;
+      stops.forEach(function (s) {
+        var o = document.createElement('option');
+        o.value = s.id;
+        o.textContent = s.name + (s[kind] ? ' · ' + s[kind] : '');
+        sel.appendChild(o);
+      });
+      sel.value = stops.some(function (s) { return String(s.id) === keep; }) ? keep : '';
+    });
+    wrap.hidden = stops.length === 0;
+  }
+  if (routeSelect) routeSelect.addEventListener('change', fillStops);
+
   if (busSelect) {
     busSelect.addEventListener('change', function () {
+      fillStops();
       var b = selectedBus();
       var summary = $('[data-en-bus-summary]');
       summary.hidden = !b;
@@ -603,7 +637,12 @@
     if (transportMode !== 'bus') return null;
     var b = selectedBus();
     if (!b) return null;
-    return { busId: b.id, routeId: routeSelect && routeSelect.value ? +routeSelect.value : null };
+    return {
+      busId: b.id,
+      routeId: routeSelect && routeSelect.value ? +routeSelect.value : null,
+      pickupStopId: pickupSelect && pickupSelect.value ? +pickupSelect.value : null,
+      dropStopId: dropSelect && dropSelect.value ? +dropSelect.value : null
+    };
   }
 
   function validateTransport() {
@@ -673,7 +712,9 @@
     var b = transportMode === 'bus' ? selectedBus() : null;
     var routeOverride = routeSelect && routeSelect.value ? routeSelect.selectedOptions[0].textContent.trim() : null;
     html += block('Transport', 4, b
-      ? deflist([['Bus', b.number], ['Route', routeOverride || b.route || '—'], ['Driver', b.driver || '—']])
+      ? deflist([['Bus', b.number], ['Route', routeOverride || b.route || '—'], ['Driver', b.driver || '—']]
+          .concat(pickupSelect && pickupSelect.value ? [['Pickup stop', pickupSelect.selectedOptions[0].textContent]] : [])
+          .concat(dropSelect && dropSelect.value ? [['Drop-off stop', dropSelect.selectedOptions[0].textContent]] : []))
       : '<span class="cg-muted">No school transport</span>');
 
     var target = $('[data-en-review]');

@@ -24,12 +24,25 @@ public class EnrollmentController : BaseAdminController
         var routes = await Api.GetAsync<List<RouteDto>>("/api/transportation/routes", ct);
         if (!buses.Succeeded) ViewBag.LoadError = buses.Error;
 
+        var activeBuses = (buses.Value ?? new()).Where(b => b.Status == BusStatus.Active).OrderBy(b => b.BusNumber).ToList();
+        var activeRoutes = (routes.Value ?? new()).Where(r => r.Status == RecordStatus.Active).OrderBy(r => r.RouteName).ToList();
+        var allowOverride = settings.Value?.AllowRouteOverride ?? false;
+
+        // Stops of every route a student could ride: the buses' own routes, plus any active route when overrides are allowed.
+        var wanted = activeBuses.Where(b => b.RouteId.HasValue).Select(b => b.RouteId!.Value)
+            .Concat(allowOverride ? activeRoutes.Select(r => r.RouteId) : [])
+            .ToHashSet();
+        var stops = new Dictionary<int, List<RouteStopDto>>();
+        foreach (var r in (routes.Value ?? new()).Where(r => r.StopCount > 0 && wanted.Contains(r.RouteId)))
+        {
+            var detail = await Api.GetAsync<RouteDetailDto>($"/api/transportation/routes/{r.RouteId}", ct);
+            if (detail.Succeeded)
+                stops[r.RouteId] = detail.Value!.Stops.Where(s => s.Status == RecordStatus.Active).OrderBy(s => s.Sequence).ToList();
+        }
+
         return View(new EnrollmentPageModel(
             // One key per opened wizard: resubmitting (double click, retry after a timeout) returns the same enrollment.
-            Guid.NewGuid().ToString("N"),
-            (buses.Value ?? new()).Where(b => b.Status == BusStatus.Active).OrderBy(b => b.BusNumber).ToList(),
-            (routes.Value ?? new()).Where(r => r.Status == RecordStatus.Active).OrderBy(r => r.RouteName).ToList(),
-            settings.Value?.AllowRouteOverride ?? false));
+            Guid.NewGuid().ToString("N"), activeBuses, activeRoutes, allowOverride, stops));
     }
 
     [HttpGet]

@@ -198,6 +198,71 @@ public class TransportationController : ControllerBase
         return this.ToResult(await _service.DeleteBusAsync(id, request.Reason, ct, this.GetUserId()));
     }
 
+    // ---- routes and stops
+
+    [HttpGet("routes/{id:int}")]
+    public async Task<IActionResult> GetRoute(int id, CancellationToken ct)
+    {
+        var r = await _service.GetRouteDetailAsync(id, ct);
+        return r.Succeeded ? Ok(r.Value) : NotFound(new { message = r.Error });
+    }
+
+    [HttpPut("routes/{id:int}/details")]
+    public async Task<IActionResult> UpdateRouteDetails(int id, UpdateRouteDetailsRequest request, [FromServices] IValidator<UpdateRouteDetailsRequest> v, CancellationToken ct)
+    {
+        await v.ValidateAndThrowAsync(request, ct);
+        return Answer(await _service.UpdateRouteDetailsAsync(id, request, ct, this.GetUserId()), "Route updated.");
+    }
+
+    [HttpPost("routes/{id:int}/stops")]
+    public async Task<IActionResult> AddStop(int id, RouteStopRequest request, [FromServices] IValidator<RouteStopRequest> v, CancellationToken ct)
+    {
+        await v.ValidateAndThrowAsync(request, ct);
+        var r = await _service.AddStopAsync(id, request, ct, this.GetUserId());
+        return r.Succeeded ? Ok(r.Value) : NotFound(new { message = r.Error });
+    }
+
+    [HttpPut("routes/{id:int}/stops/{stopId:int}")]
+    public async Task<IActionResult> UpdateStop(int id, int stopId, RouteStopRequest request, [FromServices] IValidator<RouteStopRequest> v, CancellationToken ct)
+    {
+        await v.ValidateAndThrowAsync(request, ct);
+        return Answer(await _service.UpdateStopAsync(id, stopId, request, ct, this.GetUserId()), "Stop updated.");
+    }
+
+    /// <summary>Deletes an unused stop, or deactivates one that past assignments used (the message says which).</summary>
+    [HttpDelete("routes/{id:int}/stops/{stopId:int}")]
+    public async Task<IActionResult> RemoveStop(int id, int stopId, CancellationToken ct)
+    {
+        var r = await _service.RemoveStopAsync(id, stopId, ct, this.GetUserId());
+        if (r.Succeeded) return Ok(new { message = r.Value });
+        return r.Error!.EndsWith("not found.", StringComparison.Ordinal) ? NotFound(new { message = r.Error }) : Conflict(new { message = r.Error });
+    }
+
+    [HttpPatch("routes/{id:int}/stops/{stopId:int}/status")]
+    public async Task<IActionResult> SetStopStatus(int id, int stopId, UpdateTransportStatusRequest request, CancellationToken ct) =>
+        Answer(await _service.SetStopStatusAsync(id, stopId, request.Status, ct, this.GetUserId()), "Stop status updated.");
+
+    [HttpPut("routes/{id:int}/stops/order")]
+    public async Task<IActionResult> ReorderStops(int id, ReorderStopsRequest request, [FromServices] IValidator<ReorderStopsRequest> v, CancellationToken ct)
+    {
+        await v.ValidateAndThrowAsync(request, ct);
+        return Answer(await _service.ReorderStopsAsync(id, request, ct, this.GetUserId()), "Stops reordered.");
+    }
+
+    [HttpDelete("routes/{id:int}")]
+    public async Task<IActionResult> DeleteRoute(int id, [FromBody] DeleteRecordRequest request, [FromServices] IValidator<DeleteRecordRequest> v, CancellationToken ct)
+    {
+        await v.ValidateAndThrowAsync(request, ct);
+        return this.ToResult(await _service.DeleteRouteAsync(id, request.Reason, ct, this.GetUserId()));
+    }
+
+    [HttpPatch("assignments/{id:int}/stops")]
+    public async Task<IActionResult> UpdateAssignmentStops(int id, UpdateAssignmentStopsRequest request, [FromServices] IValidator<UpdateAssignmentStopsRequest> v, CancellationToken ct)
+    {
+        await v.ValidateAndThrowAsync(request, ct);
+        return Answer(await _service.UpdateAssignmentStopsAsync(id, request, ct, this.GetUserId()), "Stops updated.");
+    }
+
     private IActionResult Answer(Result result, string success) =>
         result.Succeeded ? Ok(new { message = success })
         : result.Error!.EndsWith("not found.", StringComparison.Ordinal) ? NotFound(new { message = result.Error })

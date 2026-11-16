@@ -52,6 +52,19 @@ public interface ITransportationRepository
     Task<bool> RegistrationTakenAsync(string registrationNumber, int exceptBusId, CancellationToken ct = default);
     /// <summary>Assignments ever made to the bus (active or ended) and journey events recorded on it.</summary>
     Task<(int Assignments, int JourneyEvents)> CountBusHistoryAsync(int busId, CancellationToken ct = default);
+    /// <summary>All stops of the route (any status), in travel order.</summary>
+    Task<List<RouteStop>> GetStopsAsync(int routeId, CancellationToken ct = default);
+    Task<RouteStop?> GetStopAsync(int stopId, CancellationToken ct = default);
+    Task AddStopAsync(RouteStop stop, CancellationToken ct = default);
+    void RemoveStop(RouteStop stop);
+    /// <summary>Assignments (current or past) that board or leave at the stop.</summary>
+    Task<int> CountStopUsageAsync(int stopId, CancellationToken ct = default);
+    /// <summary>Per stop of the route: active assignments boarding or leaving there.</summary>
+    Task<Dictionary<int, int>> CountActiveStopUsageAsync(int routeId, CancellationToken ct = default);
+    Task<(int Buses, int Assignments, int JourneyEvents)> CountRouteHistoryAsync(int routeId, CancellationToken ct = default);
+    void RemoveRoute(Route route);
+    /// <summary>Active assignments travelling on the route (the route's live roster).</summary>
+    Task<List<StudentBusAssignment>> GetActiveRosterByRouteAsync(int routeId, CancellationToken ct = default);
     void RemoveDriver(Driver driver);
     void RemoveBus(Bus bus);
     Task AddAuditAsync(TransportAuditEntry entry, CancellationToken ct = default);

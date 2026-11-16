@@ -180,7 +180,7 @@ public class EnrollmentService : IEnrollmentService
             {
                 // The existing assignment rules (bus in service, capacity, route, one active assignment) run inside this transaction.
                 var assigned = await _transport.AddAssignmentAsync(
-                    new CreateStudentBusAssignmentRequest(student.StudentId, t.BusId, t.RouteId), tx, adminId);
+                    new CreateStudentBusAssignmentRequest(student.StudentId, t.BusId, t.RouteId, t.PickupStopId, t.DropStopId), tx, adminId);
                 if (!assigned.Succeeded) return Result.Failure($"Transport could not be assigned: {assigned.Error}");
             }
 

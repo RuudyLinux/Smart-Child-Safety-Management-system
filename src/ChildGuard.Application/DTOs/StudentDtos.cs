@@ -22,7 +22,8 @@ public record StudentDetailDto(
     IReadOnlyList<JourneyEventDto> RecentJourney,
     IReadOnlyList<AttendanceRecordDto> RecentAttendance,
     string? Section = null, string? AdmissionNumber = null, Gender? Gender = null, AddressDto? Address = null,
-    DateTime? ArchivedAt = null, string? ArchiveReason = null);
+    DateTime? ArchivedAt = null, string? ArchiveReason = null,
+    StudentTransportDto? Transport = null, IReadOnlyList<StudentTransportHistoryDto>? TransportHistory = null);
 
 /// <summary>Attendance counted over the trailing window shown on a student profile.</summary>
 public record AttendanceStatsDto(int WindowDays, int DaysPresent, int DaysLate, int SchoolDaysObserved, double PresentRate);

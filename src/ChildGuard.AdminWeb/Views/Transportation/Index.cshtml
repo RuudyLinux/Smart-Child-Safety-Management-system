@@ -258,7 +258,7 @@
                         @foreach (var r in routes)
                         {
                             <tr>
-                                <td class="cg-strong">@r.RouteName</td>
+                                <td class="cg-strong"><a href="/Transportation/Route/@r.RouteId">@r.RouteName</a>@if (r.StopCount > 0) { <span class="cg-text-sm cg-muted"> · @r.StopCount stop@(r.StopCount == 1 ? "" : "s")</span> }</td>
                                 <td class="cg-text-sm cg-muted">@(r.Description ?? "—")</td>
                                 <td>@Model.Count(b => b.RouteId == r.RouteId)</td>
                                 <td>
@@ -358,6 +358,10 @@
                             else
                             {
                                 <span class="cg-muted">No route</span>
+                            }
+                            @if (a.PickupStop is not null || a.DropStop is not null)
+                            {
+                                <div class="cg-text-sm cg-muted" data-assignment-stops>Pickup @(a.PickupStop ?? "not set") · Drop-off @(a.DropStop ?? "not set")</div>
                             }
                         </td>
                         <td class="cg-text-sm cg-muted">@a.AssignedAt.ToSchoolTime().ToString("d MMM yyyy")</td>

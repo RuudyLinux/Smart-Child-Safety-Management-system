@@ -1064,10 +1064,18 @@ namespace ChildGuard.Infrastructure.Postgres.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("text");
 
+                    b.Property<string>("Destination")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
                     b.Property<string>("RouteName")
                         .IsRequired()
                         .HasMaxLength(150)
                         .HasColumnType("citext");
+
+                    b.Property<string>("StartPoint")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
 
                     b.Property<int>("Status")
                         .HasColumnType("integer");
@@ -1078,6 +1086,48 @@ namespace ChildGuard.Infrastructure.Postgres.Migrations
                         .IsUnique();
 
                     b.ToTable("Routes");
+                });
+
+            modelBuilder.Entity("ChildGuard.Domain.Entities.RouteStop", b =>
+                {
+                    b.Property<int>("RouteStopId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("RouteStopId"));
+
+                    b.Property<string>("Address")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<TimeOnly?>("DropTime")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<TimeOnly?>("PickupTime")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<int>("RouteId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Sequence")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.HasKey("RouteStopId");
+
+                    b.HasIndex("RouteId", "Sequence");
+
+                    b.ToTable("RouteStops");
                 });
 
             modelBuilder.Entity("ChildGuard.Domain.Entities.Student", b =>
@@ -1157,8 +1207,14 @@ namespace ChildGuard.Infrastructure.Postgres.Migrations
                     b.Property<int>("BusId")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("DropStopId")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime?>("EndedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("PickupStopId")
+                        .HasColumnType("integer");
 
                     b.Property<int?>("RouteId")
                         .HasColumnType("integer");
@@ -1173,6 +1229,10 @@ namespace ChildGuard.Infrastructure.Postgres.Migrations
 
                     b.HasIndex("ActiveStudentKey")
                         .IsUnique();
+
+                    b.HasIndex("DropStopId");
+
+                    b.HasIndex("PickupStopId");
 
                     b.HasIndex("RouteId");
 
@@ -1903,6 +1963,17 @@ namespace ChildGuard.Infrastructure.Postgres.Migrations
                     b.Navigation("Student");
                 });
 
+            modelBuilder.Entity("ChildGuard.Domain.Entities.RouteStop", b =>
+                {
+                    b.HasOne("ChildGuard.Domain.Entities.Route", "Route")
+                        .WithMany("Stops")
+                        .HasForeignKey("RouteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Route");
+                });
+
             modelBuilder.Entity("ChildGuard.Domain.Entities.Student", b =>
                 {
                     b.OwnsOne("ChildGuard.Domain.Entities.PostalAddress", "Address", b1 =>
@@ -1974,6 +2045,16 @@ namespace ChildGuard.Infrastructure.Postgres.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("ChildGuard.Domain.Entities.RouteStop", "DropStop")
+                        .WithMany()
+                        .HasForeignKey("DropStopId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ChildGuard.Domain.Entities.RouteStop", "PickupStop")
+                        .WithMany()
+                        .HasForeignKey("PickupStopId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("ChildGuard.Domain.Entities.Route", "Route")
                         .WithMany("StudentBusAssignments")
                         .HasForeignKey("RouteId")
@@ -1986,6 +2067,10 @@ namespace ChildGuard.Infrastructure.Postgres.Migrations
                         .IsRequired();
 
                     b.Navigation("Bus");
+
+                    b.Navigation("DropStop");
+
+                    b.Navigation("PickupStop");
 
                     b.Navigation("Route");
 
@@ -2119,6 +2204,8 @@ namespace ChildGuard.Infrastructure.Postgres.Migrations
             modelBuilder.Entity("ChildGuard.Domain.Entities.Route", b =>
                 {
                     b.Navigation("Buses");
+
+                    b.Navigation("Stops");
 
                     b.Navigation("StudentBusAssignments");
                 });

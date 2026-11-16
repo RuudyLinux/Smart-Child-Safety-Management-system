@@ -99,9 +99,19 @@
         <div class="cg-card__head"><h2 class="cg-card__title">Assigned route</h2></div>
         <div class="cg-card__body">
             <dl class="cg-deflist">
-                <dt>Route</dt><dd>@r.RouteName</dd>
+                <dt>Route</dt><dd><a href="/Transportation/Route/@r.RouteId">@r.RouteName</a></dd>
                 <dt>Description</dt><dd>@(r.Description ?? "—")</dd>
+                <dt>From</dt><dd>@(r.StartPoint ?? "—") → @(r.Destination ?? "—")</dd>
             </dl>
+            @if (r.Stops is { Count: > 0 } stops)
+            {
+                <ol style="margin:10px 0 0;padding-left:20px" data-bus-route-stops>
+                    @foreach (var s in stops.Where(s => s.Status == RecordStatus.Active).OrderBy(s => s.Sequence))
+                    {
+                        <li>@s.Name<span class="cg-text-sm cg-muted">@(s.PickupTime is null ? "" : $" · pickup {s.PickupTime:HH:mm}")@(s.DropTime is null ? "" : $" · drop-off {s.DropTime:HH:mm}")</span></li>
+                    }
+                </ol>
+            }
         </div>
     </section>
 }
