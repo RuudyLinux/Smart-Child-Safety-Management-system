@@ -45,7 +45,7 @@
 
 ---
 
-## Phase 1 — AJAX core + Students pilot (PR `feat/ajax-core`)
+## Phase 1 — AJAX core + Students pilot (PR `feat/ajax-core`) — implemented, reviewed, awaiting owner approval
 
 **Acceptance:** every Students page (Index, Create, Details incl. guardians/photo/address/lifecycle, Edit) saves without a full reload; errors show inline; list search/filter/sort/page are server-side and in the URL; no-JS fallback still works; all existing tests + new tests green on MySQL and Postgres; E2E suite green.
 
@@ -67,11 +67,11 @@
     - `IActionResult Invalid(ModelStateDictionary modelState, string? message = null)` — AJAX: 400 envelope with `errors` keyed by ModelState key (empty key → `""`); non-AJAX returns `null` so caller re-renders the view (caller pattern: `return Invalid(ModelState) ?? View(model);`).
     - `IActionResult FromApi<T>(ApiResult<T> result, string successMessage, string? redirectUrl = null, params string[] regions)` — maps API status (400/404/409/429/5xx) to `Failed` with `result.Error`, success to `Done`.
 
-- [ ] **Step 1: Write failing tests** — `Done_Ajax_Returns200Envelope` (asserts `ok=true`, `message`, `regions` == `["guardians"]`, no TempData), `Done_NonAjax_RedirectsWithTempData` (`RedirectResult.Url == "/Students/Details/5#guardians"`, `TempData["Success"]`), `Failed_Ajax_UsesStatus` (409 → status 409, `ok=false`), `Invalid_Ajax_MapsModelStateKeys` (`errors["FullName"] == ["Required."]`), `Invalid_NonAjax_ReturnsNull`, `FromApi_404_IsFailed404`.
-- [ ] **Step 2:** `dotnet test tests/ChildGuard.AdminWeb.Tests` → FAIL (types missing).
-- [ ] **Step 3:** Implement. JSON via `Json(envelope)` with the app's existing camelCase options; set `Response.StatusCode`.
-- [ ] **Step 4:** Tests PASS; `dotnet build ChildGuard.slnx -v q` 0 errors.
-- [ ] **Step 5:** Commit `feat(adminweb): AJAX response envelope and controller helpers`.
+- [x] **Step 1: Write failing tests** — `Done_Ajax_Returns200Envelope` (asserts `ok=true`, `message`, `regions` == `["guardians"]`, no TempData), `Done_NonAjax_RedirectsWithTempData` (`RedirectResult.Url == "/Students/Details/5#guardians"`, `TempData["Success"]`), `Failed_Ajax_UsesStatus` (409 → status 409, `ok=false`), `Invalid_Ajax_MapsModelStateKeys` (`errors["FullName"] == ["Required."]`), `Invalid_NonAjax_ReturnsNull`, `FromApi_404_IsFailed404`.
+- [x] **Step 2:** `dotnet test tests/ChildGuard.AdminWeb.Tests` → FAIL (types missing).
+- [x] **Step 3:** Implement. JSON via `Json(envelope)` with the app's existing camelCase options; set `Response.StatusCode`.
+- [x] **Step 4:** Tests PASS; `dotnet build ChildGuard.slnx -v q` 0 errors.
+- [x] **Step 5:** Commit `feat(adminweb): AJAX response envelope and controller helpers`.
 
 ### Task 1.2: `cg-ajax.js` request layer, forms, actions, regions; `app.js` initialisers take a root
 
@@ -91,10 +91,10 @@
   - Events: `document` dispatches `cg:ajax-done` `{ detail: { form, envelope } }` and `cg:regions-updated` `{ detail: { names } }`.
 - Consumes: Task 1.1 envelope.
 
-- [ ] **Step 1: Write failing E2E** in `ajax-core.spec.ts` against the Students Details guardian-link form (converted in Task 1.4, so these go green there): `widgets work after region refresh` (after an AJAX save that refreshes `guardians`, the tab switch, a confirm dialog and a modal inside the swapped region still work), `double submit sends one request` (count `request` events to the form action while double-clicking → 1), `offline save shows offline toast` (`context.setOffline(true)` → toast text above, form re-enabled).
-- [ ] **Step 2:** Implement `cg-ajax.js` and the `app.js` root refactor.
-- [ ] **Step 3:** Existing suite still green: `cd tests/e2e; npx playwright test` (initialiser refactor must not change behaviour).
-- [ ] **Step 4:** Commit `feat(adminweb): shared AJAX layer and re-initialisable widgets`.
+- [x] **Step 1: Write failing E2E** in `ajax-core.spec.ts` against the Students Details guardian-link form (converted in Task 1.4, so these go green there): `widgets work after region refresh` (after an AJAX save that refreshes `guardians`, the tab switch, a confirm dialog and a modal inside the swapped region still work), `double submit sends one request` (count `request` events to the form action while double-clicking → 1), `offline save shows offline toast` (`context.setOffline(true)` → toast text above, form re-enabled).
+- [x] **Step 2:** Implement `cg-ajax.js` and the `app.js` root refactor.
+- [x] **Step 3:** Existing suite still green: `cd tests/e2e; npx playwright test` (initialiser refactor must not change behaviour).
+- [x] **Step 4:** Commit `feat(adminweb): shared AJAX layer and re-initialisable widgets`.
 
 ### Task 1.3: Region rendering and session expiry for AJAX
 
@@ -107,9 +107,9 @@ Regions need no server code: they are plain `data-cg-region="name"` elements, th
 
 **Interfaces:** Produces the 401 envelope contract used by `cg.request`.
 
-- [ ] **Step 1:** Failing tests `ExpiredSession_FetchRequest_Gets401Envelope`, `ExpiredSession_PageNavigation_StillRedirects`, `AnonymousAjax_Gets401NotRedirect` (WebApplicationFactory over AdminWeb with a stub API handler).
-- [ ] **Step 2–4:** Implement, PASS, build.
-- [ ] **Step 5:** Commit `feat(adminweb): AJAX-aware session expiry`.
+- [x] **Step 1:** Failing tests `ExpiredSession_FetchRequest_Gets401Envelope`, `ExpiredSession_PageNavigation_StillRedirects`, `AnonymousAjax_Gets401NotRedirect` (WebApplicationFactory over AdminWeb with a stub API handler).
+- [x] **Step 2–4:** Implement, PASS, build.
+- [x] **Step 5:** Commit `feat(adminweb): AJAX-aware session expiry`.
 
 ### Task 1.4: Convert Students write actions
 
@@ -120,11 +120,11 @@ Regions need no server code: they are plain `data-cg-region="name"` elements, th
 
 **Region map (redirect targets keep today's fragment):** Create → redirect to Details (navigation). Edit → redirect to Details. EditAddress → regions `address`. Archive/Restore/UpdateStatus → `student-header`, `lifecycle`. Guardian link ops → `guardians`. Photo ops → `photo`, `student-header`. DeletePermanently → redirect `/Students`.
 
-- [ ] **Step 1:** Failing E2E in `students-ajax.spec.ts`: `link guardian without reload` (assert `page.on('framenavigated')` count unchanged, guardian row appears, toast `"Guardian linked to this student."`), `edit validation error shows inline` (blank Full Name → error under field, no navigation), `archive updates header in place`, `photo upload refreshes avatar`, `no-JS fallback still saves` (`javaScriptEnabled:false` context → PRG + toast), `session expiry during ajax save redirects to sign-in` (clear cookies then save → URL `/Account/Login?expired=true`).
-- [ ] **Step 2:** Run → FAIL.
-- [ ] **Step 3:** Convert controller + views.
-- [ ] **Step 4:** `npx playwright test --project=setup --project=chromium specs/students.spec.ts specs/students-ajax.spec.ts specs/ajax-core.spec.ts specs/lifecycle.spec.ts specs/records.spec.ts` → PASS.
-- [ ] **Step 5:** Commit `feat(adminweb): Students pages save without reloading`.
+- [x] **Step 1:** Failing E2E in `students-ajax.spec.ts`: `link guardian without reload` (assert `page.on('framenavigated')` count unchanged, guardian row appears, toast `"Guardian linked to this student."`), `edit validation error shows inline` (blank Full Name → error under field, no navigation), `archive updates header in place`, `photo upload refreshes avatar`, `no-JS fallback still saves` (`javaScriptEnabled:false` context → PRG + toast), `session expiry during ajax save redirects to sign-in` (clear cookies then save → URL `/Account/Login?expired=true`).
+- [x] **Step 2:** Run → FAIL.
+- [x] **Step 3:** Convert controller + views.
+- [x] **Step 4:** `npx playwright test --project=setup --project=chromium specs/students.spec.ts specs/students-ajax.spec.ts specs/ajax-core.spec.ts specs/lifecycle.spec.ts specs/records.spec.ts` → PASS.
+- [x] **Step 5:** Commit `feat(adminweb): Students pages save without reloading`.
 
 ### Task 1.5: Optional server paging on `GET /api/students` and `GET /api/guardians`
 
@@ -143,11 +143,11 @@ Regions need no server code: they are plain `data-cg-region="name"` elements, th
   - `Task<Paged<StudentListItemDto>> IStudentService.GetPageAsync(StudentListFilter filter, PageRequest page, CancellationToken ct)`; allowed sorts `name`, `grade`, `activity`, `status` (stable tiebreak `StudentId`). `PresentToday` and `activity` computed in SQL from Attendance/JourneyEvent within `SchoolClock.TodayStartUtc..TodayEndUtc` (passed in by the service, never `DateTime.Today`).
   - API: `GET /api/students?search&grade&status&hasRfid&hasGuardian&presentToday&page&pageSize&sort&dir`; without `page` → existing `GetAllAsync(search)` path untouched. With `page` → same `List<StudentListItemDto>` JSON for the page + `X-Total-Count`.
   - Guardians: `GuardianListFilter(string? Search, RecordStatus? Status)`, sorts `name`, `email`, `students`, `status`.
-- [ ] **Step 1:** Failing unit tests: `From_NoPage_ReturnsNull`, `From_PageSize101_IsError`, `From_UnknownSort_IsError`.
-- [ ] **Step 2:** Failing integration tests (run on both providers): `List_WithoutPage_BodyIdenticalToBefore` (compare to `GetAllAsync` JSON), `List_Page2_ReturnsSecondSliceAndTotal`, `List_SortByNameDesc_Ordered`, `List_FilterPresentToday_UsesSchoolDay`, `List_UnknownSort_400`, `List_Unauthenticated_401`.
-- [ ] **Step 3:** Implement. Check indexes: `Students(FullName)`, `Students(Grade)`, `Students(Status)`, `Guardians(FullName)`; add an additive migration only for missing ones (MySQL + Postgres), then `has-pending-model-changes` both → "No changes".
-- [ ] **Step 4:** `dotnet test tests/ChildGuard.Application.Tests` and integration suite (MySQL; Postgres with `CHILDGUARD_IT_PROVIDER=postgres`) → PASS.
-- [ ] **Step 5:** Commit `feat(api): optional server-side paging for students and guardians`.
+- [x] **Step 1:** Failing unit tests: `From_NoPage_ReturnsNull`, `From_PageSize101_IsError`, `From_UnknownSort_IsError`.
+- [x] **Step 2:** Failing integration tests (run on both providers): `List_WithoutPage_BodyIdenticalToBefore` (compare to `GetAllAsync` JSON), `List_Page2_ReturnsSecondSliceAndTotal`, `List_SortByNameDesc_Ordered`, `List_FilterPresentToday_UsesSchoolDay`, `List_UnknownSort_400`, `List_Unauthenticated_401`.
+- [x] **Step 3:** Implement. Check indexes: `Students(FullName)`, `Students(Grade)`, `Students(Status)`, `Guardians(FullName)`; add an additive migration only for missing ones (MySQL + Postgres), then `has-pending-model-changes` both → "No changes".
+- [x] **Step 4:** `dotnet test tests/ChildGuard.Application.Tests` and integration suite (MySQL; Postgres with `CHILDGUARD_IT_PROVIDER=postgres`) → PASS.
+- [x] **Step 5:** Commit `feat(api): optional server-side paging for students and guardians`.
 
 ### Task 1.6: AJAX list on Students Index
 
@@ -160,15 +160,15 @@ Regions need no server code: they are plain `data-cg-region="name"` elements, th
 - Add API endpoint: `GET /api/students/grades` in `src/ChildGuard.Api/Controllers/StudentsController.cs` + service/repo method `Task<List<string>> GetGradesAsync(CancellationToken)`
 - Test: `tests/e2e/specs/students-list.spec.ts`, integration `StudentGradesTests`
 
-- [ ] **Step 1:** Failing E2E: `search filters on the server` (create 30 students with `uid('ListX')`, search → only matches, count label `"N students"`), `list state survives reload and back` (page 2 + sort grade desc → reload → same rows; back → page 1), `filter by grade uses all grades not just current page`, `empty result shows empty state`, `api failure shows error state with retry` (`test.use({ allowErrors: [/status of 5/] })`, route-intercept API proxy action to 500).
-- [ ] **Step 2–4:** Implement, PASS, full E2E suite green.
-- [ ] **Step 5:** Commit `feat(adminweb): server-side, URL-addressable Students list`.
+- [x] **Step 1:** Failing E2E: `search filters on the server` (create 30 students with `uid('ListX')`, search → only matches, count label `"N students"`), `list state survives reload and back` (page 2 + sort grade desc → reload → same rows; back → page 1), `filter by grade uses all grades not just current page`, `empty result shows empty state`, `api failure shows error state with retry` (`test.use({ allowErrors: [/status of 5/] })`, route-intercept API proxy action to 500).
+- [x] **Step 2–4:** Implement, PASS, full E2E suite green.
+- [x] **Step 5:** Commit `feat(adminweb): server-side, URL-addressable Students list`.
 
 ### Task 1.7: Phase 1 verification + PR
 
-- [ ] `dotnet build ChildGuard.slnx -v q` 0 errors; unit, AdminWeb tests, integration (MySQL), integration (Postgres), full Playwright, all green; record counts in PR body.
-- [ ] Manual check with `run` skill: Students pages in Chromium, no console errors.
-- [ ] Open PR `feat/ajax-core` → `feature/production-free`; owner review before Phase 2.
+- [x] `dotnet build ChildGuard.slnx -v q` 0 errors; unit, AdminWeb tests, integration (MySQL), integration (Postgres), full Playwright, all green; record counts in PR body.
+- [x] Manual check with `run` skill: Students pages in Chromium, no console errors.
+- [x] Open PR `feat/ajax-core` → `feature/production-free`; owner review before Phase 2.
 
 ---
 
