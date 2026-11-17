@@ -239,7 +239,7 @@
                 </div>
             </section>
 
-            <section class="cg-card">
+            <section class="cg-card" data-cg-region="overview-facts">
                 <div class="cg-card__head">
                     <h2 class="cg-card__title">Record details</h2>
                 </div>
@@ -477,7 +477,7 @@
 @* ------------------------------------------------------- RFID and transport *@
 <div class="cg-tabpanel" data-cg-tabpanel="rfid" data-cg-tabs-scope="student" style="padding-top:18px">
     <div class="cg-grid cg-grid--2">
-        <section class="cg-card">
+        <section class="cg-card" data-cg-region="rfid-card">
             <div class="cg-card__head">
                 <h2 class="cg-card__title">RFID card</h2>
                 @if (Model.RfidStatus is { } rfidStatus)
@@ -515,7 +515,7 @@
             </div>
         </section>
 
-        <section class="cg-card">
+        <section class="cg-card" data-cg-region="transport">
             <div class="cg-card__head">
                 <h2 class="cg-card__title">Transport</h2>
             </div>
@@ -566,7 +566,7 @@
 
     @if (Model.TransportHistory is { Count: > 0 } th)
     {
-        <section class="cg-card" data-transport-history>
+        <section class="cg-card" data-transport-history data-cg-region="transport-history">
             <div class="cg-card__head"><h2 class="cg-card__title">Transport history</h2></div>
             <div class="cg-table-wrap">
                 <table class="cg-table">

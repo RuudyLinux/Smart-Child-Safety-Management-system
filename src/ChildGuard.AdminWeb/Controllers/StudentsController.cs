@@ -19,8 +19,20 @@ public class StudentsController : BaseAdminController
     public async Task<IActionResult> Index([FromQuery] StudentListQuery query, CancellationToken ct)
     {
         SetPage("Students", "People");
-        // Rows, then the grade options and the school-wide figures in the header (counts only: pageSize=1).
         var rowsTask = Api.GetPagedAsync<StudentListItemDto>("/api/students?" + query.ToApiQuery(), ct);
+
+        // A list change (typing, a filter, a page) re-renders only the list region: the header figures and grade
+        // options are not part of it, so do not ask the API for them.
+        if (AjaxRequest.IsAjax(Request) && Request.Headers["X-CG-Regions"].ToString() == "list")
+        {
+            var only = await rowsTask;
+            if (!only.Succeeded) ViewBag.LoadError = only.Error;
+            ViewData["Query"] = query;
+            var rowsOnly = only.Value ?? new ChildGuard.Application.Common.Paged<StudentListItemDto>(Array.Empty<StudentListItemDto>(), 0);
+            return View(new ListPageViewModel<StudentListItemDto>(rowsOnly.Items, rowsOnly.Total, query.CurrentPage, StudentListQuery.PageSize));
+        }
+
+        // Full page: also the grade options and the school-wide figures in the header (counts only: pageSize=1).
         var gradesTask = Api.GetAsync<List<string>>("/api/students/grades", ct);
         var onRollTask = Api.GetPagedAsync<StudentListItemDto>("/api/students?page=1&pageSize=1", ct);
         var presentTask = Api.GetPagedAsync<StudentListItemDto>("/api/students?page=1&pageSize=1&presentToday=true", ct);
@@ -52,7 +64,11 @@ public class StudentsController : BaseAdminController
         var result = await Api.PostAsync<StudentDetailDto>("/api/students", request, ct);
         if (!result.Succeeded)
         {
-            if (!AddApiErrors(result)) ModelState.AddModelError("", result.Error!);
+            // Field errors from the API or from binding this form both belong beside their fields.
+            var fieldErrors = AddApiErrors(result) | !ModelState.IsValid;
+            // AJAX: field errors go beside their fields; any other refusal is reported as itself.
+            if (AjaxRequest.IsAjax(Request) && !fieldErrors) return FromApi(result, "");
+            if (!fieldErrors) ModelState.AddModelError("", result.Error!);
             SetPage("Add student", "People");
             return Invalid(ModelState) ?? View(request);
         }
@@ -84,6 +100,8 @@ public class StudentsController : BaseAdminController
         SetPage($"Edit {result.Value!.FullName}", "People");
         ViewData["StudentId"] = id;
         ViewData["HasPhoto"] = result.Value.HasPhoto;
+        // Versions the photo URL, so a replaced photo is never served from the browser's cache.
+        ViewData["PhotoUpdatedAt"] = result.Value.PhotoUpdatedAt;
         ViewData["AddressForm"] = new AddressFormModel($"/Students/EditAddress/{id}", id, result.Value.Address,
             "Residential address", "Where the student lives. Shown on the profile and used for transport planning.");
         var s = result.Value;
@@ -122,7 +140,9 @@ public class StudentsController : BaseAdminController
     private static string DetailsUrl(int id, string? tab = null) => $"/Students/Details/{id}" + (tab is null ? "" : "#" + tab);
 
     // Page parts on Details that each kind of change affects (data-cg-region names in Details.cshtml).
-    private static readonly string[] RecordRegions = { "student-header", "archived-banner", "lifecycle" };
+    // Archiving ends the bus assignment and can stop the card, so every part showing them refreshes too.
+    private static readonly string[] RecordRegions =
+        { "student-header", "archived-banner", "lifecycle", "overview-facts", "rfid-card", "transport", "transport-history" };
     private static readonly string[] GuardianRegions = { "guardians", "guardian-modal", "guardian-count", "student-header" };
     private static readonly string[] PhotoRegions = { "photo", "student-header" };
 
@@ -143,7 +163,10 @@ public class StudentsController : BaseAdminController
         var result = await Api.PutAsync<StudentDetailDto>($"/api/students/{id}/record", request, ct);
         if (!result.Succeeded)
         {
-            if (!AddApiErrors(result)) ModelState.AddModelError("", result.Error!);
+            // Field errors from the API or from binding this form both belong beside their fields.
+            var fieldErrors = AddApiErrors(result) | !ModelState.IsValid;
+            if (AjaxRequest.IsAjax(Request) && !fieldErrors) return FromApi(result, "");
+            if (!fieldErrors) ModelState.AddModelError("", result.Error!);
             SetPage("Edit student", "People");
             ViewData["StudentId"] = id;
             return Invalid(ModelState) ?? View(request);

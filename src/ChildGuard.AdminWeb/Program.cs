@@ -82,9 +82,10 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
                 return Task.CompletedTask;
             }
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-            // cg-ajax.js reads the envelope and sends the browser to sign-in.
+            // cg-ajax.js reads the envelope and sends the browser to sign-in. An AJAX request only comes from an
+            // admin page that was already open, so a missing cookie here means the session ran out.
             return AjaxRequest.IsAjax(context.Request)
-                ? context.Response.WriteAsJsonAsync(new AjaxEnvelope(false, "Sign in to continue.", options.LoginPath.Value, null, null))
+                ? context.Response.WriteAsJsonAsync(new AjaxEnvelope(false, ApiSessionExpiredFilter.ExpiredMessage, ApiSessionExpiredFilter.LoginUrl, null, null))
                 : Task.CompletedTask;
         };
     });

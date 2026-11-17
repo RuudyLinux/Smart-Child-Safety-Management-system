@@ -3,6 +3,7 @@
     ViewData["Title"] = "Edit student";
     var id = (int)ViewData["StudentId"]!;
     var hasPhoto = ViewData["HasPhoto"] as bool? ?? false;
+    var photoUpdatedAt = ViewData["PhotoUpdatedAt"] as DateTime?;
     ViewData["AjaxForms"] = true;
 }
 
@@ -97,7 +98,7 @@
 
     <div data-cg-region="photo">
         @await Html.PartialAsync("_PhotoManager", new PhotoManagerModel(
-            "Students", id, Model.FullName, hasPhoto, null, false,
+            "Students", id, Model.FullName, hasPhoto, photoUpdatedAt, false,
             "Student photo",
             "Helps staff match a child to their record at the pickup desk."))
     </div>

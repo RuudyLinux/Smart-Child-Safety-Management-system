@@ -72,6 +72,39 @@ test.describe('Students without page reloads', () => {
     expect(navs.count).toBe(0);
   });
 
+  test('archiving takes the ended bus assignment off the page at once', async ({ page, data, api }) => {
+    const s = await data.student();
+    const route = await data.route();
+    const bus = await data.bus(undefined, route.id);
+    const a = await api.post('/api/transportation/assignments', { data: { studentId: s.id, busId: bus.id, routeId: route.id } });
+    expect(a.ok(), await a.text()).toBeTruthy();
+
+    await page.goto(`/Students/Details/${s.id}#rfid`);
+    const transport = page.locator('[data-cg-region="transport"]');
+    await expect(transport).toContainText(bus.busNumber);
+
+    await page.getByRole('button', { name: 'Archive student' }).click();
+    const dialog = page.getByRole('dialog', { name: /Archive/ });
+    await dialog.locator('textarea[name="reason"]').fill('Moved to another city this month');
+    await dialog.getByRole('button', { name: 'Archive' }).click();
+    await expect(page.locator('[data-cg-region="archived-banner"]')).toContainText('This student is archived');
+    // Archiving ended the assignment: no stale bus, no "Change stops" link.
+    await expect(transport).not.toContainText(bus.busNumber);
+    await expect(transport.getByRole('link', { name: 'Change stops' })).toHaveCount(0);
+    await expect(page.locator('[data-cg-region="overview-facts"]')).not.toContainText(bus.busNumber);
+  });
+
+  test('replacing the photo on the edit page shows the new photo, not a cached one', async ({ page, data }) => {
+    const s = await data.student();
+    await page.goto(`/Students/Edit/${s.id}`);
+    const region = page.locator('[data-cg-region="photo"]');
+    await region.locator('input[type="file"]').setInputFiles({ name: 'kid.png', mimeType: 'image/png', buffer: PNG_1PX });
+    await region.locator('[data-cg-upload-submit]').click();
+    expect(await toast(page, 'Student photo saved.')).toContain('saved');
+    // The photo URL is versioned by its update time, so the browser cannot reuse an older cached image.
+    await expect(region.locator('img').first()).toHaveAttribute('src', new RegExp(`/Students/Photo/${s.id}\\?v=\\d+`));
+  });
+
   test('photo upload refreshes the photo card and the avatar', async ({ page, data }) => {
     const s = await data.student();
     await page.goto(`/Students/Details/${s.id}#photo`);
@@ -125,7 +158,8 @@ test.describe('Students without page reloads', () => {
     await context.clearCookies();
     await page.locator('#Grade').fill('Grade 4');
     await page.getByRole('button', { name: 'Save changes' }).click();
-    await expect(page).toHaveURL(/\/Account\/Login/);
+    await expect(page).toHaveURL(/\/Account\/Login\?expired=true$/);
+    await expect(page.locator('main, body')).toContainText('Your session expired');
   });
 });
 
