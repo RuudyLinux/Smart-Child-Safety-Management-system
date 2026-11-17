@@ -11,13 +11,13 @@ namespace ChildGuard.AdminWeb.Controllers;
 /// </summary>
 public class DiagnosticsController : Controller
 {
-    private readonly IConfiguration _config;
-    public DiagnosticsController(IConfiguration config) => _config = config;
+    private readonly ChildGuard.AdminWeb.Services.ApiEndpoint _api;
+    public DiagnosticsController(ChildGuard.AdminWeb.Services.ApiEndpoint api) => _api = api;
 
     public IActionResult Index()
     {
         ViewData["Title"] = "API Diagnostics";
-        ViewData["ApiBaseUrl"] = _config["Api:BaseUrl"] ?? "http://localhost:5275";
+        ViewData["ApiBaseUrl"] = _api.ToString();
         return View();
     }
 }

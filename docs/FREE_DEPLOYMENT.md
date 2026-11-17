@@ -52,6 +52,19 @@ production unless someone presses *Manual Deploy* (Render dashboard) or calls th
 Back up `Biometrics__EncryptionKey`: losing it makes stored face embeddings unreadable. After the first sign-in,
 change the admin password and delete `SeedAdmin__Password`.
 
+## Running on another host, port or address
+- **Port:** both images listen on 10000 (Render). A host that assigns a port in `PORT` (Railway, Fly.io, Cloud Run,
+  Heroku...) is honoured automatically; `ASPNETCORE_URLS` overrides both.
+- **`Api__BaseUrl` (AdminWeb)** and **`FaceService__BaseUrl` (API)** take any http(s) address, with a port and/or a
+  path prefix: `https://api.school.org`, `http://192.168.1.20:5275`, `https://school.org/childguard-api`. Without a
+  scheme, https is assumed (http for localhost and private LAN addresses). A value that is not an address stops
+  AdminWeb at startup with a message naming `Api:BaseUrl`.
+- **CORS:** add each new browser origin (guardian web app, AdminWeb for its Diagnostics page) to
+  `Cors__AllowedOrigins__N` on the API.
+- **Sign-in while the API sleeps:** AdminWeb retries the sign-in for up to 100 s through 5xx and proxy pages, and the
+  sign-in page shows "Connecting to the server…" until `/api/health` answers. Each retry is logged
+  (`Sign-in attempt N: the API answered ...`) in the AdminWeb log.
+
 ## Database roles
 - `neondb_owner` owns the tables and applies migrations. Its password is **not** in Render.
 - `childguard_app` (scoped `read_write`: SELECT/INSERT/UPDATE/DELETE on the owner's tables, now and later) is what the

@@ -21,7 +21,9 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 COPY --from=build /app .
 
-# Render sends traffic to port 10000. Production mode; the rolling log file is useless on an
+# Listens on 10000 by default (Render's port). A host that assigns its own port in the PORT environment
+# variable (Railway, Fly.io, Cloud Run, Heroku...) is honoured instead; ASPNETCORE_URLS overrides both.
+# Production mode; the rolling log file is useless on an
 # ephemeral disk, so logs go to the console only.
 ENV ASPNETCORE_ENVIRONMENT=Production \
     ASPNETCORE_HTTP_PORTS=10000 \

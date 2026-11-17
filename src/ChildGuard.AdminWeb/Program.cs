@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
 
 var builder = WebApplication.CreateBuilder(args);
+HostPort.Apply(builder);
 
 builder.Services.AddControllersWithViews(options => options.Filters.Add<ApiSessionExpiredFilter>())
     .AddJsonOptions(options =>
@@ -39,19 +40,22 @@ builder.Services.Configure<Microsoft.AspNetCore.Mvc.CookieTempDataProviderOption
         : CookieSecurePolicy.Always);
 
 builder.Services.AddTransient<JwtForwardingHandler>();
-var apiBaseUrl = builder.Configuration["Api:BaseUrl"] ?? "http://localhost:5275";
+// Any host, port or path prefix; validated here so a bad value fails at startup with a clear message.
+var apiEndpoint = ApiEndpoint.From(builder.Configuration);
+builder.Services.AddSingleton(apiEndpoint);
+builder.Services.AddTransient<ApiPathBaseHandler>();
 builder.Services.AddHttpClient<ApiClient>(client =>
 {
-    client.BaseAddress = new Uri(apiBaseUrl);
+    client.BaseAddress = apiEndpoint.BaseUri;
     // A sleeping API (free hosting) needs about a minute to wake: raise this there.
     client.Timeout = TimeSpan.FromSeconds(builder.Configuration.GetValue("Api:TimeoutSeconds", 30));
-}).AddHttpMessageHandler<JwtForwardingHandler>();
+}).AddHttpMessageHandler<ApiPathBaseHandler>().AddHttpMessageHandler<JwtForwardingHandler>();
 
 builder.Services.AddHttpClient<LongRunningApiClient>(client =>
 {
-    client.BaseAddress = new Uri(apiBaseUrl);
+    client.BaseAddress = apiEndpoint.BaseUri;
     client.Timeout = TimeSpan.FromSeconds(builder.Configuration.GetValue("Api:LongRunningTimeoutSeconds", 300));
-}).AddHttpMessageHandler<JwtForwardingHandler>();
+}).AddHttpMessageHandler<ApiPathBaseHandler>().AddHttpMessageHandler<JwtForwardingHandler>();
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>

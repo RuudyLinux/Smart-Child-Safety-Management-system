@@ -12,6 +12,7 @@ using Microsoft.IdentityModel.Tokens;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
+HostPort.Apply(builder);
 
 // ---- Logging ----
 builder.Host.UseSerilog((ctx, cfg) =>
