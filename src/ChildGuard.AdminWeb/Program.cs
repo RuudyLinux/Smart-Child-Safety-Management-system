@@ -5,7 +5,11 @@ using Microsoft.AspNetCore.DataProtection;
 var builder = WebApplication.CreateBuilder(args);
 HostPort.Apply(builder);
 
-builder.Services.AddControllersWithViews(options => options.Filters.Add<ApiSessionExpiredFilter>())
+builder.Services.AddControllersWithViews(options =>
+    {
+        options.Filters.Add<ApiSessionExpiredFilter>();
+        options.Filters.Add<AjaxAntiforgeryFilter>();
+    })
     .AddJsonOptions(options =>
         options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
 builder.Services.AddHttpContextAccessor();
@@ -76,9 +80,17 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         // 401 so the page script sends the browser to sign-in instead.
         options.Events.OnRedirectToLogin = context =>
         {
-            if (ApiSessionExpiredFilter.WantsHtml(context.Request)) context.Response.Redirect(context.RedirectUri);
-            else context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-            return Task.CompletedTask;
+            if (ApiSessionExpiredFilter.WantsHtml(context.Request))
+            {
+                context.Response.Redirect(context.RedirectUri);
+                return Task.CompletedTask;
+            }
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            // cg-ajax.js reads the envelope and sends the browser to sign-in. An AJAX request only comes from an
+            // admin page that was already open, so a missing cookie here means the session ran out.
+            return AjaxRequest.IsAjax(context.Request)
+                ? context.Response.WriteAsJsonAsync(new AjaxEnvelope(false, ApiSessionExpiredFilter.ExpiredMessage, ApiSessionExpiredFilter.LoginUrl, null, null))
+                : Task.CompletedTask;
         };
     });
 
@@ -115,3 +127,6 @@ app.MapControllerRoute(
     pattern: "{controller=Dashboard}/{action=Index}/{id?}");
 
 app.Run();
+
+/// <summary>Visible to tests/ChildGuard.AdminWeb.Tests (WebApplicationFactory).</summary>
+public partial class Program { }

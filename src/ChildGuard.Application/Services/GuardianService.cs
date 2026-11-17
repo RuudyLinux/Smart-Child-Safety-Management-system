@@ -83,9 +83,17 @@ public class GuardianService : IGuardianService
             new CreateGuardianResultDto(guardian.GuardianId, delivery.Succeeded, delivery.Succeeded ? null : delivery.Error));
     }
 
-    public async Task<List<GuardianListItemDto>> GetAllAsync(CancellationToken ct = default)
+    public async Task<List<GuardianListItemDto>> GetAllAsync(CancellationToken ct = default) =>
+        await ToListItemsAsync(await _guardians.GetAllAsync(ct), ct);
+
+    public async Task<Paged<GuardianListItemDto>> GetPageAsync(GuardianListFilter filter, PageRequest page, CancellationToken ct = default)
     {
-        var list = await _guardians.GetAllAsync(ct);
+        var (list, total) = await _guardians.GetPageAsync(filter, page, ct);
+        return new Paged<GuardianListItemDto>(await ToListItemsAsync(list, ct), total);
+    }
+
+    private async Task<List<GuardianListItemDto>> ToListItemsAsync(List<Guardian> list, CancellationToken ct)
+    {
         if (list.Count == 0) return new List<GuardianListItemDto>();
 
         var ids = list.Select(g => g.GuardianId).ToList();

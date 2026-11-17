@@ -35,13 +35,15 @@
                 </div>
             }
 
-            <form asp-action="Create" method="post" class="cg-form" data-cg-busy>
+            <form asp-action="Create" method="post" class="cg-form" data-cg-busy data-cg-ajax>
+                <div class="cg-alert cg-alert--danger" data-cg-error-summary role="alert" hidden></div>
                 @Html.AntiForgeryToken()
 
                 <div class="cg-field">
                     <label class="cg-label" for="FullName">Full name <span class="cg-label__req">*</span></label>
                     <input class="cg-input" id="FullName" name="FullName" value="@Model.FullName"
                            maxlength="150" required autofocus placeholder="As it appears on the school roll" />
+                    <span class="cg-error-text" data-valmsg-for="FullName" role="alert"></span>
                 </div>
 
                 <div class="cg-form-row">
@@ -50,11 +52,13 @@
                         <input class="cg-input" id="DateOfBirth" type="date" name="DateOfBirth"
                                value="@Model.DateOfBirth.ToString("yyyy-MM-dd")"
                                max="@DateTime.Today.AddDays(-1).ToString("yyyy-MM-dd")" required />
+                    <span class="cg-error-text" data-valmsg-for="DateOfBirth" role="alert"></span>
                     </div>
                     <div class="cg-field">
                         <label class="cg-label" for="Grade">Grade</label>
                         <input class="cg-input" id="Grade" name="Grade" value="@Model.Grade"
                                maxlength="50" placeholder="e.g. 5A" />
+                    <span class="cg-error-text" data-valmsg-for="Grade" role="alert"></span>
                         <p class="cg-hint">Used to group attendance reporting by grade.</p>
                     </div>
                 </div>

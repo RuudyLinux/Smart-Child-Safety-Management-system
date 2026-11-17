@@ -27,6 +27,22 @@ public class ApiClient
         return await ReadResultAsync<T>(response, ct);
     }
 
+    /// <summary>
+    /// A paged API list (<c>?page=…</c>): rows from the body, the total from X-Total-Count. A response without
+    /// the total is an error, never a guess, so a page count can always be trusted.
+    /// </summary>
+    public async Task<ApiResult<ChildGuard.Application.Common.Paged<T>>> GetPagedAsync<T>(string url, CancellationToken ct = default)
+    {
+        var response = await _http.GetAsync(url, ct);
+        var rows = await ReadResultAsync<List<T>>(response, ct);
+        if (!rows.Succeeded)
+            return ApiResult<ChildGuard.Application.Common.Paged<T>>.Fail(rows.Error!, rows.StatusCode, rows.FieldErrors);
+        if (!response.Headers.TryGetValues("X-Total-Count", out var values)
+            || !int.TryParse(values.FirstOrDefault(), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var total))
+            return ApiResult<ChildGuard.Application.Common.Paged<T>>.Fail("The server did not report how many records match.", 502);
+        return ApiResult<ChildGuard.Application.Common.Paged<T>>.Ok(new(rows.Value ?? new List<T>(), total));
+    }
+
     public async Task<ApiResult<T>> PostAsync<T>(string url, object body, CancellationToken ct = default)
     {
         var response = await _http.PostAsJsonAsync(url, body, JsonOptions, ct);
@@ -148,7 +164,29 @@ public class ApiClient
         }
 
         var message = TryExtractMessage(raw) ?? $"Request failed ({(int)response.StatusCode}).";
-        return ApiResult<T>.Fail(message, (int)response.StatusCode);
+        return ApiResult<T>.Fail(message, (int)response.StatusCode, TryExtractFieldErrors(raw));
+    }
+
+    /// <summary>The API's <c>errors: [{ PropertyName, ErrorMessage }]</c> grouped by property; null when absent.</summary>
+    private static IReadOnlyDictionary<string, string[]>? TryExtractFieldErrors(string raw)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(raw);
+            if (!doc.RootElement.TryGetProperty("errors", out var errs) || errs.ValueKind != JsonValueKind.Array) return null;
+            var map = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+            foreach (var e in errs.EnumerateArray())
+            {
+                if (e.ValueKind != JsonValueKind.Object) continue;
+                var name = (e.TryGetProperty("PropertyName", out var p) || e.TryGetProperty("propertyName", out p)) ? p.GetString() : null;
+                var text = (e.TryGetProperty("ErrorMessage", out var m) || e.TryGetProperty("errorMessage", out m)) ? m.GetString() : null;
+                if (string.IsNullOrEmpty(name) || string.IsNullOrEmpty(text)) continue;
+                if (!map.TryGetValue(name, out var list)) map[name] = list = new List<string>();
+                list.Add(text);
+            }
+            return map.Count == 0 ? null : map.ToDictionary(kv => kv.Key, kv => kv.Value.ToArray());
+        }
+        catch (JsonException) { return null; }
     }
 
     private static string? TryExtractMessage(string raw)
@@ -186,6 +224,10 @@ public class ApiResult<T>
     public string? Error { get; private init; }
     public int StatusCode { get; private init; }
 
+    /// <summary>The API's validation errors by property name (null when it sent none), for inline form errors.</summary>
+    public IReadOnlyDictionary<string, string[]>? FieldErrors { get; private init; }
+
     public static ApiResult<T> Ok(T value) => new() { Succeeded = true, Value = value, StatusCode = 200 };
-    public static ApiResult<T> Fail(string error, int statusCode) => new() { Succeeded = false, Error = error, StatusCode = statusCode };
+    public static ApiResult<T> Fail(string error, int statusCode, IReadOnlyDictionary<string, string[]>? fieldErrors = null) =>
+        new() { Succeeded = false, Error = error, StatusCode = statusCode, FieldErrors = fieldErrors };
 }

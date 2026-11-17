@@ -7,6 +7,8 @@
     var age = (int)((DateTime.Today - Model.DateOfBirth).TotalDays / 365.2425);
     var stats = Model.AttendanceStats;
     var authorisedCount = Model.Guardians.Count(g => g.IsAuthorizedForPickup);
+    // Shared partials (photo, lifecycle, banner) render their forms as AJAX forms on this page.
+    ViewData["AjaxForms"] = true;
 }
 
 <div class="cg-page-head">
@@ -17,7 +19,7 @@
     </div>
 </div>
 
-<section class="cg-profile">
+<section class="cg-profile" data-cg-region="student-header">
     @await Html.PartialAsync("_Avatar", new AvatarModel(photoUrl, Model.FullName, "2xl", false, true,
         SafetyUi.DotColor(Model.SafetyStatus), SafetyUi.Label(Model.SafetyStatus)))
 
@@ -83,7 +85,7 @@
         }
         else if (Model.Status == RecordStatus.Active)
         {
-            <form asp-action="UpdateStatus" asp-route-id="@Model.StudentId" method="post" class="cg-inline-form"
+            <form asp-action="UpdateStatus" asp-route-id="@Model.StudentId" method="post" class="cg-inline-form" data-cg-ajax
                   data-cg-confirm="Deactivate @Model.FullName? Their RFID card stops recording checkpoints until the record is reactivated.">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="status" value="Inactive" />
@@ -92,7 +94,7 @@
         }
         else
         {
-            <form asp-action="UpdateStatus" asp-route-id="@Model.StudentId" method="post" class="cg-inline-form">
+            <form asp-action="UpdateStatus" asp-route-id="@Model.StudentId" method="post" class="cg-inline-form" data-cg-ajax>
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="status" value="Active" />
                 <button class="cg-btn cg-btn--success" type="submit">Activate</button>
@@ -101,10 +103,12 @@
     </div>
 </section>
 
-@if (ViewBag.Lifecycle is RecordLifecycleModel lifecycle)
-{
-    @await Html.PartialAsync("_ArchivedBanner", lifecycle)
-}
+<div data-cg-region="archived-banner">
+    @if (ViewBag.Lifecycle is RecordLifecycleModel lifecycle)
+    {
+        @await Html.PartialAsync("_ArchivedBanner", lifecycle)
+    }
+</div>
 
 <div class="cg-tabs" data-cg-tabs="student" role="tablist">
     <button class="cg-tab is-active" data-cg-tab="overview" role="tab" aria-selected="true">
@@ -120,7 +124,7 @@
     </button>
     <button class="cg-tab" data-cg-tab="guardians" role="tab" aria-selected="false">
         @await Html.PartialAsync("_Icon", "guardians") Guardians
-        <span class="cg-tab__count">@Model.Guardians.Count</span>
+        <span class="cg-tab__count" data-cg-region="guardian-count">@Model.Guardians.Count</span>
     </button>
     <button class="cg-tab" data-cg-tab="rfid" role="tab" aria-selected="false">
         @await Html.PartialAsync("_Icon", "rfid") RFID &amp; transport
@@ -235,7 +239,7 @@
                 </div>
             </section>
 
-            <section class="cg-card">
+            <section class="cg-card" data-cg-region="overview-facts">
                 <div class="cg-card__head">
                     <h2 class="cg-card__title">Record details</h2>
                 </div>
@@ -376,7 +380,7 @@
 
 @* --------------------------------------------------------------- Guardians *@
 <div class="cg-tabpanel" data-cg-tabpanel="guardians" data-cg-tabs-scope="student" style="padding-top:18px">
-    <section class="cg-card">
+    <section class="cg-card" data-cg-region="guardians">
         <div class="cg-card__head">
             <div>
                 <h2 class="cg-card__title">Linked guardians</h2>
@@ -439,7 +443,7 @@
                                 }
                             </div>
 
-                            <form asp-action="UpdateGuardianLink" asp-route-id="@Model.StudentId" method="post"
+                            <form asp-action="UpdateGuardianLink" asp-route-id="@Model.StudentId" method="post" data-cg-ajax
                                   class="cg-row cg-row--wrap" style="gap:8px">
                                 @Html.AntiForgeryToken()
                                 <input type="hidden" name="guardianId" value="@g.GuardianId" />
@@ -453,7 +457,7 @@
                                 <button class="cg-btn cg-btn--secondary cg-btn--sm" type="submit">Save</button>
                             </form>
 
-                            <form asp-action="RemoveGuardianLink" asp-route-id="@Model.StudentId" method="post"
+                            <form asp-action="RemoveGuardianLink" asp-route-id="@Model.StudentId" method="post" data-cg-ajax
                                   data-cg-confirm="Unlink @g.FullName from @Model.FullName? The guardian account itself is not deleted.">
                                 @Html.AntiForgeryToken()
                                 <input type="hidden" name="guardianId" value="@g.GuardianId" />
@@ -473,7 +477,7 @@
 @* ------------------------------------------------------- RFID and transport *@
 <div class="cg-tabpanel" data-cg-tabpanel="rfid" data-cg-tabs-scope="student" style="padding-top:18px">
     <div class="cg-grid cg-grid--2">
-        <section class="cg-card">
+        <section class="cg-card" data-cg-region="rfid-card">
             <div class="cg-card__head">
                 <h2 class="cg-card__title">RFID card</h2>
                 @if (Model.RfidStatus is { } rfidStatus)
@@ -511,7 +515,7 @@
             </div>
         </section>
 
-        <section class="cg-card">
+        <section class="cg-card" data-cg-region="transport">
             <div class="cg-card__head">
                 <h2 class="cg-card__title">Transport</h2>
             </div>
@@ -562,7 +566,7 @@
 
     @if (Model.TransportHistory is { Count: > 0 } th)
     {
-        <section class="cg-card" data-transport-history>
+        <section class="cg-card" data-transport-history data-cg-region="transport-history">
             <div class="cg-card__head"><h2 class="cg-card__title">Transport history</h2></div>
             <div class="cg-table-wrap">
                 <table class="cg-table">
@@ -588,14 +592,16 @@
 
 @* ------------------------------------------------------------------- Photo *@
 <div class="cg-tabpanel" data-cg-tabpanel="photo" data-cg-tabs-scope="student" style="padding-top:18px">
-    @await Html.PartialAsync("_PhotoManager", new PhotoManagerModel(
-        "Students", Model.StudentId, Model.FullName, Model.HasPhoto, Model.PhotoUpdatedAt, false,
-        "Student photo",
-        "Helps staff match a child to their record at the pickup desk."))
+    <div data-cg-region="photo">
+        @await Html.PartialAsync("_PhotoManager", new PhotoManagerModel(
+            "Students", Model.StudentId, Model.FullName, Model.HasPhoto, Model.PhotoUpdatedAt, false,
+            "Student photo",
+            "Helps staff match a child to their record at the pickup desk."))
+    </div>
 </div>
 
 @* ------------------------------------------------------------ Link modal *@
-<div class="cg-modal" id="linkGuardianModal" hidden role="dialog" aria-modal="true" aria-labelledby="linkGuardianTitle">
+<div class="cg-modal" id="linkGuardianModal" data-cg-region="guardian-modal" hidden role="dialog" aria-modal="true" aria-labelledby="linkGuardianTitle">
     <div class="cg-modal__panel">
         <div class="cg-modal__head">
             <div>
@@ -621,7 +627,7 @@
         }
         else
         {
-            <form asp-action="AssignGuardian" asp-route-id="@Model.StudentId" method="post" data-cg-busy>
+            <form asp-action="AssignGuardian" asp-route-id="@Model.StudentId" method="post" data-cg-busy data-cg-ajax>
                 @Html.AntiForgeryToken()
                 <div class="cg-modal__body">
                     <div class="cg-form">
@@ -663,5 +669,5 @@
 
 @if (ViewBag.Lifecycle is RecordLifecycleModel lifecycleCard)
 {
-    <div style="margin-top:16px">@await Html.PartialAsync("_RecordLifecycle", lifecycleCard)</div>
+    <div style="margin-top:16px" data-cg-region="lifecycle">@await Html.PartialAsync("_RecordLifecycle", lifecycleCard)</div>
 }

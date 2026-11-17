@@ -1,4 +1,5 @@
 @model ChildGuard.AdminWeb.Models.ViewModels.PhotoManagerModel
+@{ /* "on" when the page's controller answers AJAX envelopes (cg-ajax.js). An explicit value, not null: tag-helper forms render a null attribute as present. */ var cgAjax = ViewData["AjaxForms"] is true ? "on" : "off"; }
 @{
     // The whole photo lifecycle in one panel: view, upload, replace, remove.
     // The upload posts as a normal multipart form, so it still works with
@@ -41,7 +42,7 @@
             <div style="flex:1;min-width:260px">
                 <form method="post" enctype="multipart/form-data"
                       asp-controller="@Model.Controller" asp-action="UploadPhoto" asp-route-id="@Model.OwnerId"
-                      class="cg-form" data-cg-busy>
+                      class="cg-form" data-cg-busy data-cg-ajax="@cgAjax">
                     @Html.AntiForgeryToken()
 
                     <div class="cg-dropzone" data-cg-dropzone data-cg-max-bytes="4194304">
@@ -108,7 +109,7 @@
                 {
                     <div class="cg-divider"></div>
                     <form method="post" asp-controller="@Model.Controller" asp-action="DeletePhoto"
-                          asp-route-id="@Model.OwnerId" data-cg-confirm="@removeConfirm">
+                          asp-route-id="@Model.OwnerId" data-cg-confirm="@removeConfirm" data-cg-ajax="@cgAjax">
                         @Html.AntiForgeryToken()
                         <button type="submit" class="cg-btn cg-btn--danger-soft cg-btn--sm">
                             @await Html.PartialAsync("_Icon", "trash") Remove photo

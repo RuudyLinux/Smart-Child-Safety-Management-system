@@ -1,4 +1,5 @@
 @model RecordLifecycleModel
+@{ /* "on" when the page's controller answers AJAX envelopes (cg-ajax.js). An explicit value, not null: tag-helper forms render a null attribute as present. */ var cgAjax = ViewData["AjaxForms"] is true ? "on" : "off"; }
 @{
     var archived = Model.ArchivedAt is not null;
 }
@@ -9,7 +10,7 @@
         <div class="cg-alert__body">
             <div class="cg-alert__title">This @Model.Noun is archived</div>
             <div>Archived on @Model.ArchivedAt!.Value.ToSchoolTime().ToString("d MMM yyyy, HH:mm"). Reason: @Model.ArchiveReason</div>
-            <form action="/@Model.Controller/Restore/@Model.Id" method="post" class="cg-row cg-row--wrap" style="margin-top:10px;gap:8px">
+            <form action="/@Model.Controller/Restore/@Model.Id" method="post" data-cg-ajax="@cgAjax" class="cg-row cg-row--wrap" style="margin-top:10px;gap:8px">
                 @Html.AntiForgeryToken()
                 <input class="cg-input" name="reason" maxlength="500" placeholder="Note for restoring (optional)" aria-label="Note for restoring" style="max-width:360px" />
                 <button class="cg-btn cg-btn--success cg-btn--sm" type="submit">Restore @Model.Noun</button>

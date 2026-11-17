@@ -305,12 +305,14 @@
         ]
     </script>
     <script src="~/js/app.js" asp-append-version="true"></script>
+    <script src="~/js/cg-ajax.js" asp-append-version="true"></script>
     <script src="~/js/alerts-badge.js" asp-append-version="true"></script>
 }
 else
 {
     @RenderBody()
     <script src="~/js/app.js" asp-append-version="true"></script>
+    <script src="~/js/cg-ajax.js" asp-append-version="true"></script>
 }
 @* TempData messages surface as toasts on first paint and are announced politely.
    Kept outside the authenticated branch so the sign-in page can confirm a sign-out. *@
