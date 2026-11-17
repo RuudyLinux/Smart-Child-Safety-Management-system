@@ -65,6 +65,19 @@ test.describe('Students list (server paging)', () => {
     const top = (await page.locator('[data-cg-region="list"]').boundingBox())!.y;
     expect(top).toBeGreaterThanOrEqual(-1);
     expect(top).toBeLessThan(700);
+    // ...below the sticky top bar, so the count and the column headers are visible, not hidden under it.
+    const bar = (await page.locator('.cg-topbar').boundingBox())!;
+    const header = (await page.locator('[data-cg-region="list"] thead').boundingBox())!;
+    expect(header.y).toBeGreaterThanOrEqual(bar.y + bar.height - 1);
+  });
+
+  test('a list change announces the new count to screen readers', async ({ page, data }) => {
+    const tag = uid('Announce').replace(/\s/g, '');
+    await data.student({ fullName: `${tag} One` });
+    await data.student({ fullName: `${tag} Two` });
+    await page.goto('/Students');
+    await page.locator('input[name="search"]').fill(tag);
+    await expect(page.locator('[data-cg-list-status]')).toHaveText('2 records');
   });
 
   test('filters keep each other and the search; changing a filter starts at page 1', async ({ page, data }) => {

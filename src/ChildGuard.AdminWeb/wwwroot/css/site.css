@@ -1681,3 +1681,7 @@ html.cg-navigating .cg-progress { opacity: 1; animation: cg-progress 2.4s cubic-
 .cg-region--loading { opacity: .55; pointer-events: none; transition: opacity var(--cg-t); }
 .field-validation-error:not(:empty) { display: block; font-size: 12.5px; color: var(--cg-danger-text); font-weight: 600; margin-top: 4px; }
 .cg-input[aria-invalid="true"], .cg-select[aria-invalid="true"], .cg-textarea[aria-invalid="true"] { border-color: var(--cg-danger); box-shadow: 0 0 0 3px color-mix(in srgb, var(--cg-danger) 18%, transparent); }
+/* Read by screen readers only. */
+.cg-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+/* A list brought into view after paging stops below the sticky top bar. */
+[data-cg-region="list"] { scroll-margin-top: calc(var(--cg-topbar-h) + 8px); }

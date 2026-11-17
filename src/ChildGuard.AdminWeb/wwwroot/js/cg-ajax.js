@@ -395,6 +395,10 @@
         if (input) { if (value) input.value = value; else input.remove(); }
       });
       syncForm(form, target.href);
+      // Tell screen readers the new count (the announcer sits outside the replaced region).
+      var status = document.querySelector('[data-cg-list-status]');
+      var count = document.querySelector('[data-cg-region="' + region + '"] [data-cg-count]');
+      if (status) status.textContent = count ? count.textContent.trim() : '';
     });
   }
 
@@ -446,7 +450,10 @@
       if (!paging) return;
       // Another page starts at its first row: bring the start of the table into view, not the pager.
       var region = document.querySelector('[data-cg-region="' + (form.getAttribute('data-cg-list') || 'list') + '"]');
-      if (region && region.getBoundingClientRect().top < 0) region.scrollIntoView({ block: 'start' });
+      // Below the sticky top bar (the region's scroll-margin-top keeps the column headers clear of it).
+      var bar = document.querySelector('.cg-topbar');
+      var barBottom = bar ? bar.getBoundingClientRect().bottom : 0;
+      if (region && region.getBoundingClientRect().top < barBottom) region.scrollIntoView({ block: 'start' });
     });
   });
 

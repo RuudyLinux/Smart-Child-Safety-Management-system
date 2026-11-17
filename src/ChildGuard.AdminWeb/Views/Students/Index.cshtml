@@ -95,6 +95,9 @@
            href="@(new StudentListQuery { Search = search }.Url())">Clear</a>
     </form>
 
+    @* Announces the new count after a list change. Outside the region on purpose: a live region that is
+       replaced already filled is announced unreliably, so cg-ajax.js copies the count into this one. *@
+    <span class="cg-sr-only" data-cg-list-status role="status" aria-live="polite"></span>
     <div data-cg-region="list">
         @if (ViewBag.LoadError is string loadError)
         {
@@ -126,7 +129,7 @@
         else
         {
             <div class="cg-row cg-row--between" style="padding:0 16px">
-                <span class="cg-text-sm cg-muted" data-cg-count data-cg-count-scope="students" role="status" aria-live="polite">@Model.Total @(Model.Total == 1 ? "record" : "records")</span>
+                <span class="cg-text-sm cg-muted" data-cg-count data-cg-count-scope="students">@Model.Total @(Model.Total == 1 ? "record" : "records")</span>
             </div>
             <div class="cg-table-wrap">
                 <table class="cg-table">

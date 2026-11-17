@@ -79,7 +79,12 @@ public class StudentsListRequestTests : IClassFixture<AdminWebFactory>
         var html = await (await client.SendAsync(AdminWebFactory.Get("/Students?page=1", ajax: false))).Content.ReadAsStringAsync();
         var region = System.Text.RegularExpressions.Regex.Match(html, "<div[^>]*data-cg-region=\"list\"[^>]*>").Value;
         Assert.DoesNotContain("aria-live", region);
-        Assert.Matches("<span[^>]*data-cg-count[^>]*aria-live=\"polite\"|<span[^>]*aria-live=\"polite\"[^>]*data-cg-count", html);
+        // The announcer lives outside the refreshed region: a live region that is replaced already filled is
+        // announced unreliably, so cg-ajax.js copies the new count into this one after each list change.
+        var announcer = System.Text.RegularExpressions.Regex.Match(html, "<[^>]*data-cg-list-status[^>]*>").Value;
+        Assert.Contains("aria-live=\"polite\"", announcer);
+        Assert.True(html.IndexOf("data-cg-list-status", StringComparison.Ordinal) < html.IndexOf("data-cg-region=\"list\"", StringComparison.Ordinal),
+            "the announcer must sit outside (before) the list region");
     }
 
     [Fact]

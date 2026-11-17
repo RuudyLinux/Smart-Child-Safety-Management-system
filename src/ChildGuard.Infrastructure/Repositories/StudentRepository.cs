@@ -116,8 +116,9 @@ public class StudentRepository : IStudentRepository
     }
 
     /// <summary>
-    /// One entry per grade, case-insensitively (as the grade filter matches), spelled the way most students
-    /// have it. Grouped here rather than in SQL so MySQL and PostgreSQL give the same list.
+    /// One entry per grade, case-insensitively (as the grade filter matches), so MySQL and PostgreSQL give the
+    /// same list. The spelling shown is one that students have: on PostgreSQL the most common one; on MySQL,
+    /// whose GROUP BY already ignores case, whichever spelling the database reports for the group.
     /// </summary>
     public async Task<List<string>> GetGradesAsync(CancellationToken ct = default)
     {
