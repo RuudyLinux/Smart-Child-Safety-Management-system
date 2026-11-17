@@ -1,27 +1,236 @@
-@model List<JourneyEventDto>
-@{ ViewData["Title"] = "Journey"; }
+@model List<StudentJourneyStatusDto>
+@{
+    ViewData["Title"] = "Journey Tracking";
+    var recent = ViewBag.Recent as List<JourneyEventDto> ?? new();
 
-<div class="cg-card">
-    <h3 class="cg-card__title">Recent Journey Events</h3>
-    <p class="cg-help">Enter a Student ID in the URL bar as <code>/Journey/Student/{id}</code> for a per-student timeline, or click a student name below.</p>
-    <div class="cg-table-wrap">
-        <table class="cg-table">
-            <thead><tr><th>Student</th><th>Event</th><th>Time</th><th>Source</th></tr></thead>
-            <tbody>
-            @if (!Model.Any())
-            {
-                <tr><td colspan="4" class="cg-muted">No journey events recorded.</td></tr>
-            }
-            @foreach (var e in Model)
-            {
-                <tr>
-                    <td><a href="/Journey/Student/@e.StudentId">@e.StudentName</a></td>
-                    <td><span class="cg-badge cg-badge--neutral">@e.EventType</span></td>
-                    <td>@e.Timestamp.ToLocalTime().ToString("g")</td>
-                    <td>@e.Source</td>
-                </tr>
-            }
-            </tbody>
-        </table>
+    var counts = new (StudentSafetyStatus Status, string Label, string Icon)[]
+    {
+        (StudentSafetyStatus.OnBusToSchool, "On the bus", "bus"),
+        (StudentSafetyStatus.AtSchool, "Safe at school", "shield-check"),
+        (StudentSafetyStatus.LeftSchool, "Left school", "log-out"),
+        (StudentSafetyStatus.DroppedOffHome, "Dropped off", "home"),
+        (StudentSafetyStatus.NoActivityToday, "No activity", "help-circle")
+    };
+}
+
+<div class="cg-page-head">
+    <div class="cg-page-head__text">
+        <h1 class="cg-page-head__title">Journey Tracking</h1>
+        <p class="cg-page-head__sub">
+            Where every student is right now, from their latest recorded checkpoint today.
+        </p>
     </div>
+    <div class="cg-page-head__actions">
+        <a class="cg-btn cg-btn--secondary" href="/Journey">@await Html.PartialAsync("_Icon", "refresh") Refresh</a>
+        <a class="cg-btn cg-btn--primary" href="/Verification">@await Html.PartialAsync("_Icon", "pickup") Pickup desk</a>
+    </div>
+</div>
+
+<div class="cg-alert cg-alert--info">
+    <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "info")</span>
+    <div class="cg-alert__body">
+        <div class="cg-alert__title">Checkpoints, not live location</div>
+        <div>
+            ChildGuard records the moment a student's card is read at a checkpoint — bus boarding,
+            school arrival, school departure and bus drop-off. It does not track position between
+            those points, so no map or coordinates are shown.
+        </div>
+    </div>
+</div>
+
+@if (ViewBag.LoadError is string loadError)
+{
+    <div class="cg-alert cg-alert--danger" role="alert">
+        <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "alert-circle")</span>
+        <div class="cg-alert__body">@loadError</div>
+    </div>
+}
+
+<div class="cg-grid cg-grid--kpi">
+    @foreach (var c in counts)
+    {
+        var count = Model.Count(s => s.SafetyStatus == c.Status);
+        var iconClass = c.Status switch
+        {
+            StudentSafetyStatus.AtSchool or StudentSafetyStatus.DroppedOffHome => "cg-kpi__icon--success",
+            StudentSafetyStatus.OnBusToSchool => "cg-kpi__icon--info",
+            StudentSafetyStatus.LeftSchool => "cg-kpi__icon--warning",
+            _ => "cg-kpi__icon--neutral"
+        };
+        <article class="cg-kpi">
+            <div class="cg-kpi__top">
+                <div class="cg-kpi__label">@c.Label</div>
+                <span class="cg-kpi__icon @iconClass">@await Html.PartialAsync("_Icon", c.Icon)</span>
+            </div>
+            <div class="cg-kpi__value cg-kpi__value--sm">@count</div>
+        </article>
+    }
+</div>
+
+<div class="cg-grid cg-grid--sidebar">
+    <section class="cg-card">
+        <div class="cg-toolbar">
+            <div class="cg-input-group cg-toolbar__grow" style="max-width:280px">
+                <span class="cg-input-group__icon">@await Html.PartialAsync("_Icon", "search")</span>
+                <input class="cg-input" placeholder="Search student or bus"
+                       data-cg-search data-cg-search-scope="journey" aria-label="Search the journey board" />
+            </div>
+            <select class="cg-select" style="max-width:180px" data-cg-filter="state" data-cg-filter-scope="journey"
+                    aria-label="Filter by journey status">
+                <option value="__all">All statuses</option>
+                @foreach (var c in counts)
+                {
+                    <option value="@c.Status">@c.Label</option>
+                }
+            </select>
+            <button type="button" class="cg-btn cg-btn--ghost cg-btn--sm" data-cg-reset data-cg-reset-scope="journey">Clear</button>
+            <span class="cg-toolbar__spacer"></span>
+            <span class="cg-text-sm cg-muted" data-cg-count data-cg-count-scope="journey"></span>
+        </div>
+
+        @if (!Model.Any())
+        {
+            @await Html.PartialAsync("_EmptyState", ("journey", "No active students",
+                "Add students and assign RFID cards so their checkpoints appear on this board.",
+                "Add student", "/Students/Create"))
+        }
+        else
+        {
+            <div class="cg-table-wrap">
+                <table class="cg-table" data-cg-table="journey" data-cg-page-size="25">
+                    <thead>
+                        <tr>
+                            <th>Student</th>
+                            <th>Status</th>
+                            <th>Latest checkpoint</th>
+                            <th>Transport</th>
+                            <th>Today</th>
+                            <th class="cg-table__actions">Timeline</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var s in Model)
+                    {
+                        var photoUrl = s.HasPhoto ? Url.Action("Photo", "Students", new { id = s.StudentId }) : null;
+                        <tr data-row
+                            data-search="@s.StudentName @s.Grade @s.BusNumber @s.RouteName"
+                            data-state="@s.SafetyStatus">
+                            <td>
+                                <a class="cg-identity" href="/Students/Details/@s.StudentId" style="color:inherit">
+                                    @await Html.PartialAsync("_Avatar", new AvatarModel(photoUrl, s.StudentName, "sm", false, false,
+                                        SafetyUi.DotColor(s.SafetyStatus), SafetyUi.Label(s.SafetyStatus)))
+                                    <span class="cg-identity__body">
+                                        <span class="cg-identity__name">@s.StudentName</span>
+                                        <span class="cg-identity__meta">@(s.Grade ?? "No grade")</span>
+                                    </span>
+                                </a>
+                            </td>
+                            <td>@await Html.PartialAsync("_SafetyChip", s.SafetyStatus)</td>
+                            <td class="cg-text-sm">
+                                @if (s.LastEventAt is { } lastAt)
+                                {
+                                    <div>@SafetyUi.EventLabel(s.LastEventType)</div>
+                                    <div class="cg-muted" data-cg-ago="@lastAt.ToString("O")">
+                                        @lastAt.ToSchoolTime().ToString("HH:mm")
+                                    </div>
+                                }
+                                else
+                                {
+                                    <span class="cg-muted">None today</span>
+                                }
+                            </td>
+                            <td class="cg-text-sm">
+                                @if (s.BusNumber is null)
+                                {
+                                    <span class="cg-muted">Not assigned</span>
+                                }
+                                else
+                                {
+                                    <div>@s.BusNumber</div>
+                                    <div class="cg-muted">@(s.RouteName ?? "No route")</div>
+                                }
+                            </td>
+                            <td>
+                                @* A compact four-dot rail: which of today's checkpoints have happened. *@
+                                <span class="cg-row" style="gap:4px" role="img"
+                                      aria-label="@s.TodaysEvents.Count of 4 checkpoints recorded today">
+                                    @foreach (var checkpoint in new[]
+                                    {
+                                        JourneyEventType.BusBoarding,
+                                        JourneyEventType.SchoolArrival,
+                                        JourneyEventType.SchoolDeparture,
+                                        JourneyEventType.BusDropoff
+                                    })
+                                    {
+                                        var done = s.TodaysEvents.Any(e => e.EventType == checkpoint);
+                                        <span title="@SafetyUi.EventLabel(checkpoint)@(done ? " — recorded" : " — not yet")"
+                                              style="width:9px;height:9px;border-radius:50%;background:@(done ? "var(--cg-success)" : "var(--cg-surface-3)")"></span>
+                                    }
+                                </span>
+                            </td>
+                            <td class="cg-table__actions">
+                                <span class="cg-table__row-actions">
+                                    <a class="cg-btn cg-btn--sm cg-btn--ghost cg-btn--icon" href="/Journey/Student/@s.StudentId"
+                                       title="Full timeline" aria-label="Full timeline for @s.StudentName">
+                                        @await Html.PartialAsync("_Icon", "journey")
+                                    </a>
+                                </span>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="cg-empty" data-cg-noresults data-cg-noresults-scope="journey" hidden>
+                <div class="cg-empty__art">@await Html.PartialAsync("_Icon", "filter")</div>
+                <div class="cg-empty__title">No students match these filters</div>
+                <p class="cg-empty__text">Clear the filters to see the whole board.</p>
+            </div>
+
+            <div class="cg-pagination">
+                <span class="cg-text-sm">Showing up to 25 students per page</span>
+                <div class="cg-pagination__pages" data-cg-pager data-cg-pager-scope="journey"></div>
+            </div>
+        }
+    </section>
+
+    <section class="cg-card">
+        <div class="cg-card__head">
+            <div>
+                <h2 class="cg-card__title">Latest checkpoints</h2>
+                <div class="cg-card__sub">Across all students</div>
+            </div>
+            <span class="cg-pulse" title="Live"></span>
+        </div>
+        <div class="cg-card__body">
+            @if (!recent.Any())
+            {
+                @await Html.PartialAsync("_EmptyState", ("activity", "No checkpoints yet",
+                    "Scans recorded at any checkpoint appear here as they happen.",
+                    (string?)null, (string?)null))
+            }
+            else
+            {
+                <ol class="cg-timeline">
+                    @foreach (var e in recent.Take(15))
+                    {
+                        <li class="cg-timeline__item">
+                            <span class="cg-timeline__marker">
+                                @await Html.PartialAsync("_Icon", SafetyUi.EventIcon(e.EventType))
+                            </span>
+                            <div class="cg-timeline__head">
+                                <a class="cg-timeline__title" href="/Students/Details/@e.StudentId">@e.StudentName</a>
+                                <span class="cg-timeline__time">@e.Timestamp.ToSchoolTime().ToString("d MMM HH:mm")</span>
+                            </div>
+                            <div class="cg-timeline__body">
+                                @SafetyUi.EventLabel(e.EventType) ·
+                                @(e.Source == EventSource.Rfid ? "RFID verification" : "Recorded by staff")
+                            </div>
+                        </li>
+                    }
+                </ol>
+            }
+        </div>
+    </section>
 </div>

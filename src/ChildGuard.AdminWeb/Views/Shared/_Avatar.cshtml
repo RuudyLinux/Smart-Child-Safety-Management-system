@@ -1,0 +1,22 @@
+@model ChildGuard.AdminWeb.Models.ViewModels.AvatarModel
+@{
+    // One avatar for the whole console. A person with no stored photo gets their
+    // initials rather than a placeholder silhouette, and a photo that fails to
+    // load is removed by app.js so the initials underneath show through instead
+    // of a torn-image icon on a child's record.
+    var classes = "cg-avatar";
+    if (!string.IsNullOrEmpty(Model.Size)) classes += " cg-avatar--" + Model.Size;
+    if (Model.Square) classes += " cg-avatar--square";
+    if (Model.IsGuardian) classes += " cg-avatar--guardian";
+}
+<span class="@classes" aria-hidden="true">
+    @SafetyUi.Initials(Model.Name)
+    @if (!string.IsNullOrEmpty(Model.PhotoUrl))
+    {
+        <img src="@Model.PhotoUrl" alt="" loading="lazy" decoding="async" />
+    }
+    @if (!string.IsNullOrEmpty(Model.StatusColor))
+    {
+        <span class="cg-avatar__status" style="background:@Model.StatusColor" title="@Model.StatusTitle"></span>
+    }
+</span>

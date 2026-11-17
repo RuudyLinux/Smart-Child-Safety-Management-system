@@ -1,0 +1,87 @@
+@model ImportDetailDto
+@{
+    var i = Model.Import;
+    // Column headers come from the row values; keep them in the order of the first failed row.
+    var columns = Model.FailedRows.FirstOrDefault()?.Values.Keys.ToList() ?? new List<string>();
+    string Header(string key) => string.Concat(key.Select((ch, n) => n == 0 ? char.ToUpperInvariant(ch).ToString() : char.IsUpper(ch) ? " " + ch : ch.ToString()));
+}
+
+<div class="cg-page-head">
+    <div class="cg-page-head__text">
+        <h1 class="cg-page-head__title">Import #@i.DataImportId</h1>
+        <p class="cg-page-head__sub">@i.Category · @i.FileName</p>
+    </div>
+    <div class="cg-page-head__actions">
+        @if (Model.FailedRows.Count > 0)
+        {
+            <a class="cg-btn cg-btn--secondary" href="/BulkImport/ErrorReport/@i.DataImportId?format=csv">@await Html.PartialAsync("_Icon", "download") Error report (CSV)</a>
+            <a class="cg-btn cg-btn--secondary" href="/BulkImport/ErrorReport/@i.DataImportId?format=xlsx">@await Html.PartialAsync("_Icon", "download") Excel</a>
+        }
+        <a class="cg-btn cg-btn--ghost" href="/BulkImport/History">@await Html.PartialAsync("_Icon", "arrow-left") History</a>
+    </div>
+</div>
+
+<section class="cg-card">
+    <div class="cg-card__head">
+        <div>
+            <h2 class="cg-card__title">Summary</h2>
+            <div class="cg-card__sub">@i.Message</div>
+        </div>
+        @await Html.PartialAsync("_ImportStatusBadge", i.Status)
+    </div>
+    <div class="cg-card__body">
+        <div class="cg-grid cg-grid--4">
+            <div class="cg-keyvalue"><span class="cg-keyvalue__key">Total rows</span><span class="cg-keyvalue__value">@i.TotalRows</span></div>
+            <div class="cg-keyvalue"><span class="cg-keyvalue__key">Inserted</span><span class="cg-keyvalue__value">@i.InsertedRows</span></div>
+            <div class="cg-keyvalue"><span class="cg-keyvalue__key">Not inserted</span><span class="cg-keyvalue__value">@i.FailedRows</span></div>
+            <div class="cg-keyvalue"><span class="cg-keyvalue__key">Source</span><span class="cg-keyvalue__value">@(i.Source switch { ImportSource.Excel => "Excel", ImportSource.Csv => "CSV", _ => "Manual entry" })</span></div>
+        </div>
+        <dl class="cg-deflist cg-mt-16">
+            <dt>Run by</dt><dd>@i.AdminName</dd>
+            <dt>Started</dt><dd>@i.StartedAt.ToSchoolTime().ToString("d MMM yyyy, HH:mm:ss")</dd>
+            <dt>Finished</dt><dd>@i.CompletedAt.ToSchoolTime().ToString("d MMM yyyy, HH:mm:ss")</dd>
+            <dt>File</dt><dd>@i.FileName</dd>
+        </dl>
+    </div>
+</section>
+
+<section class="cg-card">
+    <div class="cg-card__head">
+        <div>
+            <h2 class="cg-card__title">Rows not inserted</h2>
+            <div class="cg-card__sub">@(Model.FailedRows.Count == 0 ? "Every row was inserted." : "Fix these rows and import them again.")</div>
+        </div>
+    </div>
+    @if (Model.FailedRows.Count > 0)
+    {
+        <div class="cg-table-wrap">
+            <table class="cg-table">
+                <thead>
+                    <tr>
+                        <th class="cg-table__num">Row</th>
+                        @foreach (var c in columns) { <th>@Header(c)</th> }
+                        <th>Problems</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var row in Model.FailedRows)
+                {
+                    <tr>
+                        <td class="cg-table__num">@row.RowNumber</td>
+                        @foreach (var c in columns)
+                        {
+                            var hasError = row.Errors.Any(e => e.Column == c);
+                            <td class="@(hasError ? "cg-bi-cell--error" : null)">@(row.Values.TryGetValue(c, out var v) ? v : null)</td>
+                        }
+                        <td>
+                            <ul class="cg-bi-errors">
+                                @foreach (var e in row.Errors) { <li>@(e.Column is null ? "" : Header(e.Column) + ": ")@e.Message</li> }
+                            </ul>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>

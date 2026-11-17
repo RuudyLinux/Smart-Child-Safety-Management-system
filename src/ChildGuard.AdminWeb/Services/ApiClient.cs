@@ -1,5 +1,4 @@
 using System.Net.Http.Headers;
-using System.Net.Http.Json;
 using System.Text.Json;
 
 namespace ChildGuard.AdminWeb.Services;
@@ -34,6 +33,18 @@ public class ApiClient
         return await ReadResultAsync<T>(response, ct);
     }
 
+    /// <summary>
+    /// Posts and hands back the API's status and JSON body unchanged, for the few browser calls that need a
+    /// structured error (e.g. the enrollment's confirmation request) rather than just its message.
+    /// </summary>
+    public async Task<(int StatusCode, string Json)> PostRawAsync(string url, object body, CancellationToken ct = default)
+    {
+        var response = await _http.PostAsJsonAsync(url, body, JsonOptions, ct);
+        var raw = await response.Content.ReadAsStringAsync(ct);
+        var isJson = response.Content.Headers.ContentType?.MediaType?.Contains("json") == true && !string.IsNullOrWhiteSpace(raw);
+        return ((int)response.StatusCode, isJson ? raw : JsonSerializer.Serialize(new { message = $"Request failed ({(int)response.StatusCode})." }));
+    }
+
     public async Task<ApiResult<object?>> PostAsync(string url, object body, CancellationToken ct = default) =>
         await PostAsync<object?>(url, body, ct);
 
@@ -49,6 +60,76 @@ public class ApiClient
         return await ReadResultAsync<T>(response, ct);
     }
 
+    public async Task<ApiResult<T>> DeleteAsync<T>(string url, CancellationToken ct = default)
+    {
+        var response = await _http.DeleteAsync(url, ct);
+        return await ReadResultAsync<T>(response, ct);
+    }
+
+    /// <summary>DELETE with a JSON body (e.g. the reason for a permanent deletion).</summary>
+    public async Task<ApiResult<T>> DeleteAsync<T>(string url, object body, CancellationToken ct = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Delete, url) { Content = JsonContent.Create(body, options: JsonOptions) };
+        var response = await _http.SendAsync(request, ct);
+        return await ReadResultAsync<T>(response, ct);
+    }
+
+    /// <summary>
+    /// Forwards a browser file upload to the API as multipart, unchanged. AdminWeb
+    /// deliberately does not inspect or re-encode the bytes: the API is the trust
+    /// boundary that decides whether they are an acceptable image.
+    /// </summary>
+    public async Task<ApiResult<T>> PostFileAsync<T>(
+        string url, Stream content, string fileName, string contentType, CancellationToken ct = default)
+    {
+        using var form = new MultipartFormDataContent();
+        var filePart = new StreamContent(content);
+        filePart.Headers.ContentType = MediaTypeHeaderValue.Parse(
+            string.IsNullOrWhiteSpace(contentType) ? "application/octet-stream" : contentType);
+        form.Add(filePart, "file", fileName);
+
+        var response = await _http.PostAsync(url, form, ct);
+        return await ReadResultAsync<T>(response, ct);
+    }
+
+    /// <summary>
+    /// Fetches a binary resource (a profile photo) so AdminWeb can re-serve it to
+    /// the signed-in admin's browser. The browser never talks to the API directly,
+    /// so the API's bearer token stays server-side.
+    /// </summary>
+    public async Task<ApiResult<(byte[] Data, string ContentType)>> GetBinaryAsync(string url, CancellationToken ct = default)
+    {
+        var response = await _http.GetAsync(url, ct);
+        if (!response.IsSuccessStatusCode)
+            return ApiResult<(byte[], string)>.Fail($"Request failed ({(int)response.StatusCode}).", (int)response.StatusCode);
+
+        var bytes = await response.Content.ReadAsByteArrayAsync(ct);
+        var contentType = response.Content.Headers.ContentType?.MediaType ?? "application/octet-stream";
+        return ApiResult<(byte[], string)>.Ok((bytes, contentType));
+    }
+
+    /// <summary>
+    /// Fetches a generated download (import template, error report) with the file name the API
+    /// chose, so AdminWeb can re-serve it to the admin's browser unchanged.
+    /// </summary>
+    public async Task<ApiResult<(byte[] Data, string ContentType, string FileName)>> GetFileAsync(
+        string url, string fallbackFileName, CancellationToken ct = default)
+    {
+        var response = await _http.GetAsync(url, ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            var raw = await response.Content.ReadAsStringAsync(ct);
+            return ApiResult<(byte[], string, string)>.Fail(
+                TryExtractMessage(raw) ?? $"Request failed ({(int)response.StatusCode}).", (int)response.StatusCode);
+        }
+
+        var bytes = await response.Content.ReadAsByteArrayAsync(ct);
+        var contentType = response.Content.Headers.ContentType?.MediaType ?? "application/octet-stream";
+        var disposition = response.Content.Headers.ContentDisposition;
+        var fileName = (disposition?.FileNameStar ?? disposition?.FileName)?.Trim('"');
+        return ApiResult<(byte[], string, string)>.Ok((bytes, contentType, string.IsNullOrWhiteSpace(fileName) ? fallbackFileName : fileName));
+    }
+
     private static async Task<ApiResult<T>> ReadResultAsync<T>(HttpResponseMessage response, CancellationToken ct)
     {
         var raw = await response.Content.ReadAsStringAsync(ct);
@@ -60,9 +141,9 @@ public class ApiClient
                 var value = JsonSerializer.Deserialize<T>(raw, JsonOptions);
                 return ApiResult<T>.Ok(value!);
             }
-            catch
+            catch (JsonException)
             {
-                return ApiResult<T>.Ok(default!);
+                return ApiResult<T>.Fail("The server returned a response that could not be read.", (int)response.StatusCode);
             }
         }
 
@@ -75,13 +156,27 @@ public class ApiClient
         try
         {
             using var doc = JsonDocument.Parse(raw);
+            // Field-level validation messages say what to fix; prefer them over the generic "Validation failed.".
+            if (doc.RootElement.TryGetProperty("errors", out var errs) && errs.ValueKind == JsonValueKind.Array && errs.GetArrayLength() > 0)
+                return string.Join(" ", errs.EnumerateArray().Select(e =>
+                    e.ValueKind == JsonValueKind.Object && (e.TryGetProperty("ErrorMessage", out var em) || e.TryGetProperty("errorMessage", out em))
+                        ? em.GetString()
+                        : e.ToString()).Distinct());
             if (doc.RootElement.TryGetProperty("message", out var m)) return m.GetString();
-            if (doc.RootElement.TryGetProperty("errors", out var errs))
-                return string.Join(" ", errs.EnumerateArray().Select(e => e.TryGetProperty("errorMessage", out var em) ? em.GetString() : e.ToString()));
         }
         catch { /* not JSON — fall through */ }
         return null;
     }
+}
+
+/// <summary>
+/// The same API client with a longer timeout, for the few calls that legitimately run long
+/// (a bulk import commit hashes a password and sends an email per guardian). Every other call
+/// keeps the normal timeout.
+/// </summary>
+public sealed class LongRunningApiClient : ApiClient
+{
+    public LongRunningApiClient(HttpClient http) : base(http) { }
 }
 
 public class ApiResult<T>

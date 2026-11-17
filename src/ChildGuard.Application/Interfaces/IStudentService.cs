@@ -11,4 +11,16 @@ public interface IStudentService
     Task<Result<StudentDetailDto>> UpdateAsync(int id, UpdateStudentRequest request, CancellationToken ct = default);
     Task<Result> UpdateStatusAsync(int id, UpdateStudentStatusRequest request, CancellationToken ct = default);
     Task<Result> AssignGuardianAsync(int studentId, AssignGuardianRequest request, CancellationToken ct = default);
+
+    /// <summary>Edits the relationship and pickup authorization on an existing link.</summary>
+    Task<Result> UpdateGuardianLinkAsync(int studentId, int guardianId, UpdateStudentGuardianRequest request, CancellationToken ct = default);
+
+    /// <summary>Removes the link between a student and a guardian, leaving both records intact.</summary>
+    Task<Result> RemoveGuardianLinkAsync(int studentId, int guardianId, CancellationToken ct = default);
+
+    /// <summary>Edits name, date of birth, grade, section, admission number and gender in one save.</summary>
+    Task<Result<StudentDetailDto>> UpdateRecordAsync(int id, UpdateStudentRecordRequest request, CancellationToken ct = default);
+
+    /// <summary>Replaces the residential address; an address with every part blank clears it.</summary>
+    Task<Result<StudentDetailDto>> UpdateAddressAsync(int id, AddressDto address, CancellationToken ct = default);
 }

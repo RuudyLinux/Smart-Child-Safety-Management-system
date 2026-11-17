@@ -84,6 +84,9 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                     b.Property<int>("EventType")
                         .HasColumnType("int");
 
+                    b.Property<DateTime>("RecordedAtUtc")
+                        .HasColumnType("datetime(6)");
+
                     b.Property<int?>("RfidCardId")
                         .HasColumnType("int");
 
@@ -103,6 +106,76 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                     b.HasIndex("StudentId", "Date", "EventType");
 
                     b.ToTable("AttendanceRecords");
+                });
+
+            modelBuilder.Entity("ChildGuard.Domain.Entities.AuditEntry", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("varchar(60)");
+
+                    b.Property<int?>("ActorId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ActorName")
+                        .HasMaxLength(150)
+                        .HasColumnType("varchar(150)");
+
+                    b.Property<string>("ActorType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<string>("Details")
+                        .HasMaxLength(4000)
+                        .HasColumnType("varchar(4000)");
+
+                    b.Property<int?>("EntityId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)");
+
+                    b.Property<int?>("GuardianId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<int?>("StudentId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Summary")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GuardianId");
+
+                    b.HasIndex("OccurredAt");
+
+                    b.HasIndex("StudentId");
+
+                    b.HasIndex("ActorType", "ActorId");
+
+                    b.HasIndex("EntityType", "EntityId");
+
+                    b.ToTable("AuditEntries", (string)null);
                 });
 
             modelBuilder.Entity("ChildGuard.Domain.Entities.Bus", b =>
@@ -127,6 +200,18 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                     b.Property<int?>("DriverId")
                         .HasColumnType("int");
 
+                    b.Property<string>("Manufacturer")
+                        .HasMaxLength(60)
+                        .HasColumnType("varchar(60)");
+
+                    b.Property<string>("Model")
+                        .HasMaxLength(60)
+                        .HasColumnType("varchar(60)");
+
+                    b.Property<string>("RegistrationNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
                     b.Property<int?>("RouteId")
                         .HasColumnType("int");
 
@@ -140,9 +225,70 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("DriverId");
 
+                    b.HasIndex("RegistrationNumber")
+                        .IsUnique();
+
                     b.HasIndex("RouteId");
 
                     b.ToTable("Buses");
+                });
+
+            modelBuilder.Entity("ChildGuard.Domain.Entities.DataImport", b =>
+                {
+                    b.Property<int>("DataImportId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("DataImportId"));
+
+                    b.Property<int>("AdminId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Category")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CompletedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ErrorReportJson")
+                        .HasColumnType("LONGTEXT");
+
+                    b.Property<int>("FailedRows")
+                        .HasColumnType("int");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<int>("InsertedRows")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Message")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<int>("Source")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TotalRows")
+                        .HasColumnType("int");
+
+                    b.HasKey("DataImportId");
+
+                    b.HasIndex("AdminId");
+
+                    b.HasIndex("StartedAt");
+
+                    b.HasIndex("Category", "StartedAt");
+
+                    b.ToTable("DataImports", (string)null);
                 });
 
             modelBuilder.Entity("ChildGuard.Domain.Entities.Driver", b =>
@@ -156,10 +302,36 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
 
+                    b.Property<string>("Email")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("EmergencyContactName")
+                        .HasMaxLength(150)
+                        .HasColumnType("varchar(150)");
+
+                    b.Property<string>("EmergencyContactPhone")
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)");
+
+                    b.Property<string>("EmployeeCode")
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)");
+
                     b.Property<string>("FullName")
                         .IsRequired()
                         .HasMaxLength(150)
                         .HasColumnType("varchar(150)");
+
+                    b.Property<DateOnly?>("JoinedOn")
+                        .HasColumnType("date");
+
+                    b.Property<string>("LicenseCategory")
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)");
+
+                    b.Property<DateOnly?>("LicenseExpiresOn")
+                        .HasColumnType("date");
 
                     b.Property<string>("LicenseNumber")
                         .HasMaxLength(50)
@@ -174,7 +346,149 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
 
                     b.HasKey("DriverId");
 
+                    b.HasIndex("EmployeeCode")
+                        .IsUnique();
+
                     b.ToTable("Drivers");
+                });
+
+            modelBuilder.Entity("ChildGuard.Domain.Entities.DriverPhoto", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ByteSize")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<byte[]>("Data")
+                        .IsRequired()
+                        .HasColumnType("LONGBLOB");
+
+                    b.Property<int>("DriverId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DriverId")
+                        .IsUnique();
+
+                    b.ToTable("DriverPhotos", (string)null);
+                });
+
+            modelBuilder.Entity("ChildGuard.Domain.Entities.EnrollmentRequest", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<int?>("AdminId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ConfirmedInactiveGuardianIds")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("DuplicateOverrideReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<string>("IdempotencyKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("char(64)")
+                        .IsFixedLength();
+
+                    b.Property<int>("StudentId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IdempotencyKey")
+                        .IsUnique();
+
+                    b.HasIndex("StudentId");
+
+                    b.ToTable("EnrollmentRequests");
+                });
+
+            modelBuilder.Entity("ChildGuard.Domain.Entities.FaceAuditLog", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)");
+
+                    b.Property<int?>("ActorId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ActorRole")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<string>("Detail")
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
+                    b.Property<int?>("GuardianId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Layer")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)");
+
+                    b.Property<int?>("SessionId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("StudentId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("VerificationId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GuardianId");
+
+                    b.HasIndex("OccurredAt");
+
+                    b.HasIndex("StudentId");
+
+                    b.ToTable("FaceAuditLogs");
                 });
 
             modelBuilder.Entity("ChildGuard.Domain.Entities.Guardian", b =>
@@ -184,6 +498,16 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                         .HasColumnType("int");
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("GuardianId"));
+
+                    b.Property<string>("ArchiveReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<DateTime?>("ArchivedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int?>("ArchivedByAdminId")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
@@ -205,6 +529,9 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("longtext");
 
+                    b.Property<bool>("PasswordResetRequired")
+                        .HasColumnType("tinyint(1)");
+
                     b.Property<string>("PasswordResetToken")
                         .HasColumnType("longtext");
 
@@ -224,6 +551,9 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                     b.HasKey("GuardianId");
 
                     b.HasIndex("Email")
+                        .IsUnique();
+
+                    b.HasIndex("Phone")
                         .IsUnique();
 
                     b.ToTable("Guardians");
@@ -263,6 +593,181 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                     b.ToTable("GuardianFaceData");
                 });
 
+            modelBuilder.Entity("ChildGuard.Domain.Entities.GuardianFaceReference", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int?>("CreatedById")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CreatedByRole")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<string>("EmbeddingJson")
+                        .IsRequired()
+                        .HasColumnType("LONGTEXT");
+
+                    b.Property<int>("GuardianId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("Label")
+                        .HasMaxLength(60)
+                        .HasColumnType("varchar(60)");
+
+                    b.Property<string>("Model")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("QualityJson")
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GuardianId", "IsActive");
+
+                    b.ToTable("GuardianFaceReferences");
+                });
+
+            modelBuilder.Entity("ChildGuard.Domain.Entities.GuardianOtpChallenge", b =>
+                {
+                    b.Property<int>("GuardianOtpChallengeId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("GuardianOtpChallengeId"));
+
+                    b.Property<Guid>("ChallengeToken")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("CodeHash")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("FailedAttempts")
+                        .HasColumnType("int");
+
+                    b.Property<int>("GuardianId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsConsumed")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<DateTime>("LastSentAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("ResendCount")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("VerifiedAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("GuardianOtpChallengeId");
+
+                    b.HasIndex("ChallengeToken")
+                        .IsUnique();
+
+                    b.HasIndex("GuardianId", "IsConsumed");
+
+                    b.ToTable("GuardianOtpChallenges");
+                });
+
+            modelBuilder.Entity("ChildGuard.Domain.Entities.GuardianPhoto", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ByteSize")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<byte[]>("Data")
+                        .IsRequired()
+                        .HasColumnType("LONGBLOB");
+
+                    b.Property<int>("GuardianId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GuardianId")
+                        .IsUnique();
+
+                    b.ToTable("GuardianPhotos", (string)null);
+                });
+
+            modelBuilder.Entity("ChildGuard.Domain.Entities.GuardianTrustedDevice", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("GuardianId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Label")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<DateTime>("LastUsedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("GuardianId", "RevokedAt");
+
+                    b.ToTable("GuardianTrustedDevices", (string)null);
+                });
+
             modelBuilder.Entity("ChildGuard.Domain.Entities.GuardianVerification", b =>
                 {
                     b.Property<int>("Id")
@@ -277,8 +782,33 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("AttemptedAt")
                         .HasColumnType("datetime(6)");
 
+                    b.Property<int?>("AuthorisationResult")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("BestReferenceId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("CaptureSource")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("FaceDetectionResult")
+                        .HasColumnType("int");
+
                     b.Property<int>("GuardianId")
                         .HasColumnType("int");
+
+                    b.Property<int?>("IdentityResult")
+                        .HasColumnType("int");
+
+                    b.Property<string>("LayerNotes")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<int?>("LivenessResult")
+                        .HasColumnType("int");
+
+                    b.Property<double?>("LivenessScore")
+                        .HasColumnType("double");
 
                     b.Property<double>("MatchScore")
                         .HasColumnType("double");
@@ -289,15 +819,27 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                     b.Property<bool>("PickupApproved")
                         .HasColumnType("tinyint(1)");
 
+                    b.Property<int?>("QualityResult")
+                        .HasColumnType("int");
+
                     b.Property<int>("Result")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("SessionId")
                         .HasColumnType("int");
 
                     b.Property<int>("StudentId")
                         .HasColumnType("int");
 
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("int unsigned");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ApprovedByAdminId");
+
+                    b.HasIndex("AttemptedAt");
 
                     b.HasIndex("GuardianId");
 
@@ -314,6 +856,9 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("JourneyEventId"));
 
+                    b.Property<int?>("BusId")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
 
@@ -326,10 +871,20 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                     b.Property<int?>("RfidDeviceId")
                         .HasColumnType("int");
 
+                    b.Property<int?>("RouteId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ScanId")
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)");
+
                     b.Property<int>("Source")
                         .HasColumnType("int");
 
                     b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("StudentBusAssignmentId")
                         .HasColumnType("int");
 
                     b.Property<int>("StudentId")
@@ -340,9 +895,18 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
 
                     b.HasKey("JourneyEventId");
 
+                    b.HasIndex("BusId");
+
                     b.HasIndex("RfidCardId");
 
-                    b.HasIndex("RfidDeviceId");
+                    b.HasIndex("RouteId");
+
+                    b.HasIndex("StudentBusAssignmentId");
+
+                    b.HasIndex("Timestamp");
+
+                    b.HasIndex("RfidDeviceId", "ScanId")
+                        .IsUnique();
 
                     b.HasIndex("StudentId", "Timestamp");
 
@@ -436,6 +1000,51 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                     b.ToTable("RfidCards");
                 });
 
+            modelBuilder.Entity("ChildGuard.Domain.Entities.RfidCardAssignment", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime?>("AssignedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int?>("AssignedByAdminId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("EndReason")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<DateTime?>("EndedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int?>("EndedByAdminId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsMigratedSnapshot")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<DateTime>("RecordedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("RfidCardId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("StudentId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StudentId");
+
+                    b.HasIndex("RfidCardId", "RecordedAt");
+
+                    b.ToTable("RfidCardAssignments");
+                });
+
             modelBuilder.Entity("ChildGuard.Domain.Entities.RfidDevice", b =>
                 {
                     b.Property<int>("RfidDeviceId")
@@ -443,6 +1052,14 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                         .HasColumnType("int");
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("RfidDeviceId"));
+
+                    b.Property<string>("ApiKeyHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("char(64)")
+                        .IsFixedLength();
+
+                    b.Property<DateTime?>("ApiKeyIssuedAt")
+                        .HasColumnType("datetime(6)");
 
                     b.Property<int>("ConnectionStatus")
                         .HasColumnType("int");
@@ -456,6 +1073,9 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                         .HasColumnType("datetime(6)");
 
                     b.HasKey("RfidDeviceId");
+
+                    b.HasIndex("ApiKeyHash")
+                        .IsUnique();
 
                     b.HasIndex("DeviceLabel")
                         .IsUnique();
@@ -477,8 +1097,16 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("longtext");
 
+                    b.Property<string>("Destination")
+                        .HasMaxLength(150)
+                        .HasColumnType("varchar(150)");
+
                     b.Property<string>("RouteName")
                         .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("varchar(150)");
+
+                    b.Property<string>("StartPoint")
                         .HasMaxLength(150)
                         .HasColumnType("varchar(150)");
 
@@ -487,7 +1115,134 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
 
                     b.HasKey("RouteId");
 
+                    b.HasIndex("RouteName")
+                        .IsUnique();
+
                     b.ToTable("Routes");
+                });
+
+            modelBuilder.Entity("ChildGuard.Domain.Entities.RouteStop", b =>
+                {
+                    b.Property<int>("RouteStopId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("RouteStopId"));
+
+                    b.Property<string>("Address")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<TimeOnly?>("DropTime")
+                        .HasColumnType("time(6)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<TimeOnly?>("PickupTime")
+                        .HasColumnType("time(6)");
+
+                    b.Property<int>("RouteId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Sequence")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.HasKey("RouteStopId");
+
+                    b.HasIndex("RouteId", "Sequence");
+
+                    b.ToTable("RouteStops");
+                });
+
+            modelBuilder.Entity("ChildGuard.Domain.Entities.SchoolCalendarDay", b =>
+                {
+                    b.Property<int>("SchoolCalendarDayId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("SchoolCalendarDayId"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<int>("DayType")
+                        .HasColumnType("int");
+
+                    b.Property<TimeOnly?>("DismissalTime")
+                        .HasColumnType("time(6)");
+
+                    b.Property<TimeOnly?>("LateArrivalAfter")
+                        .HasColumnType("time(6)");
+
+                    b.Property<TimeOnly?>("StartTime")
+                        .HasColumnType("time(6)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("SchoolCalendarDayId");
+
+                    b.HasIndex("Date")
+                        .IsUnique();
+
+                    b.ToTable("SchoolCalendarDays");
+                });
+
+            modelBuilder.Entity("ChildGuard.Domain.Entities.SchoolTimingSettings", b =>
+                {
+                    b.Property<int>("SchoolTimingSettingsId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("AttendanceWindowDays")
+                        .HasColumnType("int");
+
+                    b.Property<TimeOnly>("DismissalTime")
+                        .HasColumnType("time(6)");
+
+                    b.Property<TimeOnly>("LateArrivalAfter")
+                        .HasColumnType("time(6)");
+
+                    b.Property<TimeOnly>("MissingCheckInAfter")
+                        .HasColumnType("time(6)");
+
+                    b.Property<int>("PickupGraceMinutes")
+                        .HasColumnType("int");
+
+                    b.Property<TimeOnly>("StartTime")
+                        .HasColumnType("time(6)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int?>("UpdatedByAdminId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("WorkingDays")
+                        .HasColumnType("int");
+
+                    b.HasKey("SchoolTimingSettingsId");
+
+                    b.ToTable("SchoolTimingSettings");
                 });
 
             modelBuilder.Entity("ChildGuard.Domain.Entities.Student", b =>
@@ -497,6 +1252,20 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                         .HasColumnType("int");
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("StudentId"));
+
+                    b.Property<string>("AdmissionNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("ArchiveReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<DateTime?>("ArchivedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int?>("ArchivedByAdminId")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
@@ -509,9 +1278,16 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("varchar(150)");
 
+                    b.Property<int?>("Gender")
+                        .HasColumnType("int");
+
                     b.Property<string>("Grade")
                         .HasMaxLength(50)
                         .HasColumnType("varchar(50)");
+
+                    b.Property<string>("Section")
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
 
                     b.Property<int>("Status")
                         .HasColumnType("int");
@@ -520,6 +1296,9 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                         .HasColumnType("datetime(6)");
 
                     b.HasKey("StudentId");
+
+                    b.HasIndex("AdmissionNumber")
+                        .IsUnique();
 
                     b.ToTable("Students");
                 });
@@ -532,10 +1311,24 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<int?>("ActiveStudentKey")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("int")
+                        .HasComputedColumnSql("CASE WHEN `Status` = 1 THEN `StudentId` ELSE NULL END", true);
+
                     b.Property<DateTime>("AssignedAt")
                         .HasColumnType("datetime(6)");
 
                     b.Property<int>("BusId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("DropStopId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("EndedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int?>("PickupStopId")
                         .HasColumnType("int");
 
                     b.Property<int?>("RouteId")
@@ -549,9 +1342,16 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("BusId");
+                    b.HasIndex("ActiveStudentKey")
+                        .IsUnique();
+
+                    b.HasIndex("DropStopId");
+
+                    b.HasIndex("PickupStopId");
 
                     b.HasIndex("RouteId");
+
+                    b.HasIndex("BusId", "Status");
 
                     b.HasIndex("StudentId", "BusId");
 
@@ -592,6 +1392,335 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                     b.ToTable("StudentGuardians");
                 });
 
+            modelBuilder.Entity("ChildGuard.Domain.Entities.StudentPhoto", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ByteSize")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<byte[]>("Data")
+                        .IsRequired()
+                        .HasColumnType("LONGBLOB");
+
+                    b.Property<int>("StudentId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StudentId")
+                        .IsUnique();
+
+                    b.ToTable("StudentPhotos", (string)null);
+                });
+
+            modelBuilder.Entity("ChildGuard.Domain.Entities.TemporaryPickupAuditEntry", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)");
+
+                    b.Property<int?>("ActorId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ActorRole")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<int>("AuthorizationId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Detail")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("StudentId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StudentId");
+
+                    b.HasIndex("AuthorizationId", "OccurredAt");
+
+                    b.ToTable("TemporaryPickupAuditEntries", (string)null);
+                });
+
+            modelBuilder.Entity("ChildGuard.Domain.Entities.TemporaryPickupAuthorization", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("CancelledAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int?>("CompletedByAdminId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("DecidedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int?>("DecidedByAdminId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("DecisionNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<string>("FaceEmbeddingJson")
+                        .IsRequired()
+                        .HasColumnType("LONGTEXT");
+
+                    b.Property<string>("FaceModel")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<double?>("HandoverFaceScore")
+                        .HasColumnType("double");
+
+                    b.Property<string>("IdentityNote")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<int?>("JourneyEventId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<string>("Phone")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<string>("QrNonce")
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)");
+
+                    b.Property<string>("Relationship")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<int>("RequestedByGuardianId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<int>("StudentId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("ValidFromUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime>("ValidUntilUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("int unsigned");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompletedByAdminId");
+
+                    b.HasIndex("DecidedByAdminId");
+
+                    b.HasIndex("RequestedByGuardianId");
+
+                    b.HasIndex("Status", "ValidUntilUtc");
+
+                    b.HasIndex("StudentId", "ValidUntilUtc");
+
+                    b.ToTable("TemporaryPickupAuthorizations", (string)null);
+                });
+
+            modelBuilder.Entity("ChildGuard.Domain.Entities.TemporaryPickupPhoto", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ByteSize")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<byte[]>("Data")
+                        .IsRequired()
+                        .HasColumnType("LONGBLOB");
+
+                    b.Property<int>("TemporaryPickupAuthorizationId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TemporaryPickupAuthorizationId")
+                        .IsUnique();
+
+                    b.ToTable("TemporaryPickupPhotos", (string)null);
+                });
+
+            modelBuilder.Entity("ChildGuard.Domain.Entities.TransportAuditEntry", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)");
+
+                    b.Property<int?>("AdminId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Detail")
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
+                    b.Property<int>("EntityId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OccurredAt");
+
+                    b.HasIndex("EntityType", "EntityId");
+
+                    b.ToTable("TransportAuditEntries", (string)null);
+                });
+
+            modelBuilder.Entity("ChildGuard.Domain.Entities.VerificationSession", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("ChallengeConsumedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("ChallengeExpiresAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("ChallengeIssuedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ChallengeSteps")
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)");
+
+                    b.Property<string>("ChallengeTokenHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("CreatedByAdminId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("FailedLiveAttempts")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("IdentifiedGuardianId")
+                        .HasColumnType("int");
+
+                    b.Property<double?>("IdentifiedScore")
+                        .HasColumnType("double");
+
+                    b.Property<int?>("IdentifiedSource")
+                        .HasColumnType("int");
+
+                    b.Property<string>("NeutralFrameHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)");
+
+                    b.Property<int>("State")
+                        .HasColumnType("int");
+
+                    b.Property<int>("StudentId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("VerificationId")
+                        .HasColumnType("int");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("int unsigned");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NeutralFrameHash")
+                        .IsUnique();
+
+                    b.HasIndex("StudentId", "State");
+
+                    b.ToTable("VerificationSessions");
+                });
+
             modelBuilder.Entity("ChildGuard.Domain.Entities.Attendance", b =>
                 {
                     b.HasOne("ChildGuard.Domain.Entities.RfidCard", "RfidCard")
@@ -602,7 +1731,7 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                     b.HasOne("ChildGuard.Domain.Entities.Student", "Student")
                         .WithMany("AttendanceRecords")
                         .HasForeignKey("StudentId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("RfidCard");
@@ -627,12 +1756,215 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                     b.Navigation("Route");
                 });
 
+            modelBuilder.Entity("ChildGuard.Domain.Entities.DataImport", b =>
+                {
+                    b.HasOne("ChildGuard.Domain.Entities.Admin", "Admin")
+                        .WithMany()
+                        .HasForeignKey("AdminId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Admin");
+                });
+
+            modelBuilder.Entity("ChildGuard.Domain.Entities.Driver", b =>
+                {
+                    b.OwnsOne("ChildGuard.Domain.Entities.PostalAddress", "Address", b1 =>
+                        {
+                            b1.Property<int>("DriverId")
+                                .HasColumnType("int");
+
+                            b1.Property<string>("City")
+                                .HasMaxLength(100)
+                                .HasColumnType("varchar(100)")
+                                .HasColumnName("AddressCity");
+
+                            b1.Property<string>("Country")
+                                .HasMaxLength(100)
+                                .HasColumnType("varchar(100)")
+                                .HasColumnName("AddressCountry");
+
+                            b1.Property<string>("District")
+                                .HasMaxLength(100)
+                                .HasColumnType("varchar(100)")
+                                .HasColumnName("AddressDistrict");
+
+                            b1.Property<string>("Landmark")
+                                .HasMaxLength(100)
+                                .HasColumnType("varchar(100)")
+                                .HasColumnName("AddressLandmark");
+
+                            b1.Property<string>("Line1")
+                                .HasMaxLength(200)
+                                .HasColumnType("varchar(200)")
+                                .HasColumnName("AddressLine1");
+
+                            b1.Property<string>("Line2")
+                                .HasMaxLength(200)
+                                .HasColumnType("varchar(200)")
+                                .HasColumnName("AddressLine2");
+
+                            b1.Property<string>("Locality")
+                                .HasMaxLength(100)
+                                .HasColumnType("varchar(100)")
+                                .HasColumnName("AddressLocality");
+
+                            b1.Property<string>("PostalCode")
+                                .HasMaxLength(20)
+                                .HasColumnType("varchar(20)")
+                                .HasColumnName("AddressPostalCode");
+
+                            b1.Property<string>("State")
+                                .HasMaxLength(100)
+                                .HasColumnType("varchar(100)")
+                                .HasColumnName("AddressState");
+
+                            b1.HasKey("DriverId");
+
+                            b1.ToTable("Drivers");
+
+                            b1.WithOwner()
+                                .HasForeignKey("DriverId");
+                        });
+
+                    b.Navigation("Address");
+                });
+
+            modelBuilder.Entity("ChildGuard.Domain.Entities.DriverPhoto", b =>
+                {
+                    b.HasOne("ChildGuard.Domain.Entities.Driver", "Driver")
+                        .WithOne("Photo")
+                        .HasForeignKey("ChildGuard.Domain.Entities.DriverPhoto", "DriverId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Driver");
+                });
+
+            modelBuilder.Entity("ChildGuard.Domain.Entities.EnrollmentRequest", b =>
+                {
+                    b.HasOne("ChildGuard.Domain.Entities.Student", "Student")
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Student");
+                });
+
+            modelBuilder.Entity("ChildGuard.Domain.Entities.Guardian", b =>
+                {
+                    b.OwnsOne("ChildGuard.Domain.Entities.PostalAddress", "Address", b1 =>
+                        {
+                            b1.Property<int>("GuardianId")
+                                .HasColumnType("int");
+
+                            b1.Property<string>("City")
+                                .HasMaxLength(100)
+                                .HasColumnType("varchar(100)")
+                                .HasColumnName("AddressCity");
+
+                            b1.Property<string>("Country")
+                                .HasMaxLength(100)
+                                .HasColumnType("varchar(100)")
+                                .HasColumnName("AddressCountry");
+
+                            b1.Property<string>("District")
+                                .HasMaxLength(100)
+                                .HasColumnType("varchar(100)")
+                                .HasColumnName("AddressDistrict");
+
+                            b1.Property<string>("Landmark")
+                                .HasMaxLength(100)
+                                .HasColumnType("varchar(100)")
+                                .HasColumnName("AddressLandmark");
+
+                            b1.Property<string>("Line1")
+                                .HasMaxLength(200)
+                                .HasColumnType("varchar(200)")
+                                .HasColumnName("AddressLine1");
+
+                            b1.Property<string>("Line2")
+                                .HasMaxLength(200)
+                                .HasColumnType("varchar(200)")
+                                .HasColumnName("AddressLine2");
+
+                            b1.Property<string>("Locality")
+                                .HasMaxLength(100)
+                                .HasColumnType("varchar(100)")
+                                .HasColumnName("AddressLocality");
+
+                            b1.Property<string>("PostalCode")
+                                .HasMaxLength(20)
+                                .HasColumnType("varchar(20)")
+                                .HasColumnName("AddressPostalCode");
+
+                            b1.Property<string>("State")
+                                .HasMaxLength(100)
+                                .HasColumnType("varchar(100)")
+                                .HasColumnName("AddressState");
+
+                            b1.HasKey("GuardianId");
+
+                            b1.ToTable("Guardians");
+
+                            b1.WithOwner()
+                                .HasForeignKey("GuardianId");
+                        });
+
+                    b.Navigation("Address");
+                });
+
             modelBuilder.Entity("ChildGuard.Domain.Entities.GuardianFaceData", b =>
                 {
                     b.HasOne("ChildGuard.Domain.Entities.Guardian", "Guardian")
                         .WithOne("FaceData")
                         .HasForeignKey("ChildGuard.Domain.Entities.GuardianFaceData", "GuardianId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Guardian");
+                });
+
+            modelBuilder.Entity("ChildGuard.Domain.Entities.GuardianFaceReference", b =>
+                {
+                    b.HasOne("ChildGuard.Domain.Entities.Guardian", "Guardian")
+                        .WithMany("FaceReferences")
+                        .HasForeignKey("GuardianId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Guardian");
+                });
+
+            modelBuilder.Entity("ChildGuard.Domain.Entities.GuardianOtpChallenge", b =>
+                {
+                    b.HasOne("ChildGuard.Domain.Entities.Guardian", "Guardian")
+                        .WithMany("OtpChallenges")
+                        .HasForeignKey("GuardianId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Guardian");
+                });
+
+            modelBuilder.Entity("ChildGuard.Domain.Entities.GuardianPhoto", b =>
+                {
+                    b.HasOne("ChildGuard.Domain.Entities.Guardian", "Guardian")
+                        .WithOne("Photo")
+                        .HasForeignKey("ChildGuard.Domain.Entities.GuardianPhoto", "GuardianId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Guardian");
+                });
+
+            modelBuilder.Entity("ChildGuard.Domain.Entities.GuardianTrustedDevice", b =>
+                {
+                    b.HasOne("ChildGuard.Domain.Entities.Guardian", "Guardian")
+                        .WithMany()
+                        .HasForeignKey("GuardianId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Guardian");
@@ -648,13 +1980,13 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                     b.HasOne("ChildGuard.Domain.Entities.Guardian", "Guardian")
                         .WithMany()
                         .HasForeignKey("GuardianId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("ChildGuard.Domain.Entities.Student", "Student")
                         .WithMany("GuardianVerifications")
                         .HasForeignKey("StudentId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("ApprovedByAdmin");
@@ -666,6 +1998,11 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("ChildGuard.Domain.Entities.JourneyEvent", b =>
                 {
+                    b.HasOne("ChildGuard.Domain.Entities.Bus", "Bus")
+                        .WithMany()
+                        .HasForeignKey("BusId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("ChildGuard.Domain.Entities.RfidCard", "RfidCard")
                         .WithMany("JourneyEvents")
                         .HasForeignKey("RfidCardId")
@@ -676,17 +2013,33 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                         .HasForeignKey("RfidDeviceId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("ChildGuard.Domain.Entities.Route", "Route")
+                        .WithMany()
+                        .HasForeignKey("RouteId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ChildGuard.Domain.Entities.StudentBusAssignment", "StudentBusAssignment")
+                        .WithMany("JourneyEvents")
+                        .HasForeignKey("StudentBusAssignmentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("ChildGuard.Domain.Entities.Student", "Student")
                         .WithMany("JourneyEvents")
                         .HasForeignKey("StudentId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("Bus");
 
                     b.Navigation("RfidCard");
 
                     b.Navigation("RfidDevice");
 
+                    b.Navigation("Route");
+
                     b.Navigation("Student");
+
+                    b.Navigation("StudentBusAssignment");
                 });
 
             modelBuilder.Entity("ChildGuard.Domain.Entities.Notification", b =>
@@ -717,13 +2070,116 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                     b.Navigation("Student");
                 });
 
+            modelBuilder.Entity("ChildGuard.Domain.Entities.RfidCardAssignment", b =>
+                {
+                    b.HasOne("ChildGuard.Domain.Entities.RfidCard", "RfidCard")
+                        .WithMany("Assignments")
+                        .HasForeignKey("RfidCardId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ChildGuard.Domain.Entities.Student", "Student")
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("RfidCard");
+
+                    b.Navigation("Student");
+                });
+
+            modelBuilder.Entity("ChildGuard.Domain.Entities.RouteStop", b =>
+                {
+                    b.HasOne("ChildGuard.Domain.Entities.Route", "Route")
+                        .WithMany("Stops")
+                        .HasForeignKey("RouteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Route");
+                });
+
+            modelBuilder.Entity("ChildGuard.Domain.Entities.Student", b =>
+                {
+                    b.OwnsOne("ChildGuard.Domain.Entities.PostalAddress", "Address", b1 =>
+                        {
+                            b1.Property<int>("StudentId")
+                                .HasColumnType("int");
+
+                            b1.Property<string>("City")
+                                .HasMaxLength(100)
+                                .HasColumnType("varchar(100)")
+                                .HasColumnName("AddressCity");
+
+                            b1.Property<string>("Country")
+                                .HasMaxLength(100)
+                                .HasColumnType("varchar(100)")
+                                .HasColumnName("AddressCountry");
+
+                            b1.Property<string>("District")
+                                .HasMaxLength(100)
+                                .HasColumnType("varchar(100)")
+                                .HasColumnName("AddressDistrict");
+
+                            b1.Property<string>("Landmark")
+                                .HasMaxLength(100)
+                                .HasColumnType("varchar(100)")
+                                .HasColumnName("AddressLandmark");
+
+                            b1.Property<string>("Line1")
+                                .HasMaxLength(200)
+                                .HasColumnType("varchar(200)")
+                                .HasColumnName("AddressLine1");
+
+                            b1.Property<string>("Line2")
+                                .HasMaxLength(200)
+                                .HasColumnType("varchar(200)")
+                                .HasColumnName("AddressLine2");
+
+                            b1.Property<string>("Locality")
+                                .HasMaxLength(100)
+                                .HasColumnType("varchar(100)")
+                                .HasColumnName("AddressLocality");
+
+                            b1.Property<string>("PostalCode")
+                                .HasMaxLength(20)
+                                .HasColumnType("varchar(20)")
+                                .HasColumnName("AddressPostalCode");
+
+                            b1.Property<string>("State")
+                                .HasMaxLength(100)
+                                .HasColumnType("varchar(100)")
+                                .HasColumnName("AddressState");
+
+                            b1.HasKey("StudentId");
+
+                            b1.ToTable("Students");
+
+                            b1.WithOwner()
+                                .HasForeignKey("StudentId");
+                        });
+
+                    b.Navigation("Address");
+                });
+
             modelBuilder.Entity("ChildGuard.Domain.Entities.StudentBusAssignment", b =>
                 {
                     b.HasOne("ChildGuard.Domain.Entities.Bus", "Bus")
                         .WithMany("StudentBusAssignments")
                         .HasForeignKey("BusId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("ChildGuard.Domain.Entities.RouteStop", "DropStop")
+                        .WithMany()
+                        .HasForeignKey("DropStopId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ChildGuard.Domain.Entities.RouteStop", "PickupStop")
+                        .WithMany()
+                        .HasForeignKey("PickupStopId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("ChildGuard.Domain.Entities.Route", "Route")
                         .WithMany("StudentBusAssignments")
@@ -733,10 +2189,14 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                     b.HasOne("ChildGuard.Domain.Entities.Student", "Student")
                         .WithMany("BusAssignments")
                         .HasForeignKey("StudentId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Bus");
+
+                    b.Navigation("DropStop");
+
+                    b.Navigation("PickupStop");
 
                     b.Navigation("Route");
 
@@ -762,6 +2222,72 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                     b.Navigation("Student");
                 });
 
+            modelBuilder.Entity("ChildGuard.Domain.Entities.StudentPhoto", b =>
+                {
+                    b.HasOne("ChildGuard.Domain.Entities.Student", "Student")
+                        .WithOne("Photo")
+                        .HasForeignKey("ChildGuard.Domain.Entities.StudentPhoto", "StudentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Student");
+                });
+
+            modelBuilder.Entity("ChildGuard.Domain.Entities.TemporaryPickupAuthorization", b =>
+                {
+                    b.HasOne("ChildGuard.Domain.Entities.Admin", "CompletedByAdmin")
+                        .WithMany()
+                        .HasForeignKey("CompletedByAdminId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ChildGuard.Domain.Entities.Admin", "DecidedByAdmin")
+                        .WithMany()
+                        .HasForeignKey("DecidedByAdminId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ChildGuard.Domain.Entities.Guardian", "RequestedByGuardian")
+                        .WithMany()
+                        .HasForeignKey("RequestedByGuardianId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ChildGuard.Domain.Entities.Student", "Student")
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CompletedByAdmin");
+
+                    b.Navigation("DecidedByAdmin");
+
+                    b.Navigation("RequestedByGuardian");
+
+                    b.Navigation("Student");
+                });
+
+            modelBuilder.Entity("ChildGuard.Domain.Entities.TemporaryPickupPhoto", b =>
+                {
+                    b.HasOne("ChildGuard.Domain.Entities.TemporaryPickupAuthorization", "Authorization")
+                        .WithOne("Photo")
+                        .HasForeignKey("ChildGuard.Domain.Entities.TemporaryPickupPhoto", "TemporaryPickupAuthorizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Authorization");
+                });
+
+            modelBuilder.Entity("ChildGuard.Domain.Entities.VerificationSession", b =>
+                {
+                    b.HasOne("ChildGuard.Domain.Entities.Student", "Student")
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Student");
+                });
+
             modelBuilder.Entity("ChildGuard.Domain.Entities.Bus", b =>
                 {
                     b.Navigation("StudentBusAssignments");
@@ -770,19 +2296,29 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("ChildGuard.Domain.Entities.Driver", b =>
                 {
                     b.Navigation("Buses");
+
+                    b.Navigation("Photo");
                 });
 
             modelBuilder.Entity("ChildGuard.Domain.Entities.Guardian", b =>
                 {
                     b.Navigation("FaceData");
 
+                    b.Navigation("FaceReferences");
+
                     b.Navigation("Notifications");
+
+                    b.Navigation("OtpChallenges");
+
+                    b.Navigation("Photo");
 
                     b.Navigation("StudentGuardians");
                 });
 
             modelBuilder.Entity("ChildGuard.Domain.Entities.RfidCard", b =>
                 {
+                    b.Navigation("Assignments");
+
                     b.Navigation("AttendanceRecords");
 
                     b.Navigation("JourneyEvents");
@@ -797,6 +2333,8 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                 {
                     b.Navigation("Buses");
 
+                    b.Navigation("Stops");
+
                     b.Navigation("StudentBusAssignments");
                 });
 
@@ -810,9 +2348,21 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
 
                     b.Navigation("JourneyEvents");
 
+                    b.Navigation("Photo");
+
                     b.Navigation("RfidCard");
 
                     b.Navigation("StudentGuardians");
+                });
+
+            modelBuilder.Entity("ChildGuard.Domain.Entities.StudentBusAssignment", b =>
+                {
+                    b.Navigation("JourneyEvents");
+                });
+
+            modelBuilder.Entity("ChildGuard.Domain.Entities.TemporaryPickupAuthorization", b =>
+                {
+                    b.Navigation("Photo");
                 });
 #pragma warning restore 612, 618
         }

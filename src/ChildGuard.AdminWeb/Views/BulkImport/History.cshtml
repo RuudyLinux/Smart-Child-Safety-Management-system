@@ -1,0 +1,45 @@
+@model List<ImportHistoryItemDto>
+@{
+    var selected = ViewBag.Category as ImportCategory?;
+}
+
+<div class="cg-page-head">
+    <div class="cg-page-head__text">
+        <h1 class="cg-page-head__title">Import History</h1>
+        <p class="cg-page-head__sub">Every bulk import, who ran it and what happened. Showing the latest @Model.Count.</p>
+    </div>
+    <div class="cg-page-head__actions">
+        <a class="cg-btn cg-btn--primary" href="/BulkImport">@await Html.PartialAsync("_Icon", "upload") New import</a>
+    </div>
+</div>
+
+@if (ViewBag.LoadError is string loadError)
+{
+    <div class="cg-alert cg-alert--danger" role="alert">
+        <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "alert-circle")</span>
+        <div class="cg-alert__body">@loadError</div>
+    </div>
+}
+
+<section class="cg-card">
+    <form class="cg-toolbar" method="get" action="/BulkImport/History">
+        <label class="cg-sr" for="biHistoryCategory">Data</label>
+        <select class="cg-select" style="max-width:200px" id="biHistoryCategory" name="category" onchange="this.form.submit()">
+            <option value="">All data</option>
+            @foreach (var c in Enum.GetValues<ImportCategory>())
+            {
+                <option value="@c" selected="@(selected == c)">@c</option>
+            }
+        </select>
+        <noscript><button class="cg-btn cg-btn--secondary cg-btn--sm" type="submit">Filter</button></noscript>
+    </form>
+
+    @if (Model.Count == 0)
+    {
+        @await Html.PartialAsync("_EmptyState", ("layers", "No imports found", "Run a bulk import and it will be listed here.", "New import", "/BulkImport"))
+    }
+    else
+    {
+        @await Html.PartialAsync("_ImportHistoryTable", Model)
+    }
+</section>

@@ -1,0 +1,367 @@
+@{
+    ViewData["Title"] = "Settings";
+    var devices = (List<RfidDeviceDto>)ViewBag.Devices;
+    var connected = devices.Count(d => d.ConnectionStatus == RfidConnectionStatus.Connected);
+    var issued = ViewBag.IssuedCredential as DeviceCredentialDto;
+}
+
+<div class="cg-page-head">
+    <div class="cg-page-head__text">
+        <h1 class="cg-page-head__title">System settings</h1>
+        <p class="cg-page-head__sub">
+            Operational state of the equipment and services ChildGuard depends on.
+        </p>
+    </div>
+    <div class="cg-page-head__actions">
+        <button type="button" class="cg-btn cg-btn--primary" data-cg-modal-open="addDeviceModal">
+            @await Html.PartialAsync("_Icon", "plus") Add scanner
+        </button>
+        <a class="cg-btn cg-btn--secondary" href="/Diagnostics">
+            @await Html.PartialAsync("_Icon", "activity") Run diagnostics
+        </a>
+        <a class="cg-btn cg-btn--secondary" href="/Settings">
+            @await Html.PartialAsync("_Icon", "refresh") Refresh
+        </a>
+    </div>
+</div>
+
+@if (issued is not null)
+{
+    <section class="cg-alert cg-alert--warning" role="alert" style="margin-bottom:18px">
+        <div class="cg-alert__body">
+            <div class="cg-alert__title">New key for @issued.DeviceLabel — copy it now</div>
+            <p class="cg-text-sm">
+                Configure the scanner to send this value in the <code>X-Device-Key</code> header.
+                It is shown once and cannot be retrieved again; any previous key for this scanner has stopped working.
+            </p>
+            <input class="cg-input" readonly value="@issued.ApiKey" aria-label="Scanner API key"
+                   onclick="this.select()" style="font-family:monospace;width:100%;max-width:100%" />
+        </div>
+    </section>
+}
+
+<div class="cg-grid cg-grid--sidebar">
+    <section class="cg-card">
+        <div class="cg-card__head">
+            <div>
+                <h2 class="cg-card__title">Checkpoint scanners</h2>
+                <div class="cg-card__sub">A reader reports online once it sends a heartbeat or reads a card</div>
+            </div>
+            <span class="cg-badge @(devices.Any() && connected == devices.Count ? "cg-badge--success" : "cg-badge--warning")">
+                <span class="cg-badge__dot"></span>@connected of @devices.Count online
+            </span>
+        </div>
+
+        @if (!devices.Any())
+        {
+            @await Html.PartialAsync("_EmptyState", ("scan", "No scanner devices configured",
+                "Add a checkpoint reader so scans can be attributed to a device.",
+                (string?)null, (string?)null))
+        }
+        else
+        {
+            <div class="cg-table-wrap">
+                <table class="cg-table">
+                    <thead><tr><th>Device</th><th>Status</th><th>Last seen</th><th class="cg-table__actions">Actions</th></tr></thead>
+                    <tbody>
+                    @foreach (var d in devices)
+                    {
+                        var online = d.ConnectionStatus == RfidConnectionStatus.Connected;
+                        <tr>
+                            <td>
+                                <span class="cg-identity">
+                                    <span class="cg-kpi__icon @(online ? "cg-kpi__icon--success" : "cg-kpi__icon--neutral")"
+                                          style="width:30px;height:30px">
+                                        @await Html.PartialAsync("_Icon", "scan")
+                                    </span>
+                                    <span class="cg-identity__body">
+                                        <span class="cg-identity__name">@d.DeviceLabel</span>
+                                        <span class="cg-identity__meta">Reader #@d.RfidDeviceId</span>
+                                    </span>
+                                </span>
+                            </td>
+                            <td>
+                                @if (online)
+                                {
+                                    <span class="cg-badge cg-badge--success"><span class="cg-badge__dot"></span>Connected</span>
+                                }
+                                else
+                                {
+                                    <span class="cg-badge cg-badge--warning"><span class="cg-badge__dot"></span>Disconnected</span>
+                                }
+                            </td>
+                            <td class="cg-text-sm cg-muted">
+                                @if (d.LastSeenAt is { } seen)
+                                {
+                                    <span data-cg-ago="@seen.ToString("O")">@seen.ToSchoolTime().ToString("g")</span>
+                                }
+                                else
+                                {
+                                    <span>Never</span>
+                                }
+                            </td>
+                            <td class="cg-table__actions">
+                                <div class="cg-row cg-row--wrap" style="gap:6px;justify-content:flex-end">
+                                    <button type="button" class="cg-btn cg-btn--sm cg-btn--ghost" data-cg-modal-open="renameDevice-@d.RfidDeviceId"
+                                            aria-label="Rename @d.DeviceLabel">@await Html.PartialAsync("_Icon", "edit") Rename</button>
+                                    @if (d.HasCredential)
+                                    {
+                                        <span class="cg-badge cg-badge--success" title="Issued @(d.CredentialIssuedAt?.ToSchoolTime().ToString("g"))">Own key</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="cg-badge cg-badge--neutral">No key</span>
+                                    }
+                                    <form method="post" action="/Settings/IssueKey/@d.RfidDeviceId"
+                                          onsubmit="return confirm('@(d.HasCredential ? "Rotate this scanner key? The current key stops working immediately." : "Issue a key for this scanner?")')">
+                                        @Html.AntiForgeryToken()
+                                        <button class="cg-btn cg-btn--sm cg-btn--secondary" type="submit">@(d.HasCredential ? "Rotate" : "Issue")</button>
+                                    </form>
+                                    @if (d.HasCredential)
+                                    {
+                                        <form method="post" action="/Settings/RevokeKey/@d.RfidDeviceId"
+                                              onsubmit="return confirm('Revoke this scanner key? The scanner will be rejected until a new key is issued.')">
+                                            @Html.AntiForgeryToken()
+                                            <button class="cg-btn cg-btn--sm cg-btn--ghost" type="submit">Revoke</button>
+                                        </form>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+
+    <div>
+        <section class="cg-card">
+            <div class="cg-card__head">
+                <h2 class="cg-card__title">Environment</h2>
+            </div>
+            <div class="cg-card__body">
+                <dl class="cg-deflist">
+                    <dt>Runtime</dt>
+                    <dd>@ViewBag.Environment</dd>
+                    <dt>Console</dt>
+                    <dd>ChildGuard Admin Web</dd>
+                </dl>
+                <p class="cg-hint">
+                    Connection strings, JWT signing keys, the face-service URL and notification
+                    credentials are read from server configuration. Nothing sensitive is shown
+                    here, and none of it can be changed from the browser.
+                </p>
+            </div>
+        </section>
+
+        <section class="cg-card">
+            <div class="cg-card__head">
+                <h2 class="cg-card__title">Where things are configured</h2>
+            </div>
+            <div class="cg-card__body">
+                <ul class="cg-timeline" style="list-style:none">
+                    <li class="cg-timeline__item">
+                        <span class="cg-timeline__marker">@await Html.PartialAsync("_Icon", "clock")</span>
+                        <div class="cg-timeline__title">School day policy</div>
+                        <div class="cg-timeline__body">
+                            Late and missing check-in cutoffs come from the <code>School</code> configuration
+                            section, so every screen reports against one stated rule.
+                        </div>
+                    </li>
+                    <li class="cg-timeline__item">
+                        <span class="cg-timeline__marker">@await Html.PartialAsync("_Icon", "camera")</span>
+                        <div class="cg-timeline__title">Face verification</div>
+                        <div class="cg-timeline__body">
+                            Runs in a separate service. ChildGuard stores a numeric representation,
+                            never a guardian's photograph, for matching.
+                        </div>
+                    </li>
+                    <li class="cg-timeline__item">
+                        <span class="cg-timeline__marker">@await Html.PartialAsync("_Icon", "bell")</span>
+                        <div class="cg-timeline__title">Guardian notifications</div>
+                        <div class="cg-timeline__body">
+                            In-app notifications always record. Push delivery activates once a
+                            Firebase credential is configured on the server.
+                        </div>
+                    </li>
+                </ul>
+            </div>
+        </section>
+    </div>
+</div>
+
+@{
+    var dbo = ViewBag.Database as DatabaseOverviewDto;
+    int Count(string table) => dbo?.Tables.FirstOrDefault(t => t.Table == table)?.Rows ?? 0;
+}
+<section class="cg-card" id="database" data-db-card>
+    <div class="cg-card__head">
+        <div>
+            <h2 class="cg-card__title">Database</h2>
+            <div class="cg-card__sub">
+                Back up, restore or reset all school data. Administrator accounts are never exported, imported or removed:
+                you keep signing in with the same email and password.
+            </div>
+        </div>
+        @if (dbo is not null)
+        {
+            <span class="cg-badge cg-badge--neutral" data-db-provider>@dbo.Provider</span>
+        }
+    </div>
+    <div class="cg-card__body">
+        @if (dbo is null)
+        {
+            <p class="cg-muted">The database summary could not be loaded.</p>
+        }
+        else
+        {
+            <div class="cg-grid cg-grid--3" style="margin-bottom:16px">
+                @foreach (var (label, table) in new[] { ("Students", "Students"), ("Guardians", "Guardians"), ("Drivers", "Drivers"), ("Buses", "Buses"), ("Routes", "Routes"), ("RFID cards", "RfidCards") })
+                {
+                    <div class="cg-kpi" data-db-count="@table">
+                        <div class="cg-kpi__label">@label</div>
+                        <div class="cg-kpi__value">@Count(table)</div>
+                    </div>
+                }
+            </div>
+            <p class="cg-hint">@dbo.TotalRows records in @dbo.Tables.Count tables · @dbo.Admins administrator account@(dbo.Admins == 1 ? "" : "s") (kept) · latest migration <span class="cg-mono">@dbo.LatestMigration</span></p>
+        }
+        <div class="cg-btn-group" style="margin-top:12px">
+            <a class="cg-btn cg-btn--secondary" href="/Settings/ExportDatabase" data-db-export>
+                @await Html.PartialAsync("_Icon", "download") Export database
+            </a>
+            <button type="button" class="cg-btn cg-btn--secondary" data-cg-modal-open="importDatabaseModal" data-db-import>
+                @await Html.PartialAsync("_Icon", "upload") Import database
+            </button>
+            <button type="button" class="cg-btn cg-btn--danger" data-cg-modal-open="resetDatabaseModal" data-db-reset>
+                @await Html.PartialAsync("_Icon", "refresh") Reset database
+            </button>
+        </div>
+        <p class="cg-hint" style="margin-top:10px">
+            Export downloads one JSON file with every record and photo. A backup is downloaded automatically before every reset.
+        </p>
+    </div>
+</section>
+
+<div class="cg-modal" id="importDatabaseModal" hidden role="dialog" aria-modal="true" aria-labelledby="importDatabaseTitle">
+    <div class="cg-modal__panel">
+        <div class="cg-modal__head">
+            <div>
+                <h2 class="cg-modal__title" id="importDatabaseTitle">Import database</h2>
+                <div class="cg-modal__sub">Replaces all current school data with the records in a backup file.</div>
+            </div>
+            <button type="button" class="cg-iconbtn" data-cg-modal-close aria-label="Close">@await Html.PartialAsync("_Icon", "x")</button>
+        </div>
+        <form asp-action="ImportDatabase" method="post" enctype="multipart/form-data" data-cg-busy>
+            @Html.AntiForgeryToken()
+            <div class="cg-modal__body">
+                <div class="cg-alert cg-alert--warning">
+                    <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "alert-triangle")</span>
+                    <div class="cg-alert__body">Everything now in the database is replaced. Export first if you may need it. Administrator accounts are not changed.</div>
+                </div>
+                <div class="cg-field">
+                    <label class="cg-label" for="backupFile">Backup file <span class="cg-label__req">*</span></label>
+                    <input class="cg-input" id="backupFile" name="file" type="file" accept=".json,application/json" required />
+                    <p class="cg-hint">A <span class="cg-mono">childguard-backup-….json</span> file made with Export database.</p>
+                </div>
+            </div>
+            <div class="cg-modal__foot">
+                <button type="button" class="cg-btn cg-btn--secondary" data-cg-modal-close>Cancel</button>
+                <button type="submit" class="cg-btn cg-btn--danger"><span class="cg-btn__label">Import and replace</span></button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="cg-modal" id="resetDatabaseModal" hidden role="dialog" aria-modal="true" aria-labelledby="resetDatabaseTitle">
+    <div class="cg-modal__panel">
+        <div class="cg-modal__head">
+            <div>
+                <h2 class="cg-modal__title" id="resetDatabaseTitle">Reset database</h2>
+                <div class="cg-modal__sub">Removes all students, guardians, drivers, buses, routes, cards, attendance, journeys, pickups and notifications.</div>
+            </div>
+            <button type="button" class="cg-iconbtn" data-cg-modal-close aria-label="Close">@await Html.PartialAsync("_Icon", "x")</button>
+        </div>
+        <form data-db-reset-form novalidate>
+            <div class="cg-modal__body">
+                <div class="cg-alert cg-alert--info">
+                    <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "download")</span>
+                    <div class="cg-alert__body">A full backup downloads to this computer first. The reset only starts once that download has succeeded.</div>
+                </div>
+                <label class="cg-check">
+                    <input type="checkbox" name="loadDemoData" checked data-db-demo />
+                    <span class="cg-check__text">Load the demo school afterwards
+                        <span class="cg-check__sub">15 students and their guardians, 6 drivers, 5 buses on the 5 Tarsadi routes with timed stops, RFID cards and a week of history.</span>
+                    </span>
+                </label>
+                <div class="cg-field" style="margin-top:12px">
+                    <label class="cg-label" for="resetConfirm">Type <span class="cg-mono">RESET</span> to confirm <span class="cg-label__req">*</span></label>
+                    <input class="cg-input cg-mono" id="resetConfirm" autocomplete="off" data-db-confirm />
+                </div>
+                <div class="cg-error-text" role="alert" data-db-reset-error></div>
+                <div class="cg-hint" role="status" aria-live="polite" data-db-reset-status></div>
+            </div>
+            <div class="cg-modal__foot">
+                <button type="button" class="cg-btn cg-btn--secondary" data-cg-modal-close>Cancel</button>
+                <button type="submit" class="cg-btn cg-btn--danger" data-db-reset-submit disabled><span class="cg-btn__label">Back up and reset</span></button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/js/database.js" asp-append-version="true"></script>
+}
+
+<div class="cg-modal" id="addDeviceModal" hidden role="dialog" aria-modal="true" aria-labelledby="addDeviceTitle">
+    <div class="cg-modal__panel">
+        <div class="cg-modal__head">
+            <div>
+                <h2 class="cg-modal__title" id="addDeviceTitle">Add scanner</h2>
+                <div class="cg-modal__sub">A checkpoint reader: a gate, a second desk or a bus.</div>
+            </div>
+            <button type="button" class="cg-iconbtn" data-cg-modal-close aria-label="Close">@await Html.PartialAsync("_Icon", "x")</button>
+        </div>
+        <form asp-action="AddDevice" method="post" data-cg-busy>
+            @Html.AntiForgeryToken()
+            <div class="cg-modal__body">
+                <div class="cg-field">
+                    <label class="cg-label" for="deviceLabel">Label <span class="cg-label__req">*</span></label>
+                    <input class="cg-input" id="deviceLabel" name="deviceLabel" required maxlength="50" placeholder="NORTH-GATE" />
+                    <p class="cg-hint">Shown on the pickup desk and in every journey record. Must be unique.</p>
+                </div>
+            </div>
+            <div class="cg-modal__foot">
+                <button type="button" class="cg-btn cg-btn--secondary" data-cg-modal-close>Cancel</button>
+                <button type="submit" class="cg-btn cg-btn--primary"><span class="cg-btn__label">Add scanner</span></button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@foreach (var d in devices)
+{
+    <div class="cg-modal" id="renameDevice-@d.RfidDeviceId" hidden role="dialog" aria-modal="true" aria-labelledby="renameDeviceTitle-@d.RfidDeviceId">
+        <div class="cg-modal__panel">
+            <div class="cg-modal__head">
+                <h2 class="cg-modal__title" id="renameDeviceTitle-@d.RfidDeviceId">Rename @d.DeviceLabel</h2>
+                <button type="button" class="cg-iconbtn" data-cg-modal-close aria-label="Close">@await Html.PartialAsync("_Icon", "x")</button>
+            </div>
+            <form asp-action="RenameDevice" asp-route-id="@d.RfidDeviceId" method="post" data-cg-busy>
+                @Html.AntiForgeryToken()
+                <div class="cg-modal__body">
+                    <div class="cg-field">
+                        <label class="cg-label" for="renameDeviceLabel-@d.RfidDeviceId">Label <span class="cg-label__req">*</span></label>
+                        <input class="cg-input" id="renameDeviceLabel-@d.RfidDeviceId" name="deviceLabel" value="@d.DeviceLabel" required maxlength="50" />
+                        <p class="cg-hint">Past journey records show the new label too. The scanner key is unaffected.</p>
+                    </div>
+                </div>
+                <div class="cg-modal__foot">
+                    <button type="button" class="cg-btn cg-btn--secondary" data-cg-modal-close>Cancel</button>
+                    <button type="submit" class="cg-btn cg-btn--primary"><span class="cg-btn__label">Save</span></button>
+                </div>
+            </form>
+        </div>
+    </div>
+}

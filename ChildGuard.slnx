@@ -5,8 +5,10 @@
     <Project Path="src/ChildGuard.Application/ChildGuard.Application.csproj" />
     <Project Path="src/ChildGuard.Domain/ChildGuard.Domain.csproj" />
     <Project Path="src/ChildGuard.Infrastructure/ChildGuard.Infrastructure.csproj" />
+    <Project Path="src/ChildGuard.Infrastructure.Postgres/ChildGuard.Infrastructure.Postgres.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/ChildGuard.Api.IntegrationTests/ChildGuard.Api.IntegrationTests.csproj" />
     <Project Path="tests/ChildGuard.Application.Tests/ChildGuard.Application.Tests.csproj" />
   </Folder>
 </Solution>

@@ -1,0 +1,105 @@
+@model List<TemporaryPickupDto>
+@{
+    ViewData["Title"] = "Temporary Pickups";
+    var summary = (TemporaryPickupSummaryDto)ViewBag.Summary;
+    var current = ViewData["State"] as TemporaryPickupState?;
+    var filters = new (string Label, TemporaryPickupState? State)[]
+    {
+        ("All", null), ("Awaiting approval", TemporaryPickupState.PendingApproval), ("Active", TemporaryPickupState.Active),
+        ("Scheduled", TemporaryPickupState.Scheduled), ("Picked up", TemporaryPickupState.Completed),
+        ("Rejected", TemporaryPickupState.Rejected), ("Revoked", TemporaryPickupState.Revoked), ("Expired", TemporaryPickupState.Expired)
+    };
+}
+
+<div class="cg-page-head">
+    <div class="cg-page-head__text">
+        <h1 class="cg-page-head__title">Temporary pickups</h1>
+        <p class="cg-page-head__sub">
+            Guardians can ask for someone else to collect their child for up to 24 hours. Approve or decline here; the person is then verified at the desk with a QR code and a face check.
+        </p>
+    </div>
+    <div class="cg-page-head__actions">
+        <a class="cg-btn cg-btn--primary" href="/TemporaryPickups/Desk">
+            @await Html.PartialAsync("_Icon", "pickup") Open temporary pickup desk
+        </a>
+    </div>
+</div>
+
+@if (ViewBag.LoadError is string loadError)
+{
+    <div class="cg-alert cg-alert--danger" role="alert">
+        <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "alert-circle")</span>
+        <div class="cg-alert__body">@loadError</div>
+    </div>
+}
+
+<div class="cg-grid cg-grid--4">
+    <article class="cg-kpi">
+        <div class="cg-kpi__top"><div class="cg-kpi__label">Awaiting approval</div>
+            <span class="cg-kpi__icon @(summary.PendingApproval > 0 ? "cg-kpi__icon--warning" : "cg-kpi__icon--neutral")">@await Html.PartialAsync("_Icon", "bell")</span></div>
+        <div class="cg-kpi__value cg-kpi__value--sm">@summary.PendingApproval</div>
+    </article>
+    <article class="cg-kpi">
+        <div class="cg-kpi__top"><div class="cg-kpi__label">Active now</div>
+            <span class="cg-kpi__icon cg-kpi__icon--success">@await Html.PartialAsync("_Icon", "shield-check")</span></div>
+        <div class="cg-kpi__value cg-kpi__value--sm">@summary.ActiveNow</div>
+    </article>
+    <article class="cg-kpi">
+        <div class="cg-kpi__top"><div class="cg-kpi__label">Scheduled</div>
+            <span class="cg-kpi__icon cg-kpi__icon--info">@await Html.PartialAsync("_Icon", "attendance")</span></div>
+        <div class="cg-kpi__value cg-kpi__value--sm">@summary.Scheduled</div>
+    </article>
+    <article class="cg-kpi">
+        <div class="cg-kpi__top"><div class="cg-kpi__label">Picked up today</div>
+            <span class="cg-kpi__icon">@await Html.PartialAsync("_Icon", "pickup")</span></div>
+        <div class="cg-kpi__value cg-kpi__value--sm">@summary.CompletedToday</div>
+    </article>
+</div>
+
+<div class="cg-toolbar">
+    <div class="cg-segment" role="group" aria-label="Filter by state">
+        @foreach (var f in filters)
+        {
+            <a class="cg-segment__btn @(f.State == current ? "is-active" : "")" style="text-decoration:none"
+               href="@(f.State is null ? "/TemporaryPickups" : $"/TemporaryPickups?state={f.State}")">@f.Label</a>
+        }
+    </div>
+</div>
+
+<div class="cg-card">
+    @if (Model.Count == 0)
+    {
+        <div class="cg-card__body">
+            @await Html.PartialAsync("_EmptyState", ("pickup", "No temporary pickups", "Requests from guardians appear here.", (string?)null, (string?)null))
+        </div>
+    }
+    else
+    {
+        <div class="cg-table-wrap">
+            <table class="cg-table cg-table--clickable">
+                <thead>
+                    <tr><th>Person collecting</th><th>Student</th><th>Requested by</th><th>Window</th><th>Status</th><th></th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var p in Model)
+                    {
+                        <tr onclick="location.href='/TemporaryPickups/Details/@p.Id'">
+                            <td>
+                                <div class="cg-strong">@p.FullName</div>
+                                <div class="cg-muted">@p.Relationship · @p.Phone</div>
+                            </td>
+                            <td><a href="/Students/Details/@p.StudentId" onclick="event.stopPropagation()">@p.StudentName</a></td>
+                            <td>@p.RequestedByName</td>
+                            <td class="cg-nowrap">
+                                <div>@p.ValidFromUtc.ToSchoolTime().ToString("d MMM, HH:mm")</div>
+                                <div class="cg-muted">until @p.ValidUntilUtc.ToSchoolTime().ToString("d MMM, HH:mm")</div>
+                            </td>
+                            <td><partial name="_StateBadge" model="p.State" /></td>
+                            <td class="cg-table__actions"><a class="cg-btn cg-btn--secondary cg-btn--sm" href="/TemporaryPickups/Details/@p.Id">Review</a></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

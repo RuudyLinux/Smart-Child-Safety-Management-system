@@ -10,16 +10,24 @@ public class JourneyController : BaseAdminController
 
     public async Task<IActionResult> Index(CancellationToken ct)
     {
-        ViewData["Title"] = "Journey";
-        var result = await Api.GetAsync<List<JourneyEventDto>>("/api/journey/recent?take=50", ct);
-        return View(result.Value ?? new());
+        SetPage("Journey Tracking", "Safety Operations");
+
+        var live = await Api.GetAsync<List<StudentJourneyStatusDto>>("/api/journey/live", ct);
+        var recent = await Api.GetAsync<List<JourneyEventDto>>("/api/journey/recent?take=40", ct);
+        if (!live.Succeeded) ViewBag.LoadError = live.Error;
+
+        ViewBag.Recent = recent.Value ?? new();
+        return View(live.Value ?? new());
     }
 
     public async Task<IActionResult> Student(int id, CancellationToken ct)
     {
-        ViewData["Title"] = "Student Journey Details";
-        var result = await Api.GetAsync<List<JourneyEventDto>>($"/api/journey/{id}", ct);
-        ViewData["StudentId"] = id;
-        return View(result.Value ?? new());
+        var student = await Api.GetAsync<StudentDetailDto>($"/api/students/{id}", ct);
+        if (!student.Succeeded) return NotFound();
+
+        SetPage($"{student.Value!.FullName} — journey", "Safety Operations");
+        var events = await Api.GetAsync<List<JourneyEventDto>>($"/api/journey/{id}", ct);
+        ViewBag.Student = student.Value;
+        return View(events.Value ?? new());
     }
 }

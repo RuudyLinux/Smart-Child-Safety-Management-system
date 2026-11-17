@@ -1,0 +1,25 @@
+# Keep the build context small and free of anything private.
+**/bin/
+**/obj/
+.git/
+.github/
+.vs/
+.vscode/
+.idea/
+.claude/
+.superpowers/
+.playwright-mcp/
+.env
+.env.*
+.neon
+node_modules/
+backups/
+logs/
+**/logs/
+docs/
+tests/
+tools/
+guardian_app/
+face-service/
+scripts/
+*.md

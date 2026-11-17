@@ -21,16 +21,20 @@ public class GuardianVerificationConfiguration : IEntityTypeConfiguration<Guardi
     {
         b.HasKey(x => x.Id);
         b.HasIndex(x => new { x.StudentId, x.AttemptedAt });
+        // All-student date-range verification report.
+        b.HasIndex(x => x.AttemptedAt);
+        b.Property(x => x.Version).IsConcurrencyToken();
+        b.Property(x => x.LayerNotes).HasMaxLength(500);
 
         b.HasOne(x => x.Student)
             .WithMany(x => x.GuardianVerifications)
             .HasForeignKey(x => x.StudentId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict); // historical record: never cascade-deleted (soft delete via Status)
 
         b.HasOne(x => x.Guardian)
             .WithMany()
             .HasForeignKey(x => x.GuardianId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict); // historical record: never cascade-deleted (soft delete via Status)
 
         b.HasOne(x => x.ApprovedByAdmin)
             .WithMany()

@@ -1,0 +1,558 @@
+{
+  "name": "lfw-subset",
+  "date": "2026-11-12",
+  "seed": 7,
+  "threshold": 0.4,
+  "images": 400,
+  "people": 80,
+  "no_usable_face": 0,
+  "genuine_pairs": 480,
+  "impostor_pairs": 5000,
+  "at_threshold": {
+    "threshold": 0.4,
+    "far": 0.0006,
+    "frr": 0.19375,
+    "gar": 0.80625,
+    "far_ci": [
+      0.00020407096088550332,
+      0.001762737900530094
+    ],
+    "frr_ci": [
+      0.16088008294607978,
+      0.23148303754624663
+    ],
+    "genuine_pairs": 480,
+    "impostor_pairs": 5000,
+    "genuine_rejected": 93,
+    "impostor_accepted": 3
+  },
+  "eer": {
+    "threshold": 0.22836377069447344,
+    "rate": 0.045816666666666665
+  },
+  "sweep": [
+    {
+      "threshold": 0.0,
+      "far": 0.7514,
+      "frr": 0.010416666666666666,
+      "gar": 0.9895833333333334,
+      "far_ci": [
+        0.7392300257156503,
+        0.763183959571174
+      ],
+      "frr_ci": [
+        0.004457289915358877,
+        0.024150419715230964
+      ],
+      "genuine_pairs": 480,
+      "impostor_pairs": 5000,
+      "genuine_rejected": 5,
+      "impostor_accepted": 3757
+    },
+    {
+      "threshold": 0.05,
+      "far": 0.5444,
+      "frr": 0.016666666666666666,
+      "gar": 0.9833333333333333,
+      "far_ci": [
+        0.530566629327683,
+        0.5581651962360998
+      ],
+      "frr_ci": [
+        0.008468816164498964,
+        0.032539646109104634
+      ],
+      "genuine_pairs": 480,
+      "impostor_pairs": 5000,
+      "genuine_rejected": 8,
+      "impostor_accepted": 2722
+    },
+    {
+      "threshold": 0.1,
+      "far": 0.3288,
+      "frr": 0.029166666666666667,
+      "gar": 0.9708333333333333,
+      "far_ci": [
+        0.3159142133742592,
+        0.3419486574248485
+      ],
+      "frr_ci": [
+        0.017451898420490063,
+        0.04835806913914102
+      ],
+      "genuine_pairs": 480,
+      "impostor_pairs": 5000,
+      "genuine_rejected": 14,
+      "impostor_accepted": 1644
+    },
+    {
+      "threshold": 0.15,
+      "far": 0.1634,
+      "frr": 0.03333333333333333,
+      "gar": 0.9666666666666667,
+      "far_ci": [
+        0.1534106949268335,
+        0.1739061410017858
+      ],
+      "frr_ci": [
+        0.020620090743382457,
+        0.05345704524492445
+      ],
+      "genuine_pairs": 480,
+      "impostor_pairs": 5000,
+      "genuine_rejected": 16,
+      "impostor_accepted": 817
+    },
+    {
+      "threshold": 0.2,
+      "far": 0.0738,
+      "frr": 0.04583333333333333,
+      "gar": 0.9541666666666667,
+      "far_ci": [
+        0.06687571348514629,
+        0.0813786996841275
+      ],
+      "frr_ci": [
+        0.030459566941823106,
+        0.06841907433251129
+      ],
+      "genuine_pairs": 480,
+      "impostor_pairs": 5000,
+      "genuine_rejected": 22,
+      "impostor_accepted": 369
+    },
+    {
+      "threshold": 0.25,
+      "far": 0.03,
+      "frr": 0.052083333333333336,
+      "gar": 0.9479166666666666,
+      "far_ci": [
+        0.025620458962522463,
+        0.035101207366803396
+      ],
+      "frr_ci": [
+        0.03552402343170748,
+        0.07575537048564068
+      ],
+      "genuine_pairs": 480,
+      "impostor_pairs": 5000,
+      "genuine_rejected": 25,
+      "impostor_accepted": 150
+    },
+    {
+      "threshold": 0.3,
+      "far": 0.0124,
+      "frr": 0.08125,
+      "gar": 0.91875,
+      "far_ci": [
+        0.009685341838572314,
+        0.015863348591596382
+      ],
+      "frr_ci": [
+        0.060003522450029004,
+        0.10914605046804997
+      ],
+      "genuine_pairs": 480,
+      "impostor_pairs": 5000,
+      "genuine_rejected": 39,
+      "impostor_accepted": 62
+    },
+    {
+      "threshold": 0.32,
+      "far": 0.008,
+      "frr": 0.09583333333333334,
+      "gar": 0.9041666666666667,
+      "far_ci": [
+        0.0058806486976492565,
+        0.010874797757730148
+      ],
+      "frr_ci": [
+        0.07261744081675107,
+        0.12546722160169332
+      ],
+      "genuine_pairs": 480,
+      "impostor_pairs": 5000,
+      "genuine_rejected": 46,
+      "impostor_accepted": 40
+    },
+    {
+      "threshold": 0.34,
+      "far": 0.0042,
+      "frr": 0.11041666666666666,
+      "gar": 0.8895833333333334,
+      "far_ci": [
+        0.0027487533004756644,
+        0.006412527903949351
+      ],
+      "frr_ci": [
+        0.08541268221178754,
+        0.14160706970702222
+      ],
+      "genuine_pairs": 480,
+      "impostor_pairs": 5000,
+      "genuine_rejected": 53,
+      "impostor_accepted": 21
+    },
+    {
+      "threshold": 0.35,
+      "far": 0.0036,
+      "frr": 0.12708333333333333,
+      "gar": 0.8729166666666667,
+      "far_ci": [
+        0.0022784219199114787,
+        0.005683780560678634
+      ],
+      "frr_ci": [
+        0.10021884375482351,
+        0.15986958187868958
+      ],
+      "genuine_pairs": 480,
+      "impostor_pairs": 5000,
+      "genuine_rejected": 61,
+      "impostor_accepted": 18
+    },
+    {
+      "threshold": 0.36,
+      "far": 0.0028,
+      "frr": 0.14166666666666666,
+      "gar": 0.8583333333333334,
+      "far_ci": [
+        0.0016686615436143238,
+        0.0046947693051959186
+      ],
+      "frr_ci": [
+        0.11330998236063299,
+        0.17571353277324547
+      ],
+      "genuine_pairs": 480,
+      "impostor_pairs": 5000,
+      "genuine_rejected": 68,
+      "impostor_accepted": 14
+    },
+    {
+      "threshold": 0.38,
+      "far": 0.002,
+      "frr": 0.16875,
+      "gar": 0.83125,
+      "far_ci": [
+        0.0010867350406975989,
+        0.003677924176332773
+      ],
+      "frr_ci": [
+        0.13790381527773637,
+        0.20485629464253502
+      ],
+      "genuine_pairs": 480,
+      "impostor_pairs": 5000,
+      "genuine_rejected": 81,
+      "impostor_accepted": 10
+    },
+    {
+      "threshold": 0.4,
+      "far": 0.0006,
+      "frr": 0.19375,
+      "gar": 0.80625,
+      "far_ci": [
+        0.00020407096088550332,
+        0.001762737900530094
+      ],
+      "frr_ci": [
+        0.16088008294607978,
+        0.23148303754624663
+      ],
+      "genuine_pairs": 480,
+      "impostor_pairs": 5000,
+      "genuine_rejected": 93,
+      "impostor_accepted": 3
+    },
+    {
+      "threshold": 0.42,
+      "far": 0.0002,
+      "frr": 0.24791666666666667,
+      "gar": 0.7520833333333333,
+      "far_ci": [
+        3.5304875272480036e-05,
+        0.0011321181702531819
+      ],
+      "frr_ci": [
+        0.21139009724991464,
+        0.2884462128151976
+      ],
+      "genuine_pairs": 480,
+      "impostor_pairs": 5000,
+      "genuine_rejected": 119,
+      "impostor_accepted": 1
+    },
+    {
+      "threshold": 0.44,
+      "far": 0.0002,
+      "frr": 0.28125,
+      "gar": 0.71875,
+      "far_ci": [
+        3.5304875272480036e-05,
+        0.0011321181702531819
+      ],
+      "frr_ci": [
+        0.24288654913028704,
+        0.3230871083642318
+      ],
+      "genuine_pairs": 480,
+      "impostor_pairs": 5000,
+      "genuine_rejected": 135,
+      "impostor_accepted": 1
+    },
+    {
+      "threshold": 0.45,
+      "far": 0.0002,
+      "frr": 0.30625,
+      "gar": 0.69375,
+      "far_ci": [
+        3.5304875272480036e-05,
+        0.0011321181702531819
+      ],
+      "frr_ci": [
+        0.26668770882668347,
+        0.3488889592398905
+      ],
+      "genuine_pairs": 480,
+      "impostor_pairs": 5000,
+      "genuine_rejected": 147,
+      "impostor_accepted": 1
+    },
+    {
+      "threshold": 0.46,
+      "far": 0.0002,
+      "frr": 0.32916666666666666,
+      "gar": 0.6708333333333334,
+      "far_ci": [
+        3.5304875272480036e-05,
+        0.0011321181702531819
+      ],
+      "frr_ci": [
+        0.2886294689684982,
+        0.37241662545579274
+      ],
+      "genuine_pairs": 480,
+      "impostor_pairs": 5000,
+      "genuine_rejected": 158,
+      "impostor_accepted": 1
+    },
+    {
+      "threshold": 0.48,
+      "far": 0.0,
+      "frr": 0.36666666666666664,
+      "gar": 0.6333333333333333,
+      "far_ci": [
+        0.0,
+        0.000767730137580694
+      ],
+      "frr_ci": [
+        0.3247728190834259,
+        0.41067779119894743
+      ],
+      "genuine_pairs": 480,
+      "impostor_pairs": 5000,
+      "genuine_rejected": 176,
+      "impostor_accepted": 0
+    },
+    {
+      "threshold": 0.5,
+      "far": 0.0,
+      "frr": 0.39791666666666664,
+      "gar": 0.6020833333333333,
+      "far_ci": [
+        0.0,
+        0.000767730137580694
+      ],
+      "frr_ci": [
+        0.3551053631873572,
+        0.4423490103100849
+      ],
+      "genuine_pairs": 480,
+      "impostor_pairs": 5000,
+      "genuine_rejected": 191,
+      "impostor_accepted": 0
+    },
+    {
+      "threshold": 0.55,
+      "far": 0.0,
+      "frr": 0.5479166666666667,
+      "gar": 0.4520833333333333,
+      "far_ci": [
+        0.0,
+        0.000767730137580694
+      ],
+      "frr_ci": [
+        0.5031868997453088,
+        0.5918855371844634
+      ],
+      "genuine_pairs": 480,
+      "impostor_pairs": 5000,
+      "genuine_rejected": 263,
+      "impostor_accepted": 0
+    },
+    {
+      "threshold": 0.6,
+      "far": 0.0,
+      "frr": 0.6729166666666667,
+      "gar": 0.3270833333333333,
+      "far_ci": [
+        0.0,
+        0.000767730137580694
+      ],
+      "frr_ci": [
+        0.6297175450010637,
+        0.7133699447889834
+      ],
+      "genuine_pairs": 480,
+      "impostor_pairs": 5000,
+      "genuine_rejected": 323,
+      "impostor_accepted": 0
+    },
+    {
+      "threshold": 0.65,
+      "far": 0.0,
+      "frr": 0.79375,
+      "gar": 0.20625000000000004,
+      "far_ci": [
+        0.0,
+        0.000767730137580694
+      ],
+      "frr_ci": [
+        0.7552891677398003,
+        0.8275462064818456
+      ],
+      "genuine_pairs": 480,
+      "impostor_pairs": 5000,
+      "genuine_rejected": 381,
+      "impostor_accepted": 0
+    },
+    {
+      "threshold": 0.7,
+      "far": 0.0,
+      "frr": 0.89375,
+      "gar": 0.10624999999999996,
+      "far_ci": [
+        0.0,
+        0.000767730137580694
+      ],
+      "frr_ci": [
+        0.8629877992744017,
+        0.9182596172354645
+      ],
+      "genuine_pairs": 480,
+      "impostor_pairs": 5000,
+      "genuine_rejected": 429,
+      "impostor_accepted": 0
+    },
+    {
+      "threshold": 0.75,
+      "far": 0.0,
+      "frr": 0.95625,
+      "gar": 0.043749999999999956,
+      "far_ci": [
+        0.0,
+        0.000767730137580694
+      ],
+      "frr_ci": [
+        0.9340454583695862,
+        0.9712094845704174
+      ],
+      "genuine_pairs": 480,
+      "impostor_pairs": 5000,
+      "genuine_rejected": 459,
+      "impostor_accepted": 0
+    },
+    {
+      "threshold": 0.8,
+      "far": 0.0,
+      "frr": 0.9854166666666667,
+      "gar": 0.014583333333333282,
+      "far_ci": [
+        0.0,
+        0.000767730137580694
+      ],
+      "frr_ci": [
+        0.9702067637564066,
+        0.9929183581843278
+      ],
+      "genuine_pairs": 480,
+      "impostor_pairs": 5000,
+      "genuine_rejected": 473,
+      "impostor_accepted": 0
+    },
+    {
+      "threshold": 0.85,
+      "far": 0.0,
+      "frr": 0.9979166666666667,
+      "gar": 0.002083333333333326,
+      "far_ci": [
+        0.0,
+        0.000767730137580694
+      ],
+      "frr_ci": [
+        0.9882944719644672,
+        0.9996321552622943
+      ],
+      "genuine_pairs": 480,
+      "impostor_pairs": 5000,
+      "genuine_rejected": 479,
+      "impostor_accepted": 0
+    },
+    {
+      "threshold": 0.9,
+      "far": 0.0,
+      "frr": 1.0,
+      "gar": 0.0,
+      "far_ci": [
+        0.0,
+        0.000767730137580694
+      ],
+      "frr_ci": [
+        0.9920602114410997,
+        1.0
+      ],
+      "genuine_pairs": 480,
+      "impostor_pairs": 5000,
+      "genuine_rejected": 480,
+      "impostor_accepted": 0
+    },
+    {
+      "threshold": 0.95,
+      "far": 0.0,
+      "frr": 1.0,
+      "gar": 0.0,
+      "far_ci": [
+        0.0,
+        0.000767730137580694
+      ],
+      "frr_ci": [
+        0.9920602114410997,
+        1.0
+      ],
+      "genuine_pairs": 480,
+      "impostor_pairs": 5000,
+      "genuine_rejected": 480,
+      "impostor_accepted": 0
+    },
+    {
+      "threshold": 1.0,
+      "far": 0.0,
+      "frr": 1.0,
+      "gar": 0.0,
+      "far_ci": [
+        0.0,
+        0.000767730137580694
+      ],
+      "frr_ci": [
+        0.9920602114410997,
+        1.0
+      ],
+      "genuine_pairs": 480,
+      "impostor_pairs": 5000,
+      "genuine_rejected": 480,
+      "impostor_accepted": 0
+    }
+  ],
+  "seconds": 3652
+}

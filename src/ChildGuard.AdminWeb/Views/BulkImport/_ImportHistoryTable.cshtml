@@ -1,0 +1,48 @@
+@model List<ImportHistoryItemDto>
+<div class="cg-table-wrap">
+    <table class="cg-table">
+        <thead>
+            <tr>
+                <th>Import</th>
+                <th>Data</th>
+                <th>File</th>
+                <th>By</th>
+                <th>When</th>
+                <th class="cg-table__num">Total</th>
+                <th class="cg-table__num">Inserted</th>
+                <th class="cg-table__num">Failed</th>
+                <th>Status</th>
+                <th class="cg-table__actions">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var i in Model)
+        {
+            <tr>
+                <td><a class="cg-strong" href="/BulkImport/Details/@i.DataImportId">#@i.DataImportId</a></td>
+                <td>@i.Category</td>
+                <td>
+                    <span class="cg-bi-file" title="@i.FileName">@i.FileName</span>
+                    <div class="cg-text-sm cg-muted">@(i.Source switch { ImportSource.Excel => "Excel", ImportSource.Csv => "CSV", _ => "Manual entry" })</div>
+                </td>
+                <td>@i.AdminName</td>
+                <td class="cg-nowrap">@i.StartedAt.ToSchoolTime().ToString("d MMM yyyy, HH:mm")</td>
+                <td class="cg-table__num">@i.TotalRows</td>
+                <td class="cg-table__num">@i.InsertedRows</td>
+                <td class="cg-table__num">@i.FailedRows</td>
+                <td>@await Html.PartialAsync("_ImportStatusBadge", i.Status)</td>
+                <td class="cg-table__actions">
+                    <div class="cg-table__row-actions">
+                        <a class="cg-btn cg-btn--ghost cg-btn--sm" href="/BulkImport/Details/@i.DataImportId">Details</a>
+                        @if (i.FailedRows > 0)
+                        {
+                            <a class="cg-btn cg-btn--ghost cg-btn--sm" href="/BulkImport/ErrorReport/@i.DataImportId?format=csv"
+                               aria-label="Download error report for import @i.DataImportId">@await Html.PartialAsync("_Icon", "download") Errors</a>
+                        }
+                    </div>
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+</div>

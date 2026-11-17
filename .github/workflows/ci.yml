@@ -1,0 +1,98 @@
+name: CI
+
+# Free tier only: standard GitHub-hosted runners (free for public repositories) and service
+# containers. No paid runners, no external services, no secrets needed.
+on:
+  push:
+    branches: [master, "feature/**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    name: Build and unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet build ChildGuard.slnx -v q
+      - run: dotnet test tests/ChildGuard.Application.Tests --no-build
+
+  integration:
+    name: Integration tests (${{ matrix.provider }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        provider: [mysql, postgres]
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      CHILDGUARD_IT_PROVIDER: ${{ matrix.provider }}
+      CHILDGUARD_IT_MYSQL: Server=127.0.0.1;Port=3306;User=root;Password=;
+      CHILDGUARD_IT_POSTGRES: Host=127.0.0.1;Port=5432;Username=postgres;SSL Mode=Disable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet build ChildGuard.slnx -v q
+      - run: dotnet test tests/ChildGuard.Api.IntegrationTests --no-build
+
+  migrations:
+    name: Migration drift (${{ matrix.provider }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - provider: MySql
+            project: src/ChildGuard.Infrastructure
+          - provider: Postgres
+            project: src/ChildGuard.Infrastructure.Postgres
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet restore ChildGuard.slnx
+      - run: dotnet tool install --global dotnet-ef --version 10.0.7
+      - name: A model change without a migration fails here
+        env:
+          Database__Provider: ${{ matrix.provider }}
+          Jwt__Secret: ci-design-time-only-not-a-secret-0123456789abcdef0123456789abcdef
+          # `has-pending-model-changes` does not use these; MySQL only needs a reachable server to detect its version.
+          ConnectionStrings__ChildGuardDb: ${{ matrix.provider == 'MySql' && 'Server=127.0.0.1;Port=3306;User=root;Password=;Database=ci_design_only' || 'Host=127.0.0.1;Database=ci_design_only;Username=ci;SSL Mode=Disable' }}
+        run: dotnet ef migrations has-pending-model-changes --project ${{ matrix.project }} --startup-project src/ChildGuard.Api

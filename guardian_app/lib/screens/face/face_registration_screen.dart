@@ -1,16 +1,21 @@
-import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../core/api_client.dart';
 import '../../core/theme.dart';
+import '../../models/models.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/guardian_api_service.dart';
+import '../../widgets/photo_capture.dart';
+import '../../core/formatters.dart';
+import '../../core/responsive.dart';
+import '../../widgets/cg_glass.dart';
+import '../../widgets/cg_ui.dart';
 
-/// Real device camera capture via image_picker — no simulated/mock face
-/// image. The captured photo is sent to ChildGuard.Api, which forwards it
-/// to the Python face-recognition service; only the resulting embedding is
-/// stored, never the photo itself.
+/// Face registration with several reference photos, from the camera or the gallery. Each photo is
+/// checked by the server first (one clear face, sharp, well lit, facing the camera) and can only be
+/// added once it passes. Only a numeric representation is stored, never the photo.
 class FaceRegistrationScreen extends StatefulWidget {
   const FaceRegistrationScreen({super.key});
   @override
@@ -18,72 +23,312 @@ class FaceRegistrationScreen extends StatefulWidget {
 }
 
 class _FaceRegistrationScreenState extends State<FaceRegistrationScreen> {
+  final _label = TextEditingController();
+  FaceReferences? _refs;
   XFile? _photo;
+  Uint8List? _bytes;
+  FaceImageAnalysis? _analysis;
+  bool _analyzing = false;
   bool _submitting = false;
+  bool _loadingList = true;
   String? _error;
 
-  Future<void> _capture() async {
-    final picked = await ImagePicker().pickImage(source: ImageSource.camera, preferredCameraDevice: CameraDevice.front, imageQuality: 85);
-    if (picked != null) setState(() { _photo = picked; _error = null; });
+  @override
+  void initState() {
+    super.initState();
+    _loadList();
   }
 
+  @override
+  void dispose() {
+    _label.dispose();
+    super.dispose();
+  }
+
+  GuardianApiService get _api => context.read<AuthProvider>().api;
+
+  Future<void> _loadList() async {
+    try {
+      final refs = await _api.getFaceReferences();
+      if (mounted) setState(() { _refs = refs; _loadingList = false; });
+    } catch (_) {
+      if (mounted) setState(() => _loadingList = false);
+    }
+  }
+
+  Future<void> _pick(ImageSource source) async {
+    // 1280 px keeps the face sharp for recognition without uploading a full 12 MP photo.
+    final picked = await pickPhoto(context, source, preferredCamera: CameraDevice.front, maxSize: 1280, quality: 90);
+    if (picked == null) return;
+    final bytes = await picked.readAsBytes();
+    setState(() { _photo = picked; _bytes = bytes; _analysis = null; _error = null; });
+    await _analyze();
+  }
+
+  Future<void> _analyze() async {
+    if (_bytes == null) return;
+    setState(() { _analyzing = true; _error = null; });
+    try {
+      final result = await _api.analyzeFaceImage(encodeImageBytes(_bytes!));
+      if (mounted) setState(() => _analysis = result);
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } catch (_) {
+      if (mounted) setState(() => _error = 'Could not reach the server. Check your connection and try again.');
+    } finally {
+      if (mounted) setState(() => _analyzing = false);
+    }
+  }
+
+  void _clearPhoto() => setState(() { _photo = null; _bytes = null; _analysis = null; _error = null; _label.clear(); });
+
   Future<void> _submit() async {
-    if (_photo == null) return;
+    if (_bytes == null || _analysis?.passed != true) return;
     final auth = context.read<AuthProvider>();
     setState(() { _submitting = true; _error = null; });
     try {
-      final bytes = await _photo!.readAsBytes();
-      final b64 = encodeImageBytes(bytes);
-      await auth.api.registerFace(b64);
-      await auth.refreshProfile();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Face registered successfully.')));
-        Navigator.of(context).pop();
+      final label = _label.text.trim();
+      final result = await auth.api.addFaceReference(encodeImageBytes(_bytes!), label.isEmpty ? null : label);
+      if (!mounted) return;
+      if (result.added) {
+        await auth.refreshProfile();
+        _clearPhoto();
+        await _loadList();
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result.message)));
+      } else {
+        setState(() => _error = result.message);
       }
     } on ApiException catch (e) {
-      setState(() => _error = e.message);
+      if (mounted) setState(() => _error = e.message);
+    } catch (_) {
+      if (mounted) setState(() => _error = 'Could not reach the server. Check your connection and try again.');
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Face Registration')),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(20),
+  Future<void> _remove(FaceReference ref) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Remove this photo?'),
+        content: const Text('You can still be verified with your other registered photos.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Keep')),
+          TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('Remove')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await _api.removeFaceReference(ref.id);
+      await _loadList();
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    }
+  }
+
+  Widget _checkRow(String label, bool pass) => Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: Row(children: [
+          Icon(pass ? Icons.check_circle_rounded : Icons.cancel_rounded, size: 18, color: pass ? CgColors.successText : CgColors.errorText),
+          const SizedBox(width: CgSpace.xs),
+          Expanded(child: Text(label, style: CgText.bodyStrong)),
+        ]),
+      );
+
+  Widget _analysisCard() {
+    final a = _analysis;
+    if (_analyzing) {
+      return const Padding(
+        padding: EdgeInsets.only(top: CgSpace.md),
+        child: Row(children: [
+          SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+          SizedBox(width: CgSpace.sm),
+          Text('Checking the photo…', style: CgText.body),
+        ]),
+      );
+    }
+    if (a == null) return const SizedBox.shrink();
+    final detectionFailed =
+        a.issues.any((i) => const ['NO_FACE', 'MULTIPLE_FACES', 'FACE_CUT_OFF', 'BAD_FORMAT', 'TOO_LARGE', 'LOW_RESOLUTION'].contains(i));
+    return Container(
+      margin: const EdgeInsets.only(top: CgSpace.md),
+      padding: const EdgeInsets.all(CgSpace.md),
+      decoration: BoxDecoration(
+        color: a.passed ? CgColors.successSoft : CgColors.errorSoft,
+        borderRadius: BorderRadius.circular(CgRadius.md),
+        border: Border.all(color: a.passed ? CgColors.successBorder : CgColors.errorBorder),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _checkRow('Face detected', !detectionFailed),
+        _checkRow('Photo quality acceptable', a.issues.isEmpty),
+        for (final m in a.messages)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(m, style: TextStyle(fontSize: 13, color: a.passed ? CgColors.text2 : CgColors.errorText)),
+          ),
+        if (a.passed)
+          const Padding(
+            padding: EdgeInsets.only(top: 6),
+            child: Text('This photo is suitable. Add it to register it.', style: TextStyle(color: CgColors.successText, fontWeight: FontWeight.w600)),
+          ),
+      ]),
+    );
+  }
+
+  Widget _registeredList() {
+    final refs = _refs;
+    if (_loadingList) {
+      return const Padding(
+        padding: EdgeInsets.all(CgSpace.lg),
+        child: Center(child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4))),
+      );
+    }
+    if (refs == null) return const SizedBox.shrink();
+    return CgCard(
+      title: 'Registered photos',
+      subtitle: '${refs.references.length} of ${refs.maxReferences} used',
+      padding: const EdgeInsets.fromLTRB(CgSpace.md, 0, CgSpace.xs, 0),
+      child: refs.references.isEmpty
+          ? const Padding(
+              padding: EdgeInsets.symmetric(vertical: CgSpace.md),
+              child: Text('No face registered yet.', style: CgText.small),
+            )
+          : Column(children: [
+              for (final (i, r) in refs.references.indexed)
+                CgRow(
+                  divider: i != refs.references.length - 1,
+                  leading: CgIconTile(
+                    icon: r.isPrimary ? Icons.verified_user_outlined : Icons.photo_outlined,
+                    color: CgColors.primaryDeep,
+                    background: CgColors.primarySoft,
+                    size: 34,
+                  ),
+                  title: r.label ?? (r.isPrimary ? 'First registered photo' : 'Reference photo'),
+                  subtitle: 'Added ${CgFormat.date(r.createdAt.toLocal())}',
+                  trailing: r.isPrimary
+                      ? CgBadge.primary('Primary')
+                      : IconButton(
+                          tooltip: 'Remove photo',
+                          icon: const Icon(Icons.delete_outline_rounded),
+                          color: CgColors.errorText,
+                          onPressed: _submitting ? null : () => _remove(r),
+                        ),
+                ),
+            ]),
+    );
+  }
+
+  Widget _capturePanel(bool busy) => CgCard(
+        title: (_refs?.references.isEmpty ?? true) ? 'Register your face' : 'Add another photo',
+        subtitle: 'Face the camera in good light; one person only',
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
-              'Register your face so you can be verified for student pickup. '
-              'Only a secure numeric representation is stored — your photo is not kept.',
-              style: TextStyle(color: CgColors.textMuted),
-            ),
-            const SizedBox(height: 20),
-            AspectRatio(
-              aspectRatio: 1,
-              child: Container(
-                decoration: BoxDecoration(color: CgColors.primaryDark, borderRadius: BorderRadius.circular(12)),
-                child: _photo == null
-                    ? const Center(child: Icon(Icons.face_retouching_natural, color: Colors.white54, size: 64))
-                    : ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.file(File(_photo!.path), fit: BoxFit.cover)),
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: AspectRatio(
+                  aspectRatio: 1,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: CgColors.surface2,
+                      borderRadius: BorderRadius.circular(CgRadius.lg),
+                      border: Border.all(color: CgColors.border),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    // Image.memory works on every platform, including the web (Image.file does not).
+                    child: _bytes == null
+                        ? const Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.face_retouching_natural_rounded, color: CgColors.textMuted2, size: 56),
+                              SizedBox(height: CgSpace.xs),
+                              Text('No photo yet', style: CgText.small),
+                            ],
+                          )
+                        : Image.memory(_bytes!, fit: BoxFit.cover),
+                  ),
+                ),
               ),
             ),
-            const SizedBox(height: 16),
-            if (_error != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Text(_error!, style: const TextStyle(color: CgColors.error)),
+            _analysisCard(),
+            if (_error != null) Padding(padding: const EdgeInsets.only(top: CgSpace.md), child: CgAlert(tone: CgTone.danger, title: _error!)),
+            const SizedBox(height: CgSpace.md),
+            Row(children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: busy ? null : () => _pick(ImageSource.camera),
+                  icon: const Icon(Icons.camera_alt_outlined, size: 18),
+                  label: Text(_photo == null ? 'Take photo' : 'Retake'),
+                ),
               ),
-            OutlinedButton.icon(onPressed: _capture, icon: const Icon(Icons.camera_alt_outlined), label: Text(_photo == null ? 'Capture Photo' : 'Retake Photo')),
-            const SizedBox(height: 12),
+              const SizedBox(width: CgSpace.sm),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: busy ? null : () => _pick(ImageSource.gallery),
+                  icon: const Icon(Icons.photo_library_outlined, size: 18),
+                  label: const Text('Choose photo'),
+                ),
+              ),
+            ]),
+            if (_photo != null && !_analyzing && _analysis == null && _error != null)
+              TextButton(onPressed: _analyze, child: const Text('Retry check')),
+            if (_photo != null) TextButton(onPressed: busy ? null : _clearPhoto, child: const Text('Remove this photo')),
+            const SizedBox(height: CgSpace.sm),
+            TextField(
+              controller: _label,
+              maxLength: 60,
+              decoration: const InputDecoration(labelText: 'Label (optional)', hintText: 'e.g. Outdoors, side light'),
+            ),
+            const SizedBox(height: CgSpace.xs),
             ElevatedButton(
-              onPressed: (_photo == null || _submitting) ? null : _submit,
-              child: _submitting ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Register Face'),
+              onPressed: (busy || _analysis?.passed != true) ? null : _submit,
+              child: _submitting
+                  ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : Text((_refs?.references.isEmpty ?? true) ? 'Register face' : 'Add photo'),
             ),
           ],
         ),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final canAdd = _refs?.canAdd ?? true;
+    final busy = _analyzing || _submitting;
+    return Scaffold(
+      appBar: AppBar(title: const Text('Face registration')),
+      body: CgPage(
+        maxWidth: CgWidths.detail,
+        children: [
+          const CgPageHead(title: 'Face registration', subtitle: 'Staff verify your face before handing over your child.'),
+          CgSplit(
+            breakAt: 820,
+            primaryFlex: 1,
+            secondaryFlex: 1,
+            primary: [
+              const CgAlert(
+                tone: CgTone.info,
+                icon: Icons.lock_outline_rounded,
+                title: 'How your photos are used',
+                message: 'Add a few photos in different light or from slightly different angles so verification copes with '
+                    'changes. Only a secure numeric representation is stored — your photos are not kept.',
+              ),
+              _registeredList(),
+            ],
+            secondary: [
+              if (!canAdd)
+                const CgAlert(
+                  tone: CgTone.neutral,
+                  title: 'You have reached the limit',
+                  message: 'Remove a photo to add another.',
+                )
+              else
+                _capturePanel(busy),
+            ],
+          ),
+        ],
       ),
     );
   }

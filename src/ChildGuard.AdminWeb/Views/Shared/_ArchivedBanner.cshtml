@@ -1,0 +1,19 @@
+@model RecordLifecycleModel
+@{
+    var archived = Model.ArchivedAt is not null;
+}
+@if (archived)
+{
+    <div class="cg-alert cg-alert--warning" role="status" data-archived-banner>
+        <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "archive")</span>
+        <div class="cg-alert__body">
+            <div class="cg-alert__title">This @Model.Noun is archived</div>
+            <div>Archived on @Model.ArchivedAt!.Value.ToSchoolTime().ToString("d MMM yyyy, HH:mm"). Reason: @Model.ArchiveReason</div>
+            <form action="/@Model.Controller/Restore/@Model.Id" method="post" class="cg-row cg-row--wrap" style="margin-top:10px;gap:8px">
+                @Html.AntiForgeryToken()
+                <input class="cg-input" name="reason" maxlength="500" placeholder="Note for restoring (optional)" aria-label="Note for restoring" style="max-width:360px" />
+                <button class="cg-btn cg-btn--success cg-btn--sm" type="submit">Restore @Model.Noun</button>
+            </form>
+        </div>
+    </div>
+}

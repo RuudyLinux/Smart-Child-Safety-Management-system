@@ -40,3 +40,19 @@ public class AssignRfidRequestValidator : AbstractValidator<AssignRfidRequest>
         RuleFor(x => x.StudentId).GreaterThan(0);
     }
 }
+
+public class UpdateStudentStatusRequestValidator : AbstractValidator<UpdateStudentStatusRequest>
+{
+    public UpdateStudentStatusRequestValidator()
+    {
+        RuleFor(x => x.Status).IsInEnum();
+    }
+}
+
+public class UpdateStudentGuardianRequestValidator : AbstractValidator<UpdateStudentGuardianRequest>
+{
+    public UpdateStudentGuardianRequestValidator()
+    {
+        RuleFor(x => x.Relationship).MaximumLength(50);
+    }
+}

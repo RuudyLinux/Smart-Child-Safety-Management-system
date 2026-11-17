@@ -1,0 +1,10 @@
+@model (string Icon, string Title, string Text, string? ActionLabel, string? ActionUrl)
+<div class="cg-empty">
+    <div class="cg-empty__art">@await Html.PartialAsync("_Icon", Model.Icon)</div>
+    <div class="cg-empty__title">@Model.Title</div>
+    <p class="cg-empty__text">@Model.Text</p>
+    @if (!string.IsNullOrEmpty(Model.ActionLabel) && !string.IsNullOrEmpty(Model.ActionUrl))
+    {
+        <a class="cg-btn cg-btn--primary" href="@Model.ActionUrl">@await Html.PartialAsync("_Icon", "plus")@Model.ActionLabel</a>
+    }
+</div>

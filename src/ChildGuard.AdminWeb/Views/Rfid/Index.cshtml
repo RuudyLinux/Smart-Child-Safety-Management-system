@@ -1,68 +1,293 @@
 @model List<RfidCardListItemDto>
-@{ ViewData["Title"] = "RFID Cards"; }
+@{
+    ViewData["Title"] = "RFID Cards";
+    var unassignedStudents = (List<StudentListItemDto>)ViewBag.UnassignedStudents;
+    var devices = ViewBag.Devices as List<RfidDeviceDto> ?? new();
+    var active = Model.Count(c => c.Status == RfidCardStatus.Active);
+    var lost = Model.Count(c => c.Status is RfidCardStatus.Lost or RfidCardStatus.Damaged);
+    var available = Model.Count(c => c.Status == RfidCardStatus.Active && c.StudentId is null);
+    var unlinked = Model.Count(c => c.StudentId is null);
+}
 
-@if (TempData["Success"] != null) { <div class="cg-alert cg-alert--success">@TempData["Success"]</div> }
-@if (TempData["Error"] != null) { <div class="cg-alert cg-alert--error">@TempData["Error"]</div> }
+<div class="cg-page-head">
+    <div class="cg-page-head__text">
+        <h1 class="cg-page-head__title">RFID Cards</h1>
+        <p class="cg-page-head__sub">
+            @Model.Count card@(Model.Count == 1 ? "" : "s") registered · @active active ·
+            @unassignedStudents.Count student@(unassignedStudents.Count == 1 ? "" : "s") still without one
+        </p>
+    </div>
+    <div class="cg-page-head__actions">
+        <button type="button" class="cg-btn cg-btn--secondary" data-cg-modal-open="registerCardModal">
+            @await Html.PartialAsync("_Icon", "scan") Register spare card
+        </button>
+        @if (unassignedStudents.Any())
+        {
+            <button type="button" class="cg-btn cg-btn--primary" data-cg-modal-open="assignCardModal">
+                @await Html.PartialAsync("_Icon", "plus") Assign card
+            </button>
+        }
+    </div>
+</div>
 
-@{ var unassignedStudents = (List<StudentListItemDto>)ViewBag.UnassignedStudents; }
-<div class="cg-card">
-    <h3 class="cg-card__title">Assign New Card</h3>
-    @if (!unassignedStudents.Any())
+@if (ViewBag.LoadError is string loadError)
+{
+    <div class="cg-alert cg-alert--danger" role="alert">
+        <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "alert-circle")</span>
+        <div class="cg-alert__body">@loadError</div>
+    </div>
+}
+
+<div class="cg-grid cg-grid--4">
+    <article class="cg-kpi">
+        <div class="cg-kpi__top">
+            <div class="cg-kpi__label">Active cards</div>
+            <span class="cg-kpi__icon cg-kpi__icon--success">@await Html.PartialAsync("_Icon", "rfid")</span>
+        </div>
+        <div class="cg-kpi__value cg-kpi__value--sm">@active</div>
+    </article>
+    <article class="cg-kpi">
+        <div class="cg-kpi__top">
+            <div class="cg-kpi__label">Available cards</div>
+            <span class="cg-kpi__icon cg-kpi__icon--neutral">@await Html.PartialAsync("_Icon", "id-card")</span>
+        </div>
+        <div class="cg-kpi__value cg-kpi__value--sm">@available</div>
+        <div class="cg-kpi__note">Active and not linked to a student (@unlinked unassigned in total)</div>
+    </article>
+    <article class="cg-kpi">
+        <div class="cg-kpi__top">
+            <div class="cg-kpi__label">Lost or damaged</div>
+            <span class="cg-kpi__icon @(lost > 0 ? "cg-kpi__icon--danger" : "cg-kpi__icon--neutral")">
+                @await Html.PartialAsync("_Icon", "alert-triangle")
+            </span>
+        </div>
+        <div class="cg-kpi__value cg-kpi__value--sm">@lost</div>
+        <div class="cg-kpi__note">Blocked from recording checkpoints</div>
+    </article>
+    <article class="cg-kpi">
+        <div class="cg-kpi__top">
+            <div class="cg-kpi__label">Scanners online</div>
+            <span class="cg-kpi__icon cg-kpi__icon--info">@await Html.PartialAsync("_Icon", "scan")</span>
+        </div>
+        <div class="cg-kpi__value cg-kpi__value--sm">
+            @devices.Count(d => d.ConnectionStatus == RfidConnectionStatus.Connected)
+            <span class="cg-kpi__unit">/ @devices.Count</span>
+        </div>
+        <div class="cg-kpi__note"><a href="/Settings">Manage devices</a></div>
+    </article>
+</div>
+
+@if (!unassignedStudents.Any() && Model.Any())
+{
+    <div class="cg-alert cg-alert--success">
+        <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "check-circle")</span>
+        <div class="cg-alert__body">
+            <div class="cg-alert__title">Every student has a card</div>
+            <div>All active students can be identified at a checkpoint.</div>
+        </div>
+    </div>
+}
+
+<section class="cg-card">
+    <div class="cg-toolbar">
+        <div class="cg-input-group cg-toolbar__grow" style="max-width:280px">
+            <span class="cg-input-group__icon">@await Html.PartialAsync("_Icon", "search")</span>
+            <input class="cg-input" placeholder="Search card or student"
+                   data-cg-search data-cg-search-scope="rfid" aria-label="Search RFID cards" />
+        </div>
+        <select class="cg-select" style="max-width:150px" data-cg-filter="state" data-cg-filter-scope="rfid"
+                aria-label="Filter by card status">
+            <option value="__all">Any status</option>
+            <option value="Active">Active</option>
+            <option value="Inactive">Inactive</option>
+            <option value="Lost">Lost</option>
+            <option value="Damaged">Damaged</option>
+            <option value="Retired">Retired</option>
+        </select>
+        <select class="cg-select" style="max-width:170px" data-cg-filter="assigned" data-cg-filter-scope="rfid"
+                aria-label="Filter by assignment">
+            <option value="__all">Any assignment</option>
+            <option value="yes">Assigned to a student</option>
+            <option value="no">Unassigned</option>
+        </select>
+        <button type="button" class="cg-btn cg-btn--ghost cg-btn--sm" data-cg-reset data-cg-reset-scope="rfid">Clear</button>
+        <span class="cg-toolbar__spacer"></span>
+        <span class="cg-text-sm cg-muted" data-cg-count data-cg-count-scope="rfid"></span>
+    </div>
+
+    @if (!Model.Any())
     {
-        <p class="cg-help">Every active student already has an RFID card assigned. <a href="/Students">View students</a>.</p>
+        @await Html.PartialAsync("_EmptyState", ("rfid", "No RFID cards registered",
+            "Scan a card at any reader to capture its UID, then assign it to a student.",
+            (string?)null, (string?)null))
+        @if (unassignedStudents.Any())
+        {
+            <div style="text-align:center;margin-top:-12px">
+                <button type="button" class="cg-btn cg-btn--primary" data-cg-modal-open="assignCardModal">Assign the first card</button>
+            </div>
+        }
     }
     else
     {
-        <form asp-action="Assign" method="post" class="cg-flex">
-            @Html.AntiForgeryToken()
-            <input class="cg-input" name="cardUid" placeholder="Card UID (from scanner)" style="max-width:220px;" required />
-            <select class="cg-select" name="studentId" style="max-width:200px;" required>
-                @foreach (var s in unassignedStudents)
+        <div class="cg-table-wrap">
+            <table class="cg-table" data-cg-table="rfid" data-cg-page-size="25">
+                <thead>
+                    <tr>
+                        <th>Card</th>
+                        <th>Assigned student</th>
+                        <th>Status</th>
+                        <th><span class="cg-th-sort" data-cg-sort="assigned">Assigned on @await Html.PartialAsync("_Icon", "arrow-down")</span></th>
+                        <th>Change status</th>
+                        <th class="cg-table__actions">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var c in Model)
                 {
-                    <option value="@s.StudentId">@s.FullName</option>
+                    var badge = c.Status switch
+                    {
+                        RfidCardStatus.Active => "cg-badge--success",
+                        RfidCardStatus.Lost or RfidCardStatus.Damaged => "cg-badge--danger",
+                        _ => "cg-badge--neutral"
+                    };
+                    <tr data-row
+                        data-search="@c.MaskedCardUid @c.StudentName"
+                        data-state="@c.Status"
+                        data-assigned="@(c.StudentId is null ? "no" : "yes")"
+                        data-sort-assigned="@(c.AssignedAt?.Ticks ?? 0)">
+                        <td>
+                            <span class="cg-row">
+                                @await Html.PartialAsync("_Icon", "id-card")
+                                <span class="cg-mono">@c.MaskedCardUid</span>
+                            </span>
+                        </td>
+                        <td>
+                            @if (c.StudentId is null)
+                            {
+                                <span class="cg-badge cg-badge--neutral">Unassigned</span>
+                            }
+                            else
+                            {
+                                <a href="/Students/Details/@c.StudentId">@c.StudentName</a>
+                            }
+                        </td>
+                        <td><span class="cg-badge @badge"><span class="cg-badge__dot"></span>@c.Status</span></td>
+                        <td class="cg-text-sm cg-muted">
+                            @(c.AssignedAt?.ToSchoolTime().ToString("d MMM yyyy") ?? "—")
+                        </td>
+                        <td>
+                            <form asp-action="UpdateStatus" asp-route-id="@c.RfidCardId" method="post" class="cg-row">
+                                @Html.AntiForgeryToken()
+                                <select class="cg-select" name="status" style="max-width:120px"
+                                        aria-label="Status for card @c.MaskedCardUid">
+                                    <option value="Active" selected="@(c.Status == RfidCardStatus.Active)">Active</option>
+                                    <option value="Inactive" selected="@(c.Status == RfidCardStatus.Inactive)">Inactive</option>
+                                    <option value="Lost" selected="@(c.Status == RfidCardStatus.Lost)">Lost</option>
+                                    <option value="Damaged" selected="@(c.Status == RfidCardStatus.Damaged)">Damaged</option>
+                                    <option value="Retired" selected="@(c.Status == RfidCardStatus.Retired)">Retired</option>
+                                </select>
+                                <button class="cg-btn cg-btn--secondary cg-btn--sm" type="submit">Update</button>
+                            </form>
+                        </td>
+                        <td class="cg-table__actions">
+                            <span class="cg-table__row-actions">
+                                <a class="cg-btn cg-btn--sm cg-btn--ghost cg-btn--icon" href="/Rfid/Details/@c.RfidCardId"
+                                   title="Card details" aria-label="Details for card @c.MaskedCardUid">
+                                    @await Html.PartialAsync("_Icon", "eye")
+                                </a>
+                            </span>
+                        </td>
+                    </tr>
                 }
-            </select>
-            <button class="cg-btn cg-btn--primary" type="submit">Assign</button>
-        </form>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="cg-empty" data-cg-noresults data-cg-noresults-scope="rfid" hidden>
+            <div class="cg-empty__art">@await Html.PartialAsync("_Icon", "filter")</div>
+            <div class="cg-empty__title">No cards match these filters</div>
+            <p class="cg-empty__text">Clear one or more filters to widen the list.</p>
+        </div>
+
+        <div class="cg-pagination">
+            <span class="cg-text-sm">Only the last four characters of a card UID are ever shown.</span>
+            <div class="cg-pagination__pages" data-cg-pager data-cg-pager-scope="rfid"></div>
+        </div>
     }
+</section>
+
+<div class="cg-modal" id="assignCardModal" hidden role="dialog" aria-modal="true" aria-labelledby="assignCardTitle">
+    <div class="cg-modal__panel">
+        <div class="cg-modal__head">
+            <div>
+                <h2 class="cg-modal__title" id="assignCardTitle">Assign an RFID card</h2>
+                <div class="cg-modal__sub">Hold the card against a reader — it types the UID into the field.</div>
+            </div>
+            <button type="button" class="cg-iconbtn" data-cg-modal-close aria-label="Close">
+                @await Html.PartialAsync("_Icon", "x")
+            </button>
+        </div>
+
+        <form asp-action="Assign" method="post" data-cg-busy>
+            @Html.AntiForgeryToken()
+            <div class="cg-modal__body">
+                <div class="cg-form">
+                    <div class="cg-field">
+                        <label class="cg-label" for="cardUid">Card UID <span class="cg-label__req">*</span></label>
+                        <div class="cg-input-group">
+                            <span class="cg-input-group__icon">@await Html.PartialAsync("_Icon", "scan")</span>
+                            <input class="cg-input cg-mono" id="cardUid" name="cardUid" required
+                                   maxlength="100" placeholder="Waiting for a scan…" autocomplete="off" />
+                        </div>
+                        <p class="cg-hint">
+                            A USB reader in keyboard mode types the UID automatically while this field is focused.
+                        </p>
+                    </div>
+                    <div class="cg-field">
+                        <label class="cg-label" for="assignStudentId">Student <span class="cg-label__req">*</span></label>
+                        <select class="cg-select" id="assignStudentId" name="studentId" required>
+                            @foreach (var s in unassignedStudents)
+                            {
+                                <option value="@s.StudentId">@s.FullName@(string.IsNullOrEmpty(s.Grade) ? "" : $" — {s.Grade}")</option>
+                            }
+                        </select>
+                        <p class="cg-hint">Only students without a card are listed.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="cg-modal__foot">
+                <button type="button" class="cg-btn cg-btn--secondary" data-cg-modal-close>Cancel</button>
+                <button type="submit" class="cg-btn cg-btn--primary"><span class="cg-btn__label">Assign card</span></button>
+            </div>
+        </form>
+    </div>
 </div>
 
-<div class="cg-card">
-    <h3 class="cg-card__title">All Cards</h3>
-    <div class="cg-table-wrap">
-        <table class="cg-table">
-            <thead><tr><th>Card UID</th><th>Student</th><th>Status</th><th>Assigned</th><th></th></tr></thead>
-            <tbody>
-            @if (!Model.Any())
-            {
-                <tr><td colspan="5" class="cg-muted">No RFID cards registered.</td></tr>
-            }
-            @foreach (var c in Model)
-            {
-                <tr>
-                    <td>@c.MaskedCardUid</td>
-                    <td>@(c.StudentName ?? "—")</td>
-                    <td>
-                        @{
-                            var badge = c.Status switch { RfidCardStatus.Active => "success", RfidCardStatus.Lost => "error", _ => "neutral" };
-                        }
-                        <span class="cg-badge cg-badge--@badge">@c.Status</span>
-                    </td>
-                    <td>@(c.AssignedAt?.ToLocalTime().ToString("d MMM yyyy") ?? "—")</td>
-                    <td>
-                        <form asp-action="UpdateStatus" asp-route-id="@c.RfidCardId" method="post" class="cg-flex">
-                            @Html.AntiForgeryToken()
-                            <select class="cg-select" name="status" style="max-width:130px;">
-                                <option value="Active" selected="@(c.Status == RfidCardStatus.Active)">Active</option>
-                                <option value="Inactive" selected="@(c.Status == RfidCardStatus.Inactive)">Inactive</option>
-                                <option value="Lost" selected="@(c.Status == RfidCardStatus.Lost)">Lost</option>
-                            </select>
-                            <button class="cg-btn cg-btn--secondary" type="submit">Update</button>
-                        </form>
-                    </td>
-                </tr>
-            }
-            </tbody>
-        </table>
+<div class="cg-modal" id="registerCardModal" hidden role="dialog" aria-modal="true" aria-labelledby="registerCardTitle">
+    <div class="cg-modal__panel">
+        <div class="cg-modal__head">
+            <div>
+                <h2 class="cg-modal__title" id="registerCardTitle">Register a spare card</h2>
+                <div class="cg-modal__sub">Adds the card to the inventory without giving it to anyone. Assign it later from its page or during enrollment.</div>
+            </div>
+            <button type="button" class="cg-iconbtn" data-cg-modal-close aria-label="Close">@await Html.PartialAsync("_Icon", "x")</button>
+        </div>
+        <form asp-action="Register" method="post" data-cg-busy>
+            @Html.AntiForgeryToken()
+            <div class="cg-modal__body">
+                <div class="cg-field">
+                    <label class="cg-label" for="registerUid">Card UID <span class="cg-label__req">*</span></label>
+                    <div class="cg-input-group">
+                        <span class="cg-input-group__icon">@await Html.PartialAsync("_Icon", "scan")</span>
+                        <input class="cg-input cg-mono" id="registerUid" name="cardUid" required maxlength="100" placeholder="Waiting for a scan…" autocomplete="off" />
+                    </div>
+                    <p class="cg-hint">A USB reader in keyboard mode types the UID and presses Enter, which registers the card.</p>
+                </div>
+            </div>
+            <div class="cg-modal__foot">
+                <button type="button" class="cg-btn cg-btn--secondary" data-cg-modal-close>Cancel</button>
+                <button type="submit" class="cg-btn cg-btn--primary"><span class="cg-btn__label">Register card</span></button>
+            </div>
+        </form>
     </div>
 </div>

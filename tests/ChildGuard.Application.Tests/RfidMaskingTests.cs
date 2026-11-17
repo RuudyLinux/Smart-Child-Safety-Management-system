@@ -1,5 +1,4 @@
 using ChildGuard.Application.Common;
-using Xunit;
 
 namespace ChildGuard.Application.Tests;
 
@@ -20,5 +19,29 @@ public class RfidMaskingTests
     public void Mask_ShortUid_MasksEntirely(string cardUid, string expected)
     {
         Assert.Equal(expected, RfidMasking.Mask(cardUid));
+    }
+}
+
+public class EmailMaskingTests
+{
+    [Theory]
+    [InlineData("priya.patel@gmail.com", "p***@gmail.com")]
+    [InlineData("a@x.io", "a***@x.io")]
+    [InlineData("first.last+tag@sub.example.org", "f***@sub.example.org")]
+    public void ShowsTheFirstLetterAndTheDomain_NothingElseOfTheName(string email, string expected)
+    {
+        Assert.Equal(expected, ChildGuard.Application.Common.EmailMasking.Mask(email));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("no-at-sign")]
+    [InlineData("@nodomain-name.com")]
+    [InlineData("name@")]
+    public void UnusableAddresses_GiveNoHint(string? email)
+    {
+        Assert.Null(ChildGuard.Application.Common.EmailMasking.Mask(email));
     }
 }

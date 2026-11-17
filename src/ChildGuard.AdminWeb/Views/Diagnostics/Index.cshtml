@@ -1,0 +1,249 @@
+@{
+    ViewData["Title"] = "API Diagnostics";
+    Layout = null;
+    var apiBaseUrl = (string)ViewData["ApiBaseUrl"]!;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ChildGuard — API Diagnostics</title>
+    <link rel="stylesheet" href="~/css/site.css" />
+    <link rel="icon" href="~/favicon.svg" type="image/svg+xml" />
+    <style>
+        .dg-page { max-width: 880px; margin: 0 auto; padding: var(--cg-gutter); }
+        .dg-row { display: grid; grid-template-columns: 130px minmax(0, 1fr) 90px; gap: 12px; align-items: start;
+                  padding: 10px 0; border-bottom: 1px solid var(--cg-border); font-size: 13.5px; }
+        .dg-row:last-child { border-bottom: none; }
+        .dg-name { font-weight: 600; }
+        .dg-detail { color: var(--cg-muted); word-break: break-word; font-family: var(--cg-mono); font-size: 12.5px; }
+        .dg-state { text-align: right; }
+        .dg-pending { color: var(--cg-muted); }
+        @@media (max-width: 560px) {
+            .dg-row { grid-template-columns: minmax(0, 1fr) auto; }
+            .dg-detail { grid-column: 1 / -1; grid-row: 2; }
+        }
+    </style>
+</head>
+<body>
+<main class="dg-page">
+    <div class="cg-page-head">
+        <div class="cg-page-head__text">
+            <h1 class="cg-page-head__title">API Diagnostics</h1>
+            <p class="cg-page-head__sub">
+                Every check below runs in <strong>this browser</strong> against the API, so a pass
+                means a browser on this origin can really reach that endpoint, CORS included.
+                This page needs no login, so it still answers when the API is down.
+            </p>
+        </div>
+        <div class="cg-page-head__actions">
+            <a class="cg-btn cg-btn--secondary" href="/Dashboard">Back to dashboard</a>
+        </div>
+    </div>
+
+    <section class="cg-card">
+        <div class="cg-card__body cg-form">
+            <div class="cg-field">
+                <label class="cg-label" for="apiBase">API base URL</label>
+                <input class="cg-input" id="apiBase" value="@apiBaseUrl" />
+                <span class="cg-hint">This page's origin: <code id="pageOrigin"></code></span>
+            </div>
+            <div><button class="cg-btn cg-btn--primary" id="runAll" type="button">Run all checks</button></div>
+        </div>
+    </section>
+
+    <section class="cg-card">
+        <div class="cg-card__head"><h2 class="cg-card__title">Connectivity</h2></div>
+        <div class="cg-card__body cg-card__body--tight" id="connectivity"></div>
+    </section>
+
+    <section class="cg-card">
+        <div class="cg-card__head">
+            <div>
+                <h2 class="cg-card__title">Guardian login flow</h2>
+                <div class="cg-card__sub">
+                    Optional. Fill these in to exercise the real login path. Nothing is stored, and
+                    no OTP is shown here. Read it from the API console.
+                </div>
+            </div>
+        </div>
+        <div class="cg-card__body cg-form">
+            <div class="cg-form-row">
+                <div class="cg-field">
+                    <label class="cg-label" for="contactNumber">Contact number</label>
+                    <input class="cg-input" id="contactNumber" placeholder="9820011111" autocomplete="off" />
+                </div>
+                <div class="cg-field">
+                    <label class="cg-label" for="password">Password</label>
+                    <input class="cg-input" id="password" type="password" autocomplete="off" />
+                </div>
+            </div>
+            <div><button class="cg-btn cg-btn--primary" id="runLogin" type="button">Test guardian login</button></div>
+            <div id="login"></div>
+        </div>
+    </section>
+</main>
+
+<script>
+(function () {
+    document.getElementById('pageOrigin').textContent = location.origin;
+
+    var apiBase = function () { return document.getElementById('apiBase').value.replace(/\/+$/, ''); };
+
+    function render(container, name, state, detail) {
+        var row = document.createElement('div');
+        row.className = 'dg-row';
+
+        var n = document.createElement('div');
+        n.className = 'dg-name';
+        n.textContent = name;
+
+        var d = document.createElement('div');
+        d.className = 'dg-detail';
+        d.textContent = detail;
+
+        var s = document.createElement('div');
+        s.className = 'dg-state';
+        if (state === 'pending') {
+            s.innerHTML = '<span class="dg-pending">checking…</span>';
+        } else {
+            var cls = state === 'pass' ? 'cg-badge--success' : (state === 'warn' ? 'cg-badge--warning' : 'cg-badge--error');
+            s.innerHTML = '<span class="cg-badge ' + cls + '">' + (state === 'pass' ? 'PASS' : (state === 'warn' ? 'WARN' : 'FAIL')) + '</span>';
+        }
+
+        row.appendChild(n); row.appendChild(d); row.appendChild(s);
+        container.appendChild(row);
+        return { detail: d, state: s };
+    }
+
+    function setState(handle, state, detail) {
+        handle.detail.textContent = detail;
+        var cls = state === 'pass' ? 'cg-badge--success' : (state === 'warn' ? 'cg-badge--warning' : 'cg-badge--error');
+        handle.state.innerHTML = '<span class="cg-badge ' + cls + '">' + (state === 'pass' ? 'PASS' : (state === 'warn' ? 'WARN' : 'FAIL')) + '</span>';
+    }
+
+    // A network-level failure (server down, or CORS blocking the response) surfaces
+    // as a thrown TypeError with no status — which is exactly the case the app
+    // reports as "Could not reach server".
+    async function call(method, path, body, headers) {
+        var options = { method: method, headers: Object.assign({}, headers || {}) };
+        if (body !== undefined && body !== null) {
+            options.headers['Content-Type'] = 'application/json';
+            options.body = JSON.stringify(body);
+        }
+        try {
+            var response = await fetch(apiBase() + path, options);
+            var text = await response.text();
+            return { ok: true, status: response.status, text: text };
+        } catch (e) {
+            return { ok: false, status: 0, text: e.message };
+        }
+    }
+
+    function unreachable(result) {
+        return 'no response — server down or CORS blocked this origin (' + result.text + ')';
+    }
+
+    async function runAll() {
+        var container = document.getElementById('connectivity');
+        container.textContent = '';
+
+        var health = render(container, 'API reachable', 'pending', apiBase() + '/api/health');
+        var db = render(container, 'Database', 'pending', 'reported by /api/health');
+        var face = render(container, 'Face service', 'pending', 'GET /api/health/face (checked by the API, the same way pickups use it)');
+        var cors = render(container, 'CORS', 'pending', 'this origin allowed by the API');
+        var login = render(container, 'Login endpoint', 'pending', 'POST /api/auth/guardian/login');
+        var otp = render(container, 'OTP endpoint', 'pending', 'POST /api/auth/guardian/verify-otp');
+        var reset = render(container, 'Reset endpoint', 'pending', 'POST /api/auth/guardian/reset-password');
+        var guard = render(container, 'Authorization', 'pending', 'GET /api/me/profile must refuse anonymous callers');
+
+        var h = await call('GET', '/api/health');
+        if (!h.ok) {
+            setState(health, 'fail', unreachable(h));
+            setState(db, 'fail', 'not checked — API unreachable');
+            setState(face, 'fail', 'not checked — API unreachable');
+            setState(cors, 'fail', 'not checked — API unreachable');
+            [login, otp, reset, guard].forEach(function (x) { setState(x, 'fail', 'not checked — API unreachable'); });
+            return;
+        }
+        setState(health, h.status === 200 ? 'pass' : 'fail', 'HTTP ' + h.status + ' ' + h.text);
+        setState(cors, 'pass', 'allowed for ' + location.origin);
+
+        var dbState = 'fail', dbText = h.text;
+        try {
+            var parsed = JSON.parse(h.text);
+            dbState = parsed.database === 'ok' ? 'pass' : 'fail';
+            dbText = 'database: ' + parsed.database;
+        } catch (e) { dbText = 'unexpected body: ' + h.text; }
+        setState(db, dbState, dbText);
+
+        // The browser cannot reach the face service itself (it is key-protected and, in production, behind a
+        // tunnel), so the API checks it and reports back. A cold face-service PC can take several seconds.
+        var f = await call('GET', '/api/health/face');
+        if (!f.ok) {
+            setState(face, 'fail', unreachable(f));
+        } else if (f.status === 404) {
+            setState(face, 'warn', 'HTTP 404 — this API version has no face check yet; deploy the latest API');
+        } else {
+            try {
+                var fh = JSON.parse(f.text);
+                var detail = fh.faceService + ' · ' + fh.latencyMs + ' ms'
+                    + (fh.antiSpoofing === true ? ' · liveness model loaded' : fh.antiSpoofing === false ? ' · liveness model NOT loaded' : '')
+                    + (fh.problem ? ' — ' + fh.problem : '');
+                setState(face, fh.faceService === 'ok' ? 'pass' : (fh.faceService === 'degraded' ? 'warn' : 'fail'), detail);
+            } catch (e) {
+                setState(face, 'fail', 'HTTP ' + f.status + ' unexpected body: ' + f.text);
+            }
+        }
+
+        // Deliberately invalid input: a 401/400 proves the route exists and validates.
+        var l = await call('POST', '/api/auth/guardian/login', { contactNumber: '0000000000', password: 'diagnostics-probe' });
+        setState(login, !l.ok ? 'fail' : (l.status === 401 || l.status === 400 ? 'pass' : 'warn'),
+                 !l.ok ? unreachable(l) : 'HTTP ' + l.status + ' ' + l.text);
+
+        var o = await call('POST', '/api/auth/guardian/verify-otp', { challengeToken: '00000000-0000-0000-0000-000000000000', code: '000000' });
+        setState(otp, !o.ok ? 'fail' : (o.status === 401 || o.status === 400 ? 'pass' : 'warn'),
+                 !o.ok ? unreachable(o) : 'HTTP ' + o.status + ' ' + o.text);
+
+        var r = await call('POST', '/api/auth/guardian/reset-password', { resetTicket: 'diagnostics-probe', newPassword: 'Probe@1234', confirmPassword: 'Probe@1234' });
+        setState(reset, !r.ok ? 'fail' : (r.status === 400 || r.status === 401 ? 'pass' : 'warn'),
+                 !r.ok ? unreachable(r) : 'HTTP ' + r.status + ' ' + r.text);
+
+        var g = await call('GET', '/api/me/profile');
+        setState(guard, !g.ok ? 'fail' : (g.status === 401 ? 'pass' : 'fail'),
+                 !g.ok ? unreachable(g) : 'HTTP ' + g.status + (g.status === 401 ? ' — anonymous access refused, as expected' : ' — expected 401'));
+    }
+
+    async function runLogin() {
+        var container = document.getElementById('login');
+        container.textContent = '';
+
+        var contactNumber = document.getElementById('contactNumber').value.trim();
+        var password = document.getElementById('password').value;
+        if (!contactNumber || !password) {
+            render(container, 'Login', 'warn', 'Enter a contact number and password first.');
+            return;
+        }
+
+        var step = render(container, 'Login', 'pending', 'POST /api/auth/guardian/login');
+        var result = await call('POST', '/api/auth/guardian/login', { contactNumber: contactNumber, password: password });
+        if (!result.ok) { setState(step, 'fail', unreachable(result)); return; }
+        if (result.status !== 200) {
+            setState(step, 'fail', 'HTTP ' + result.status + ' ' + result.text);
+            return;
+        }
+
+        var challenge = JSON.parse(result.text);
+        setState(step, 'pass', 'HTTP 200 — stage ' + challenge.stage + ', OTP sent, expires ' + challenge.expiresAtUtc);
+        render(container, 'Next', 'pass',
+               'Credentials accepted. Read the ' + challenge.codeLength + '-digit code from the API console and finish in the guardian app.');
+    }
+
+    document.getElementById('runAll').addEventListener('click', runAll);
+    document.getElementById('runLogin').addEventListener('click', runLogin);
+    runAll();
+})();
+</script>
+</body>
+</html>

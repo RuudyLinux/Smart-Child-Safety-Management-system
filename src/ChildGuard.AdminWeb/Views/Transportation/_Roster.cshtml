@@ -1,0 +1,40 @@
+@model (IReadOnlyList<RosterEntryDto> Students, bool ShowBus)
+@if (Model.Students.Count == 0)
+{
+    @await Html.PartialAsync("_EmptyState", ("students", "No students assigned",
+        "Assign students from the Transportation page or during enrollment.", (string?)null, (string?)null))
+}
+else
+{
+    <div class="cg-table-wrap">
+        <table class="cg-table" data-roster>
+            <thead>
+                <tr>
+                    <th>Student</th>
+                    <th>Student ID</th>
+                    <th>Grade</th>
+                    @if (Model.ShowBus) { <th>Bus</th> }
+                    <th>Route</th>
+                    <th>Pickup stop</th>
+                    <th>Drop-off stop</th>
+                    <th>On this bus since</th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach (var s in Model.Students)
+            {
+                <tr data-roster-row>
+                    <td><a href="/Students/Details/@s.StudentId">@s.StudentName</a></td>
+                    <td class="cg-mono cg-text-sm">@(s.AdmissionNumber ?? $"#{s.StudentId}")</td>
+                    <td>@(s.Grade ?? "—")@(s.Section is null ? "" : $" · {s.Section}")</td>
+                    @if (Model.ShowBus) { <td>@s.BusNumber</td> }
+                    <td>@(s.RouteName ?? "—")</td>
+                    <td>@(s.PickupStop ?? "—")</td>
+                    <td>@(s.DropStop ?? "—")</td>
+                    <td class="cg-text-sm">@s.AssignedAt.ToSchoolTime().ToString("d MMM yyyy")</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+}

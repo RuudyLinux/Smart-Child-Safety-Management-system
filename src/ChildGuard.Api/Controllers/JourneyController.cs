@@ -19,4 +19,12 @@ public class JourneyController : ControllerBase
     [HttpGet("recent")]
     public async Task<IActionResult> GetRecent([FromQuery] int take = 20, CancellationToken ct = default) =>
         Ok(await _service.GetRecentEventsAsync(take, ct));
+
+    /// <summary>
+    /// Live board: where every active student currently is, from their latest
+    /// recorded checkpoint. Checkpoints only — this system records no coordinates.
+    /// </summary>
+    [HttpGet("live")]
+    public async Task<IActionResult> GetLive(CancellationToken ct) =>
+        Ok(await _service.GetLiveStatusesAsync(ct));
 }

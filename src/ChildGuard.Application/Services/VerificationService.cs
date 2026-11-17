@@ -6,8 +6,40 @@ using ChildGuard.Domain.Enums;
 
 namespace ChildGuard.Application.Services;
 
+/// <summary>
+/// Pickup verification state machine (see <see cref="GuardianVerification.GetState"/>):
+///
+///   Pending    face matched, undecided, younger than Verification:PendingExpiryMinutes (15)
+///   Approved   terminal; records SchoolDeparture event + attendance in one transaction
+///   Rejected   terminal
+///   Expired    terminal; pending too long, no decision possible
+///   NotMatched face did not match; can only be rejected
+///
+///   Pending    -> Approved   allowed (guardian + student active, student at school today)
+///   Pending    -> Rejected   allowed
+///   NotMatched -> Rejected   allowed
+///   Approved   -> Approved   blocked ("already approved")
+///   Approved   -> Rejected   blocked
+///   Rejected   -> Rejected   idempotent success, no second notification
+///   Rejected   -> Approved   blocked — a new face verification is required
+///   Expired    -> any        blocked — a new face verification is required
+///
+/// Concurrency: decisions on one verification are guarded by its Version token, so a
+/// stale read can never apply a second decision; the loser gets DecidedConcurrentlyMessage.
+/// Approvals also hold the student journey lock, so two approvals of different
+/// verifications for one child cannot both record a departure.
+/// </summary>
 public class VerificationService : IVerificationService
 {
+    public const string DecidedConcurrentlyMessage =
+        "This pickup was just decided by another admin. Reload to see the outcome.";
+    public const string RejectedCannotBeApprovedMessage =
+        "This pickup was rejected and cannot be approved. Start a new face verification.";
+    public const string ExpiredMessage =
+        "This verification has expired. Start a new face verification.";
+    public const string LivenessRequiredMessage =
+        "This pickup was not verified with the live camera check, so it cannot be approved. Start a new face verification with the live check.";
+
     private readonly IVerificationRepository _verifications;
     private readonly IStudentRepository _students;
     private readonly IGuardianRepository _guardians;
@@ -16,6 +48,11 @@ public class VerificationService : IVerificationService
     private readonly IPushNotificationSender _pushSender;
     private readonly IFaceServiceClient _faceClient;
     private readonly JourneyValidationService _validation;
+    private readonly SchoolClock _clock;
+    private readonly VerificationOptions _options;
+    private readonly IEmbeddingProtector _protector;
+    private readonly IGuardianFaceReferenceService _references;
+    private readonly IAuditTrail _trail;
 
     public VerificationService(
         IVerificationRepository verifications,
@@ -25,8 +62,16 @@ public class VerificationService : IVerificationService
         INotificationRepository notifications,
         IPushNotificationSender pushSender,
         IFaceServiceClient faceClient,
-        JourneyValidationService validation)
+        JourneyValidationService validation,
+        SchoolClock clock,
+        VerificationOptions options,
+        IEmbeddingProtector protector,
+        IGuardianFaceReferenceService references,
+        IAuditTrail? trail = null)
     {
+        _trail = trail ?? NullAuditTrail.Instance;
+        _protector = protector;
+        _references = references;
         _verifications = verifications;
         _students = students;
         _guardians = guardians;
@@ -35,6 +80,8 @@ public class VerificationService : IVerificationService
         _pushSender = pushSender;
         _faceClient = faceClient;
         _validation = validation;
+        _clock = clock;
+        _options = options;
     }
 
     public async Task<Result> RegisterFaceAsync(int guardianId, RegisterFaceRequest request, CancellationToken ct = default)
@@ -49,11 +96,14 @@ public class VerificationService : IVerificationService
         await _verifications.UpsertFaceDataAsync(new GuardianFaceData
         {
             GuardianId = guardianId,
-            EmbeddingJson = embeddingResult.Value!.EmbeddingJson,
+            EmbeddingJson = _protector.Protect(embeddingResult.Value!.EmbeddingJson, guardianId),
             Model = embeddingResult.Value.Model,
             IsActive = true,
-            RegisteredAt = DateTime.UtcNow
+            RegisteredAt = _clock.UtcNow
         }, ct);
+        // The action only: neither the image nor the embedding is recorded.
+        _trail.Record(new AuditEvent("GuardianFaceRegistered", "Guardian", guardianId, $"Face registered for {guardian.FullName}")
+        { GuardianId = guardianId, Details = new { model = embeddingResult.Value.Model } });
         await _verifications.SaveChangesAsync(ct);
         return Result.Success();
     }
@@ -71,9 +121,17 @@ public class VerificationService : IVerificationService
         var faceData = await _verifications.GetFaceDataAsync(request.GuardianId, ct);
         if (faceData is null || !faceData.IsActive)
             return Result<FaceVerifyResultDto>.Success(new FaceVerifyResultDto(
-                0, true, false, 0, "Guardian has no registered face data."));
+                0, true, false, 0, "Guardian has no registered face data.", FaceRegistered: false));
 
-        var matchResult = await _faceClient.VerifyFaceAsync(faceData.EmbeddingJson, request.ImageBase64, ct);
+        var references = await _references.LoadEmbeddingsAsync(request.GuardianId, ct);
+        if (!references.Succeeded)
+            return Result<FaceVerifyResultDto>.Failure(references.Error!);
+
+        // One face on file: exactly the original comparison. More than one: the best score over all
+        // of them, against the same threshold (a different photo of the same person may match better).
+        var matchResult = references.Value!.Count <= 1
+            ? await _faceClient.VerifyFaceAsync(references.Value[0].EmbeddingJson, request.ImageBase64, ct)
+            : await MatchAgainstAllAsync(request.GuardianId, references.Value, request.ImageBase64, ct);
         if (!matchResult.Succeeded)
             return Result<FaceVerifyResultDto>.Failure(matchResult.Error ?? "Face verification service error.");
 
@@ -81,7 +139,7 @@ public class VerificationService : IVerificationService
         {
             StudentId = request.StudentId,
             GuardianId = request.GuardianId,
-            AttemptedAt = DateTime.UtcNow,
+            AttemptedAt = _clock.UtcNow,
             MatchScore = matchResult.Value!.Score,
             Result = matchResult.Value.Match ? VerificationResult.Match : VerificationResult.NoMatch,
             PickupApproved = false
@@ -94,46 +152,117 @@ public class VerificationService : IVerificationService
             : "Face verification failed — face does not match registered guardian.";
 
         return Result<FaceVerifyResultDto>.Success(new FaceVerifyResultDto(
-            verification.Id, true, matchResult.Value.Match, matchResult.Value.Score, message));
+            verification.Id, true, matchResult.Value.Match, matchResult.Value.Score, message,
+            matchResult.Value.Match ? verification.AttemptedAt + _options.PendingExpiry : null));
+    }
+
+    private async Task<Result<FaceMatchResult>> MatchAgainstAllAsync(
+        int guardianId, IReadOnlyList<ReferenceEmbedding> references, string imageBase64, CancellationToken ct)
+    {
+        var identified = await _faceClient.IdentifyAsync(imageBase64, [new IdentifyCandidate(guardianId, references)], ct);
+        if (!identified.Succeeded) return Result<FaceMatchResult>.Failure(identified.Error ?? "Face verification service error.");
+
+        var best = identified.Value!.Results.FirstOrDefault(r => r.GuardianId == guardianId)?.BestScore;
+        return best is null
+            ? Result<FaceMatchResult>.Failure("The registered face data could not be read. Register the face again.")
+            : Result<FaceMatchResult>.Success(new FaceMatchResult(best.Value >= identified.Value.Threshold, best.Value));
     }
 
     public async Task<Result<PickupDecisionResultDto>> ApproveAsync(ApprovePickupRequest request, int approvingAdminId, CancellationToken ct = default)
     {
         var verification = await _verifications.GetVerificationByIdAsync(request.VerificationId, ct);
         if (verification is null) return Result<PickupDecisionResultDto>.Failure("Verification record not found.");
-        if (verification.Result != VerificationResult.Match)
-            return Result<PickupDecisionResultDto>.Failure("Cannot approve pickup — face was not verified as a match.");
-        if (verification.PickupApproved)
-            return Result<PickupDecisionResultDto>.Failure("Pickup already approved for this verification.");
+
+        var blocked = ApprovalBlockedReason(verification.GetState(_clock.UtcNow, _options.PendingExpiry));
+        if (blocked is not null) return Result<PickupDecisionResultDto>.Failure(blocked);
+
+        // A layered record whose liveness did not pass is never approvable, whatever its match score. Records
+        // with no liveness result (made before layers existed, or by the original face-verify endpoint) are
+        // refused too once RequireLiveness is on: that path is what lets a held-up photo through.
+        if (verification.LivenessResult == LivenessResult.Fail
+            || (_options.RequireLiveness && verification.LivenessResult != LivenessResult.Pass))
+            return Result<PickupDecisionResultDto>.Failure(LivenessRequiredMessage);
+
+        // The time between face verification and an admin's approval is the
+        // whole point of the pending queue, so both parties' status could have
+        // changed since VerifyAsync ran — re-check right before acting on it.
+        if (verification.Guardian.Status != RecordStatus.Active)
+            return Result<PickupDecisionResultDto>.Failure("This guardian's account is no longer active.");
+        if (verification.Student.Status != RecordStatus.Active)
+            return Result<PickupDecisionResultDto>.Failure("This student's record is no longer active.");
 
         // A guardian pickup only makes sense while the student is currently at school —
         // it produces a School Departure event. (Bus Drop-off is the bus's own checkpoint,
         // not a face-verified personal pickup, so it is not a valid pickup target here.)
-        var lastEvent = await _journey.GetLastEventAsync(verification.StudentId, ct);
         const JourneyEventType next = JourneyEventType.SchoolDeparture;
 
-        var stateCheck = _validation.ValidateNextEvent(lastEvent?.EventType, next);
-        if (!stateCheck.Succeeded)
-            return Result<PickupDecisionResultDto>.Failure(
-                $"Pickup cannot be recorded: {stateCheck.Error}");
-
-        verification.PickupApproved = true;
-        verification.ApprovedByAdminId = approvingAdminId;
-        await _verifications.SaveChangesAsync(ct);
-
-        var journeyEvent = new JourneyEvent
+        // State check, approval, departure event and departure attendance commit
+        // together under the student's journey lock: two approvals of different
+        // verifications for one child cannot both see "at school", and an approval is
+        // never saved without its departure records (or vice versa).
+        var (journeyEvent, failure) = await _journey.RunSerializedForStudentAsync(verification.StudentId, async lockCt =>
         {
-            StudentId = verification.StudentId,
-            EventType = next,
-            Timestamp = DateTime.UtcNow,
-            Source = EventSource.Manual
-        };
-        await _journey.AddJourneyEventAsync(journeyEvent, ct);
-        await _journey.SaveChangesAsync(ct);
+            var now = _clock.UtcNow;
+
+            // Re-evaluated at the moment of writing: the request may have waited on the lock.
+            var stillBlocked = ApprovalBlockedReason(verification.GetState(now, _options.PendingExpiry));
+            if (stillBlocked is not null)
+                return ((JourneyEvent?)null, stillBlocked);
+
+            var lastEvent = await _journey.GetLastEventSinceAsync(verification.StudentId, _clock.TodayStartUtc, lockCt);
+            var stateCheck = _validation.ValidateNextEvent(lastEvent?.EventType, next);
+            if (!stateCheck.Succeeded)
+                return (null, $"Pickup cannot be recorded: {stateCheck.Error}");
+
+            verification.PickupApproved = true;
+            verification.ApprovedByAdminId = approvingAdminId;
+            verification.Version++;
+            try
+            {
+                // Version token: fails if any other decision landed since we read the row.
+                await _verifications.SaveChangesAsync(lockCt);
+            }
+            catch (ConcurrencyConflictException)
+            {
+                return (null, DecidedConcurrentlyMessage);
+            }
+
+            var created = new JourneyEvent
+            {
+                StudentId = verification.StudentId,
+                EventType = next,
+                Timestamp = now,
+                Source = EventSource.Manual
+            };
+            await JourneyTransportSnapshot.StampAsync(_journey, created, lockCt);
+            await _journey.AddJourneyEventAsync(created, lockCt);
+
+            // Same reporting rule as an RFID departure: every recorded School
+            // Departure has a matching attendance row. A retried approval cannot
+            // add a second one — it is refused above as "already approved".
+            var (date, time) = _clock.ToSchoolDateTime(now);
+            await _journey.AddAttendanceAsync(new Attendance
+            {
+                StudentId = verification.StudentId,
+                EventType = AttendanceEventType.SchoolDeparture,
+                RecordedAtUtc = now,
+                Date = date,
+                Time = time
+            }, lockCt);
+
+            _trail.Record(new AuditEvent("PickupApproved", "Pickup", verification.Id,
+                $"Pickup of student {verification.StudentId} by guardian {verification.GuardianId} approved")
+            { StudentId = verification.StudentId, GuardianId = verification.GuardianId });
+            await _journey.SaveChangesAsync(lockCt);
+            return (created, (string?)null);
+        }, ct);
+
+        if (journeyEvent is null)
+            return Result<PickupDecisionResultDto>.Failure(failure!);
 
         var student = await _students.GetByIdAsync(verification.StudentId, ct);
         var approvedTitle = "Pickup approved";
-        var approvedMessage = $"{student?.FullName} pickup approved and verified at {journeyEvent.Timestamp:t}.";
+        var approvedMessage = $"{student?.FullName} pickup approved and verified at {_clock.ToLocal(journeyEvent.Timestamp):t}.";
         await _notifications.AddAsync(new Notification
         {
             GuardianId = verification.GuardianId,
@@ -155,10 +284,35 @@ public class VerificationService : IVerificationService
         var verification = await _verifications.GetVerificationByIdAsync(request.VerificationId, ct);
         if (verification is null) return Result<PickupDecisionResultDto>.Failure("Verification record not found.");
 
+        switch (verification.GetState(_clock.UtcNow, _options.PendingExpiry))
+        {
+            case PickupVerificationState.Approved:
+                return Result<PickupDecisionResultDto>.Failure("This pickup was already approved and cannot be rejected.");
+            case PickupVerificationState.Rejected:
+                // Repeat call: a no-op instead of re-sending the rejection notification.
+                return Result<PickupDecisionResultDto>.Success(new PickupDecisionResultDto(false, "Pickup rejected.", null));
+            case PickupVerificationState.Expired:
+                return Result<PickupDecisionResultDto>.Failure(ExpiredMessage);
+        }
+
         verification.PickupApproved = false;
         verification.ApprovedByAdminId = actingAdminId;
         verification.Notes = request.Reason;
-        await _verifications.SaveChangesAsync(ct);
+        verification.Version++;
+        _trail.Record(new AuditEvent("PickupRejected", "Pickup", verification.Id,
+            $"Pickup of student {verification.StudentId} by guardian {verification.GuardianId} rejected")
+        { StudentId = verification.StudentId, GuardianId = verification.GuardianId, Reason = request.Reason });
+        try
+        {
+            await _verifications.SaveChangesAsync(ct);
+        }
+        catch (ConcurrencyConflictException)
+        {
+            // Another admin decided this verification between our read and write —
+            // possibly an approval. Reporting "rejected" here could tell the desk a
+            // child was not released when they were, so surface the conflict instead.
+            return Result<PickupDecisionResultDto>.Failure(DecidedConcurrentlyMessage);
+        }
 
         var student = await _students.GetByIdAsync(verification.StudentId, ct);
         var rejectedTitle = "Pickup rejected";
@@ -179,10 +333,27 @@ public class VerificationService : IVerificationService
         return Result<PickupDecisionResultDto>.Success(new PickupDecisionResultDto(false, "Pickup rejected.", null));
     }
 
-    public async Task<List<GuardianVerificationHistoryDto>> GetHistoryAsync(int? studentId, CancellationToken ct = default) =>
-        (await _verifications.GetHistoryAsync(studentId, ct))
+    public async Task<List<GuardianVerificationHistoryDto>> GetHistoryAsync(int? studentId, DateOnly? from = null, DateOnly? to = null, CancellationToken ct = default)
+    {
+        DateTime? fromUtc = from is null ? null : _clock.StartOfDayUtc(from.Value);
+        DateTime? toUtcExclusive = to is null ? null : _clock.StartOfDayUtc(to.Value.AddDays(1));
+        var now = _clock.UtcNow;
+        return (await _verifications.GetHistoryAsync(studentId, fromUtc, toUtcExclusive, ct))
             .Select(v => new GuardianVerificationHistoryDto(
                 v.Id, v.StudentId, v.Student.FullName, v.GuardianId, v.Guardian.FullName,
-                v.AttemptedAt, v.MatchScore, v.Result, v.PickupApproved))
+                v.AttemptedAt, v.MatchScore, v.Result, v.PickupApproved,
+                v.GetState(now, _options.PendingExpiry),
+                v.Result == VerificationResult.Match ? v.AttemptedAt + _options.PendingExpiry : null,
+                FaceLayersDto.From(v)))
             .ToList();
+    }
+
+    private static string? ApprovalBlockedReason(PickupVerificationState state) => state switch
+    {
+        PickupVerificationState.Pending => null,
+        PickupVerificationState.Approved => "Pickup already approved for this verification.",
+        PickupVerificationState.Rejected => RejectedCannotBeApprovedMessage,
+        PickupVerificationState.Expired => ExpiredMessage,
+        _ => "Cannot approve pickup — face was not verified as a match."
+    };
 }

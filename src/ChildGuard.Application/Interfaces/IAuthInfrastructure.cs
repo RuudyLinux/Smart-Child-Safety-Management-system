@@ -22,3 +22,15 @@ public interface IPasswordResetNotifier
 {
     Task SendResetTokenAsync(string email, string resetToken, CancellationToken ct = default);
 }
+
+/// <summary>
+/// Delivers a login OTP to the Guardian. No SMS gateway is part of the approved
+/// stack, so the code goes to the Guardian's registered email address; the whole
+/// Guardian is passed so an SMS implementation can use the contact number instead
+/// without changing any caller. See README "OTP delivery".
+/// </summary>
+public interface IOtpSender
+{
+    /// <summary>Returns a failure when the code could not be delivered, so the caller can tell the guardian instead of leaving them waiting.</summary>
+    Task<Common.Result> SendLoginOtpAsync(Domain.Entities.Guardian guardian, string code, TimeSpan validFor, CancellationToken ct = default);
+}

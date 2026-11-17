@@ -1,0 +1,27 @@
+@model (string Kind, object Value)
+@* Small shared badges for the transport pages: Kind is "licence" (LicenceState) or "bus" (BusStatus). *@
+@switch (Model.Kind)
+{
+    case "licence":
+        var l = (LicenceState)Model.Value;
+        var (lc, lt) = l switch
+        {
+            LicenceState.Expired => ("cg-badge--danger", "Licence expired"),
+            LicenceState.ExpiringSoon => ("cg-badge--warning", "Licence expiring soon"),
+            LicenceState.Valid => ("cg-badge--success", "Licence valid"),
+            _ => ("cg-badge--neutral", "Expiry not recorded")
+        };
+        <span class="cg-badge @lc" data-licence="@l"><span class="cg-badge__dot"></span>@lt</span>
+        break;
+    case "bus":
+        var b = (BusStatus)Model.Value;
+        var (bc, bt) = b switch
+        {
+            BusStatus.Active => ("cg-badge--success", "In service"),
+            BusStatus.UnderMaintenance => ("cg-badge--warning", "Under maintenance"),
+            BusStatus.OutOfService => ("cg-badge--danger", "Out of service"),
+            _ => ("cg-badge--neutral", "Inactive")
+        };
+        <span class="cg-badge @bc" data-bus-status="@b"><span class="cg-badge__dot"></span>@bt</span>
+        break;
+}

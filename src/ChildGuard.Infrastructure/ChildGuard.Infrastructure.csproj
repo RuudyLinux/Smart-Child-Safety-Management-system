@@ -9,12 +9,23 @@
     <PackageReference Include="FirebaseAdmin" Version="3.6.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.19" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.19" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
     <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="9.0.0" />
+    <!-- Pinned above Pomelo's transitive 2.4.0 for GHSA-473q-m89c-ghf8 (fixed in 2.6.1).
+         Pomelo 9.0.0 declares MySqlConnector >= 2.4.0, so this stays in range.
+         Remove once Pomelo ships with >= 2.6.1. -->
+    <PackageReference Include="MySqlConnector" Version="2.6.2" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.16.0" />
   </ItemGroup>
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <!-- Demo dataset (routes, people, generated avatars) used by the database reset's demo seeder. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Persistence\DemoData\*.json" LogicalName="DemoData/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Persistence\DemoData\avatars\*.png" LogicalName="DemoData/avatars/%(Filename)%(Extension)" />
   </ItemGroup>
 
   <PropertyGroup>

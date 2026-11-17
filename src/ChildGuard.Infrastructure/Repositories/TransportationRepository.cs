@@ -1,4 +1,7 @@
+using System.Data;
+using ChildGuard.Application.Common;
 using ChildGuard.Application.Interfaces;
+using ChildGuard.Domain.Enums;
 using ChildGuard.Domain.Entities;
 using ChildGuard.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -36,6 +39,8 @@ public class TransportationRepository : ITransportationRepository
             .Include(a => a.Student)
             .Include(a => a.Bus)
             .Include(a => a.Route)
+            .Include(a => a.PickupStop)
+            .Include(a => a.DropStop)
             .OrderByDescending(a => a.AssignedAt)
             .ToListAsync(ct);
 
@@ -45,5 +50,149 @@ public class TransportationRepository : ITransportationRepository
     public async Task AddAssignmentAsync(StudentBusAssignment assignment, CancellationToken ct = default) =>
         await _db.StudentBusAssignments.AddAsync(assignment, ct);
 
+    public Task<Driver?> GetDriverByIdAsync(int id, CancellationToken ct = default) =>
+        _db.Drivers.FirstOrDefaultAsync(d => d.DriverId == id, ct);
+
+    public Task<Route?> GetRouteByIdAsync(int id, CancellationToken ct = default) =>
+        _db.Routes.FirstOrDefaultAsync(r => r.RouteId == id, ct);
+
+    public Task<StudentBusAssignment?> GetAssignmentByIdAsync(int id, CancellationToken ct = default) =>
+        _db.StudentBusAssignments.FirstOrDefaultAsync(a => a.Id == id, ct);
+
     public Task SaveChangesAsync(CancellationToken ct = default) => _db.SaveChangesAsync(ct);
+
+    public async Task<bool> TrySaveChangesAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+            return true;
+        }
+        catch (DbUpdateException ex) when (DbErrors.IsUniqueViolation(ex))
+        {
+            _db.ChangeTracker.Clear();
+            return false;
+        }
+    }
+
+    public async Task<Result> RunLockedAsync(IReadOnlyCollection<int> studentIds, IReadOnlyCollection<int> busIds,
+        Func<CancellationToken, Task<Result>> work, CancellationToken ct = default)
+    {
+        // Inside a caller's transaction (enrollment): take the same locks there and leave commit or
+        // rollback to the caller, so a failed assignment undoes everything the caller wrote too.
+        if (_db.Database.CurrentTransaction is not null)
+        {
+            foreach (var id in studentIds.Distinct().OrderBy(i => i)) await LockStudentAsync(id, ct);
+            foreach (var id in busIds.Distinct().OrderBy(i => i)) await LockBusAsync(id, ct);
+            return await work(ct);
+        }
+
+        // READ COMMITTED so counts read after the lock see whatever the previous holder committed.
+        await using var tx = await _db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
+        // Fixed order (students, then buses, ascending ids) on every path, so two callers never deadlock.
+        foreach (var id in studentIds.Distinct().OrderBy(i => i)) await LockStudentAsync(id, ct);
+        foreach (var id in busIds.Distinct().OrderBy(i => i)) await LockBusAsync(id, ct);
+
+        var result = await work(ct);
+        if (result.Succeeded) await tx.CommitAsync(ct);
+        else
+        {
+            await tx.RollbackAsync(CancellationToken.None);
+            _db.ChangeTracker.Clear();
+        }
+        return result;
+    }
+
+    // Row locks held until commit (InnoDB / PostgreSQL), written like JourneyRepository's student lock:
+    // the SQL text is fixed and the id is sent as a parameter.
+    private Task LockStudentAsync(int id, CancellationToken ct) =>
+        _db.Database.IsNpgsql()
+            ? _db.Database.ExecuteSqlInterpolatedAsync($"SELECT \"StudentId\" FROM \"Students\" WHERE \"StudentId\" = {id} FOR UPDATE", ct)
+            : _db.Database.ExecuteSqlInterpolatedAsync($"SELECT StudentId FROM Students WHERE StudentId = {id} FOR UPDATE", ct);
+
+    private Task LockBusAsync(int id, CancellationToken ct) =>
+        _db.Database.IsNpgsql()
+            ? _db.Database.ExecuteSqlInterpolatedAsync($"SELECT \"BusId\" FROM \"Buses\" WHERE \"BusId\" = {id} FOR UPDATE", ct)
+            : _db.Database.ExecuteSqlInterpolatedAsync($"SELECT BusId FROM Buses WHERE BusId = {id} FOR UPDATE", ct);
+
+    public Task<int> CountActiveAssignmentsAsync(int busId, CancellationToken ct = default) =>
+        _db.StudentBusAssignments.CountAsync(a => a.BusId == busId && a.Status == RecordStatus.Active, ct);
+
+    public Task<Dictionary<int, int>> GetActiveAssignmentCountsAsync(CancellationToken ct = default) =>
+        _db.StudentBusAssignments.AsNoTracking()
+            .Where(a => a.Status == RecordStatus.Active)
+            .GroupBy(a => a.BusId)
+            .Select(g => new { g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.Key, x => x.Count, ct);
+
+    public Task<StudentBusAssignment?> GetActiveAssignmentForStudentAsync(int studentId, CancellationToken ct = default) =>
+        _db.StudentBusAssignments.FirstOrDefaultAsync(a => a.StudentId == studentId && a.Status == RecordStatus.Active, ct);
+
+    public Task<List<RouteStop>> GetStopsAsync(int routeId, CancellationToken ct = default) =>
+        _db.RouteStops.Where(s => s.RouteId == routeId).OrderBy(s => s.Sequence).ThenBy(s => s.RouteStopId).ToListAsync(ct);
+
+    public Task<RouteStop?> GetStopAsync(int stopId, CancellationToken ct = default) =>
+        _db.RouteStops.FirstOrDefaultAsync(s => s.RouteStopId == stopId, ct);
+
+    public async Task AddStopAsync(RouteStop stop, CancellationToken ct = default) => await _db.RouteStops.AddAsync(stop, ct);
+    public void RemoveStop(RouteStop stop) => _db.RouteStops.Remove(stop);
+
+    public Task<int> CountStopUsageAsync(int stopId, CancellationToken ct = default) =>
+        _db.StudentBusAssignments.CountAsync(a => a.PickupStopId == stopId || a.DropStopId == stopId, ct);
+
+    public async Task<Dictionary<int, int>> CountActiveStopUsageAsync(int routeId, CancellationToken ct = default)
+    {
+        var rows = await _db.StudentBusAssignments.AsNoTracking()
+            .Where(a => a.Status == RecordStatus.Active && a.RouteId == routeId)
+            .Select(a => new { a.PickupStopId, a.DropStopId }).ToListAsync(ct);
+        return rows.SelectMany(r => new[] { r.PickupStopId, r.DropStopId }.Where(id => id is not null).Distinct())
+            .GroupBy(id => id!.Value).ToDictionary(g => g.Key, g => g.Count());
+    }
+
+    public async Task<(int Buses, int Assignments, int JourneyEvents)> CountRouteHistoryAsync(int routeId, CancellationToken ct = default) =>
+        (await _db.Buses.CountAsync(b => b.RouteId == routeId, ct),
+         await _db.StudentBusAssignments.CountAsync(a => a.RouteId == routeId, ct),
+         await _db.JourneyEvents.CountAsync(e => e.RouteId == routeId, ct));
+
+    public void RemoveRoute(Route route) => _db.Routes.Remove(route);
+
+    public Task<List<StudentBusAssignment>> GetActiveRosterByRouteAsync(int routeId, CancellationToken ct = default) =>
+        _db.StudentBusAssignments.AsNoTracking()
+            .Include(a => a.Student).Include(a => a.Bus).Include(a => a.Route).Include(a => a.PickupStop).Include(a => a.DropStop)
+            .Where(a => a.RouteId == routeId && a.Status == RecordStatus.Active)
+            .OrderBy(a => a.Bus.BusNumber).ThenBy(a => a.Student.FullName)
+            .ToListAsync(ct);
+
+    public Task<List<StudentBusAssignment>> GetActiveRosterAsync(IReadOnlyCollection<int> busIds, CancellationToken ct = default) =>
+        _db.StudentBusAssignments.AsNoTracking()
+            .Include(a => a.Student).Include(a => a.Bus).Include(a => a.Route).Include(a => a.PickupStop).Include(a => a.DropStop)
+            .Where(a => busIds.Contains(a.BusId) && a.Status == RecordStatus.Active)
+            .OrderBy(a => a.Bus.BusNumber).ThenBy(a => a.Student.FullName)
+            .ToListAsync(ct);
+
+    public Task<bool> EmployeeCodeTakenAsync(string employeeCode, int exceptDriverId, CancellationToken ct = default) =>
+        _db.Drivers.AnyAsync(d => d.EmployeeCode == employeeCode && d.DriverId != exceptDriverId, ct);
+
+    public Task<bool> RegistrationTakenAsync(string registrationNumber, int exceptBusId, CancellationToken ct = default) =>
+        _db.Buses.AnyAsync(b => b.RegistrationNumber == registrationNumber && b.BusId != exceptBusId, ct);
+
+    public async Task<(int Assignments, int JourneyEvents)> CountBusHistoryAsync(int busId, CancellationToken ct = default) =>
+        (await _db.StudentBusAssignments.CountAsync(a => a.BusId == busId, ct), await _db.JourneyEvents.CountAsync(e => e.BusId == busId, ct));
+
+    public void RemoveDriver(Driver driver) => _db.Drivers.Remove(driver);
+    public void RemoveBus(Bus bus) => _db.Buses.Remove(bus);
+
+    public async Task AddAuditAsync(TransportAuditEntry entry, CancellationToken ct = default) =>
+        await _db.TransportAuditEntries.AddAsync(entry, ct);
+
+    public async Task<List<(TransportAuditEntry Entry, string? AdminName)>> GetAuditAsync(int take, CancellationToken ct = default)
+    {
+        var rows = await (from e in _db.TransportAuditEntries.AsNoTracking()
+                          join a in _db.Admins.AsNoTracking() on e.AdminId equals a.AdminId into admins
+                          from a in admins.DefaultIfEmpty()
+                          orderby e.OccurredAt descending, e.Id descending
+                          select new { Entry = e, AdminName = a == null ? null : a.FullName })
+            .Take(take).ToListAsync(ct);
+        return rows.Select(r => (r.Entry, (string?)r.AdminName)).ToList();
+    }
 }

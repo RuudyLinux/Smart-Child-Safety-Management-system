@@ -1,52 +1,427 @@
 @model GuardianDetailDto
-@{ ViewData["Title"] = "Guardian Details"; }
+@{
+    ViewData["Title"] = Model.FullName;
+    var photoUrl = Model.HasPhoto
+        ? Url.Action("Photo", "Guardians", new { id = Model.GuardianId, v = Model.PhotoUpdatedAt?.Ticks })
+        : null;
+    var authorisedChildren = Model.Students.Count(s => s.IsAuthorizedForPickup);
+}
 
-<div class="cg-card">
-    <div class="cg-flex-between">
-        <h3 class="cg-card__title cg-mt-0">@Model.FullName</h3>
-        @if (Model.Status == RecordStatus.Active)
+<div class="cg-page-head">
+    <div class="cg-page-head__text">
+        <nav class="cg-breadcrumb" style="margin-bottom:6px">
+            <a href="/Guardians">@await Html.PartialAsync("_Icon", "arrow-left") Back to guardians</a>
+        </nav>
+    </div>
+</div>
+
+<section class="cg-profile">
+    @await Html.PartialAsync("_Avatar", new AvatarModel(photoUrl, Model.FullName, "2xl", true, true))
+
+    <div class="cg-profile__main">
+        <h1 class="cg-profile__name">@Model.FullName</h1>
+        <div class="cg-profile__meta">
+            @if (Model.Status == RecordStatus.Active)
+            {
+                <span class="cg-badge cg-badge--success"><span class="cg-badge__dot"></span>Active account</span>
+            }
+            else
+            {
+                <span class="cg-badge cg-badge--neutral"><span class="cg-badge__dot"></span>Inactive account</span>
+            }
+
+            @if (Model.FaceRegistered)
+            {
+                <span class="cg-badge cg-badge--primary">@await Html.PartialAsync("_Icon", "camera") Face registered</span>
+            }
+            else
+            {
+                <span class="cg-badge cg-badge--warning"><span class="cg-badge__dot"></span>No face registered</span>
+            }
+
+            @if (Model.PasswordResetRequired)
+            {
+                <span class="cg-badge cg-badge--warning"><span class="cg-badge__dot"></span>Must set their own password</span>
+            }
+
+            <span class="cg-tag">@Model.Students.Count linked @(Model.Students.Count == 1 ? "child" : "children")</span>
+        </div>
+
+        <div class="cg-profile__facts">
+            <div class="cg-keyvalue">
+                <span class="cg-keyvalue__key">Email</span>
+                <span class="cg-keyvalue__value" style="font-size:14px">@Model.Email</span>
+            </div>
+            <div class="cg-keyvalue">
+                <span class="cg-keyvalue__key">Contact number (sign-in ID)</span>
+                <span class="cg-keyvalue__value cg-mono" style="font-size:14px">@(Model.Phone ?? "Not set")</span>
+            </div>
+            <div class="cg-keyvalue">
+                <span class="cg-keyvalue__key">Authorised for pickup</span>
+                <span class="cg-keyvalue__value">@authorisedChildren of @Model.Students.Count</span>
+            </div>
+            <div class="cg-keyvalue">
+                <span class="cg-keyvalue__key">Registered</span>
+                <span class="cg-keyvalue__value" style="font-size:14px">@Model.CreatedAt.ToSchoolTime().ToString("d MMM yyyy")</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="cg-profile__actions">
+        <a class="cg-btn cg-btn--secondary" href="/Guardians/Edit/@Model.GuardianId">
+            @await Html.PartialAsync("_Icon", "edit") Edit
+        </a>
+        @if (Model.ArchivedAt is not null)
         {
-            <form asp-action="UpdateStatus" asp-route-id="@Model.GuardianId" method="post">
+            @* Restore is offered on the archived banner below. *@
+        }
+        else if (Model.Status == RecordStatus.Active)
+        {
+            <form asp-action="UpdateStatus" asp-route-id="@Model.GuardianId" method="post" class="cg-inline-form"
+                  data-cg-confirm="Deactivate @Model.FullName? They will be unable to sign in or be verified for pickup until the account is reactivated.">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="status" value="Inactive" />
-                <button class="cg-btn cg-btn--danger" type="submit">Deactivate</button>
+                <button class="cg-btn cg-btn--danger-soft" type="submit">Deactivate</button>
             </form>
         }
         else
         {
-            <form asp-action="UpdateStatus" asp-route-id="@Model.GuardianId" method="post">
+            <form asp-action="UpdateStatus" asp-route-id="@Model.GuardianId" method="post" class="cg-inline-form">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="status" value="Active" />
                 <button class="cg-btn cg-btn--success" type="submit">Activate</button>
             </form>
         }
     </div>
-    <p><strong>Email:</strong> @Model.Email &nbsp; <strong>Phone:</strong> @(Model.Phone ?? "—") &nbsp;
-        <strong>Face Registered:</strong>
-        @if (Model.FaceRegistered) { <span class="cg-badge cg-badge--success">Yes</span> } else { <span class="cg-badge cg-badge--neutral">No</span> }
-    </p>
+</section>
+
+@if (ViewBag.Lifecycle is RecordLifecycleModel lifecycle)
+{
+    @await Html.PartialAsync("_ArchivedBanner", lifecycle)
+}
+
+<div class="cg-tabs" data-cg-tabs="guardian" role="tablist">
+    <button class="cg-tab is-active" data-cg-tab="children" role="tab" aria-selected="true">
+        @await Html.PartialAsync("_Icon", "students") Linked children
+        <span class="cg-tab__count">@Model.Students.Count</span>
+    </button>
+    <button class="cg-tab" data-cg-tab="photo" role="tab" aria-selected="false">
+        @await Html.PartialAsync("_Icon", "image") Photo &amp; Face ID
+    </button>
+    <button class="cg-tab" data-cg-tab="verifications" role="tab" aria-selected="false">
+        @await Html.PartialAsync("_Icon", "verification") Verification history
+        <span class="cg-tab__count">@Model.RecentVerifications.Count</span>
+    </button>
+    <button class="cg-tab" data-cg-tab="account" role="tab" aria-selected="false">
+        @await Html.PartialAsync("_Icon", "key") Account &amp; access
+    </button>
 </div>
 
-<div class="cg-card">
-    <h3 class="cg-card__title">Linked Students</h3>
-    <div class="cg-table-wrap">
-        <table class="cg-table">
-            <thead><tr><th>Name</th><th>Grade</th><th>Relationship</th><th>Pickup Authorized</th></tr></thead>
-            <tbody>
-            @if (!Model.Students.Any())
+@* ---------------------------------------------------------- Linked children *@
+<div class="cg-tabpanel is-active" data-cg-tabpanel="children" data-cg-tabs-scope="guardian" style="padding-top:18px">
+    <section class="cg-card">
+        <div class="cg-card__head">
+            <div>
+                <h2 class="cg-card__title">Children linked to @Model.FullName</h2>
+                <div class="cg-card__sub">Live safety status, straight from each child's latest checkpoint</div>
+            </div>
+        </div>
+
+        @if (!Model.Students.Any())
+        {
+            @await Html.PartialAsync("_EmptyState", ("students", "No children linked",
+                "Link this guardian from a student's profile. Until then they cannot be verified to collect anyone.",
+                "Browse students", "/Students"))
+        }
+        else
+        {
+            <div class="cg-card__body">
+                <div class="cg-grid cg-grid--2" style="margin-bottom:0">
+                    @foreach (var child in Model.Students)
+                    {
+                        var childPhoto = child.HasPhoto ? Url.Action("Photo", "Students", new { id = child.StudentId }) : null;
+                        <a class="cg-personcard" href="/Students/Details/@child.StudentId">
+                            @await Html.PartialAsync("_Avatar", new AvatarModel(childPhoto, child.FullName, "lg", false, true,
+                                SafetyUi.DotColor(child.SafetyStatus), SafetyUi.Label(child.SafetyStatus)))
+                            <div class="cg-personcard__body">
+                                <div class="cg-personcard__name">@child.FullName</div>
+                                <div class="cg-personcard__meta">
+                                    @(child.Grade ?? "No grade") · @(child.Relationship ?? "Relationship not set")
+                                </div>
+
+                                <div style="margin-bottom:10px">@await Html.PartialAsync("_SafetyChip", child.SafetyStatus)</div>
+
+                                <div class="cg-personcard__facts">
+                                    <span class="cg-personcard__fact">
+                                        @await Html.PartialAsync("_Icon", "attendance")
+                                        @(child.PresentToday && child.CheckInTime is { } t
+                                            ? $"Checked in at {t:HH\\:mm}"
+                                            : "Not checked in today")
+                                    </span>
+                                    <span class="cg-personcard__fact">
+                                        @await Html.PartialAsync("_Icon", "bus")
+                                        @(child.BusNumber is null ? "No bus assigned" : $"{child.BusNumber}{(child.RouteName is null ? "" : " · " + child.RouteName)}")
+                                    </span>
+                                    <span class="cg-personcard__fact">
+                                        @await Html.PartialAsync("_Icon", "clock")
+                                        @(child.LastEventAt is { } lastAt
+                                            ? $"{SafetyUi.EventLabel(child.LastEventType)} at {lastAt.ToSchoolTime():HH\\:mm}"
+                                            : "No activity today")
+                                    </span>
+                                </div>
+
+                                <div style="margin-top:10px">
+                                    @if (child.IsAuthorizedForPickup)
+                                    {
+                                        <span class="cg-badge cg-badge--success"><span class="cg-badge__dot"></span>Authorised for pickup</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="cg-badge cg-badge--neutral"><span class="cg-badge__dot"></span>Not authorised for pickup</span>
+                                    }
+                                </div>
+                            </div>
+                        </a>
+                    }
+                </div>
+            </div>
+        }
+    </section>
+</div>
+
+@* ------------------------------------------------------------------- Photo *@
+<div class="cg-tabpanel" data-cg-tabpanel="photo" data-cg-tabs-scope="guardian" style="padding-top:18px">
+    @await Html.PartialAsync("_PhotoManager", new PhotoManagerModel(
+        "Guardians", Model.GuardianId, Model.FullName, Model.HasPhoto, Model.PhotoUpdatedAt, true,
+        "Guardian photo",
+        "Shown to staff at the pickup desk beside the live face-verification result."))
+
+    @* Face ID: what the pickup desk compares against. Separate from the reference photo
+       above. Registered here in person, or by the guardian in the app; either replaces the
+       stored face. Only a numeric representation is stored, never the captured image. *@
+    <section class="cg-card" data-cg-face-enrol
+             data-register-url="@Url.Action("RegisterFace", "Guardians", new { id = Model.GuardianId })"
+             data-references-url="@Url.Action("FaceReferences", "Guardians", new { id = Model.GuardianId })"
+             data-add-url="@Url.Action("AddFaceReference", "Guardians", new { id = Model.GuardianId })"
+             data-remove-url="@Url.Action("RemoveFaceReference", "Guardians", new { id = Model.GuardianId, referenceId = 0 })"
+             data-registered="@(Model.FaceRegistered ? "true" : "false")">
+        <div class="cg-card__head">
+            <div>
+                <h2 class="cg-card__title">Face ID for pickup verification</h2>
+                <div class="cg-card__sub">The pickup desk compares a live capture with this. Only a numeric representation of the face is stored; the captured image is discarded.</div>
+            </div>
+            @if (Model.FaceRegistered)
             {
-                <tr><td colspan="4" class="cg-muted">No students linked.</td></tr>
+                <span class="cg-badge cg-badge--success"><span class="cg-badge__dot"></span>Registered</span>
             }
-            @foreach (var s in Model.Students)
+            else
             {
-                <tr>
-                    <td><a href="/Students/Details/@s.StudentId">@s.FullName</a></td>
-                    <td>@(s.Grade ?? "—")</td>
-                    <td>@(s.Relationship ?? "—")</td>
-                    <td>@(s.IsAuthorizedForPickup ? "Yes" : "No")</td>
-                </tr>
+                <span class="cg-badge cg-badge--warning"><span class="cg-badge__dot"></span>Not registered</span>
             }
-            </tbody>
-        </table>
+        </div>
+        <div class="cg-card__body">
+            <p style="margin-top:0">
+                @if (Model.FaceRegistered)
+                {
+                    <text>@Model.FullName can be verified at the pickup desk. Add a few more reference photos in different light or from slightly different angles so verification copes with changes. "Replace primary face" swaps the first photo instead, e.g. after a big change in appearance.</text>
+                }
+                else
+                {
+                    <text>@Model.FullName cannot be face-verified at the pickup desk yet. Register their face here while they are in front of you, or ask them to do it in the ChildGuard app.</text>
+                }
+            </p>
+
+            <ul class="cg-face-enrol__tips cg-hint" style="margin:0 0 14px;padding-left:18px">
+                <li>Light from the front, not behind the person</li>
+                <li>Face straight at the camera, filling most of the frame</li>
+                <li>Only the guardian in view; no mask, cap or sunglasses</li>
+                <li>Neutral expression, eyes open</li>
+                <li>Use the camera in person, or choose / drop a photo. The image is checked first and only a suitable one can be registered.</li>
+            </ul>
+
+            <h3 class="cg-card__title" style="font-size:14px;margin:0 0 8px">Registered reference photos</h3>
+            <div data-cg-face-references style="margin-bottom:18px"><span class="cg-muted">Loading…</span></div>
+
+            <div data-cg-face-capture
+                 data-analyze-url="@Url.Action("AnalyzeImage", "Verification")"
+                 data-purpose="registration"></div>
+
+            <div class="cg-field" style="margin-top:12px;max-width:420px" data-cg-face-label-field hidden>
+                <label class="cg-label" for="faceLabel">Label (optional)</label>
+                <input id="faceLabel" class="cg-input" maxlength="60" data-cg-face-label placeholder="e.g. Outdoor, side light" />
+            </div>
+
+            <div data-cg-face-result style="margin-top:12px"></div>
+
+            <div class="cg-btn-group" style="margin-top:12px">
+                <button type="button" class="cg-btn cg-btn--primary" data-cg-face-add hidden disabled>
+                    @await Html.PartialAsync("_Icon", "check")
+                    <span class="cg-btn__label">Add as reference photo</span>
+                </button>
+                <button type="button" class="@(Model.FaceRegistered ? "cg-btn cg-btn--secondary" : "cg-btn cg-btn--primary")" data-cg-face-submit disabled>
+                    @await Html.PartialAsync("_Icon", "check")
+                    <span class="cg-btn__label">@(Model.FaceRegistered ? "Replace primary face" : "Register face")</span>
+                </button>
+            </div>
+        </div>
+    </section>
+</div>
+
+@* ----------------------------------------------------- Verification history *@
+<div class="cg-tabpanel" data-cg-tabpanel="verifications" data-cg-tabs-scope="guardian" style="padding-top:18px">
+    <section class="cg-card">
+        <div class="cg-card__head">
+            <div>
+                <h2 class="cg-card__title">Verification history</h2>
+                <div class="cg-card__sub">Every pickup verification attempt by this guardian</div>
+            </div>
+            <a class="cg-btn cg-btn--sm cg-btn--secondary" href="/Verification/History">Full log</a>
+        </div>
+
+        @if (!Model.RecentVerifications.Any())
+        {
+            @await Html.PartialAsync("_EmptyState", ("verification", "No verification attempts yet",
+                "Attempts are recorded whenever this guardian is verified at the pickup desk.",
+                (string?)null, (string?)null))
+        }
+        else
+        {
+            <div class="cg-table-wrap">
+                <table class="cg-table">
+                    <thead>
+                        <tr><th>Student</th><th>When</th><th>Match score</th><th>Result</th><th>Checks</th><th>Handover</th></tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var v in Model.RecentVerifications)
+                    {
+                        <tr>
+                            <td><a href="/Students/Details/@v.StudentId">@v.StudentName</a></td>
+                            <td class="cg-text-sm cg-muted">
+                                <span data-cg-ago="@v.AttemptedAt.ToString("O")">@v.AttemptedAt.ToSchoolTime().ToString("g")</span>
+                            </td>
+                            <td class="cg-num">@v.MatchScore.ToString("0.00")</td>
+                            <td>
+                                @if (v.Result == VerificationResult.Match)
+                                {
+                                    <span class="cg-badge cg-badge--success"><span class="cg-badge__dot"></span>Match</span>
+                                }
+                                else
+                                {
+                                    <span class="cg-badge cg-badge--danger"><span class="cg-badge__dot"></span>No match</span>
+                                }
+                            </td>
+                            <td><partial name="_VerificationChecks" model="v" /></td>
+                            <td>
+                                @if (v.PickupApproved)
+                                {
+                                    <span class="cg-badge cg-badge--success"><span class="cg-badge__dot"></span>Approved</span>
+                                }
+                                else
+                                {
+                                    <span class="cg-badge cg-badge--neutral">Not approved</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+</div>
+
+@* --------------------------------------------------------- Account & access *@
+<div class="cg-tabpanel" data-cg-tabpanel="account" data-cg-tabs-scope="guardian" style="padding-top:18px">
+    <div class="cg-grid cg-grid--2">
+        <section class="cg-card">
+            <div class="cg-card__head">
+                <h2 class="cg-card__title">Account</h2>
+            </div>
+            <div class="cg-card__body">
+                <dl class="cg-deflist">
+                    <dt>Email</dt>
+                    <dd>@Model.Email</dd>
+                    <dt>Contact number</dt>
+                    <dd class="cg-mono">@(Model.Phone ?? "Not set")</dd>
+                    <dt>Address</dt>
+                    <dd>
+                        @await Html.PartialAsync("_AddressDisplay", Model.Address)
+                        <div><a class="cg-text-sm" href="/Guardians/Edit/@Model.GuardianId#address">Edit address</a></div>
+                    </dd>
+                    <dt>Audit</dt>
+                    <dd><a class="cg-text-sm" href="/Audit?guardianId=@Model.GuardianId">View audit history</a></dd>
+                    <dt>Status</dt>
+                    <dd>@Model.Status</dd>
+                    <dt>Password</dt>
+                    <dd>
+                        @if (Model.PasswordResetRequired)
+                        {
+                            <span class="cg-badge cg-badge--warning">
+                                <span class="cg-badge__dot"></span>Issued — must be replaced at next sign-in
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="cg-badge cg-badge--success"><span class="cg-badge__dot"></span>Chosen by the guardian</span>
+                        }
+                    </dd>
+                    <dt>Last verification</dt>
+                    <dd>@(Model.LastActivityAt?.ToSchoolTime().ToString("g") ?? "Never")</dd>
+                </dl>
+                <p class="cg-hint">
+                    Name, email and contact number are changed from
+                    <a href="/Guardians/Edit/@Model.GuardianId">Edit</a>.
+                </p>
+            </div>
+        </section>
+
+        <section class="cg-card">
+            <div class="cg-card__head">
+                <h2 class="cg-card__title">Issue a new password</h2>
+                <span class="cg-badge cg-badge--warning">Sensitive</span>
+            </div>
+            <div class="cg-card__body">
+                <div class="cg-alert cg-alert--warning">
+                    <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "alert-triangle")</span>
+                    <div class="cg-alert__body">
+                        Issuing a password immediately replaces the guardian's current one and signs
+                        them out of the app. They must set their own password at the next sign-in
+                        before they can use it.
+                    </div>
+                </div>
+
+                <form asp-action="UpdateCredentials" asp-route-id="@Model.GuardianId" method="post" class="cg-form"
+                      data-cg-busy
+                      data-cg-confirm="Issue a new password for @Model.FullName? Their current password stops working immediately.">
+                    @Html.AntiForgeryToken()
+                    <div class="cg-field">
+                        <label class="cg-label" for="newPassword">New password</label>
+                        <div class="cg-input-group cg-input-group--action">
+                            <span class="cg-input-group__icon">@await Html.PartialAsync("_Icon", "lock")</span>
+                            <input class="cg-input" type="password" id="newPassword" name="newPassword"
+                                   required minlength="8" autocomplete="new-password" />
+                            <button type="button" class="cg-input-group__action" data-cg-reveal="newPassword"
+                                    aria-label="Show password" aria-pressed="false">
+                                @await Html.PartialAsync("_Icon", "eye")
+                            </button>
+                        </div>
+                        <p class="cg-hint">At least 8 characters, including one uppercase letter and one digit.</p>
+                    </div>
+                    <button class="cg-btn cg-btn--primary" type="submit">
+                        <span class="cg-btn__label">Issue password</span>
+                    </button>
+                </form>
+            </div>
+        </section>
     </div>
 </div>
+
+@section Scripts {
+    <script src="~/js/face-capture.js" asp-append-version="true"></script>
+    <script src="~/js/face-enrol.js" asp-append-version="true"></script>
+}
+
+@if (ViewBag.Lifecycle is RecordLifecycleModel lifecycleCard)
+{
+    <div style="margin-top:16px">@await Html.PartialAsync("_RecordLifecycle", lifecycleCard)</div>
+}

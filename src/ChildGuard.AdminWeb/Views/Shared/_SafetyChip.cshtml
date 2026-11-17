@@ -1,0 +1,5 @@
+@model ChildGuard.Domain.Enums.StudentSafetyStatus
+@* Status is always a label plus a colour, never a bare colour. *@
+<span class="cg-badge @SafetyUi.BadgeClass(Model)" title="@SafetyUi.Explanation(Model)">
+    <span class="cg-badge__dot"></span>@SafetyUi.Label(Model)
+</span>

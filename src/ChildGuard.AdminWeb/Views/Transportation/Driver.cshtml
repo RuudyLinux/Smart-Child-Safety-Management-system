@@ -1,0 +1,168 @@
+@model DriverDetailDto
+@{
+    var d = Model.Driver;
+    ViewData["Title"] = d.FullName;
+    var a = Model.Address;
+}
+
+<div class="cg-page-head">
+    <div class="cg-page-head__text">
+        <nav class="cg-breadcrumb" style="margin-bottom:6px">
+            <a href="/Transportation">@await Html.PartialAsync("_Icon", "arrow-left") Back to transportation</a>
+        </nav>
+        <div class="cg-row" style="gap:14px;align-items:center">
+            @await Html.PartialAsync("_Avatar", new AvatarModel(
+                Model.HasPhoto ? Url.Action("Photo", "Drivers", new { id = d.DriverId, v = Model.PhotoUpdatedAt?.Ticks }) : null,
+                d.FullName, "lg", false, true))
+            <h1 class="cg-page-head__title">@d.FullName</h1>
+        </div>
+        <p class="cg-page-head__sub cg-row cg-row--wrap" style="gap:8px">
+            <span>Driver@(d.EmployeeCode is null ? "" : $" · ID {d.EmployeeCode}")</span>
+            @if (d.Status == RecordStatus.Active) { <span class="cg-badge cg-badge--success"><span class="cg-badge__dot"></span>Active</span> }
+            else { <span class="cg-badge cg-badge--neutral"><span class="cg-badge__dot"></span>Inactive</span> }
+            @await Html.PartialAsync("_Ui", ("licence", (object)d.LicenceState))
+        </p>
+    </div>
+    <div class="cg-page-head__actions">
+        <button type="button" class="cg-btn cg-btn--primary" data-cg-modal-open="driverProfile">@await Html.PartialAsync("_Icon", "edit") Edit profile</button>
+        <button type="button" class="cg-btn cg-btn--danger-soft" data-cg-modal-open="driverDelete">Delete permanently</button>
+    </div>
+</div>
+
+@if (d.LicenceState is LicenceState.Expired or LicenceState.ExpiringSoon)
+{
+    <div class="cg-alert @(d.LicenceState == LicenceState.Expired ? "cg-alert--danger" : "cg-alert--warning")" role="status" data-licence-alert>
+        <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "alert-triangle")</span>
+        <div class="cg-alert__body">
+            The driving licence @(d.LicenceState == LicenceState.Expired ? "expired" : "expires") on @d.LicenseExpiresOn!.Value.ToString("d MMMM yyyy").
+            Renew it and update the profile.
+        </div>
+    </div>
+}
+
+<div class="cg-grid cg-grid--2">
+    <section class="cg-card">
+        <div class="cg-card__head"><h2 class="cg-card__title">Profile</h2></div>
+        <div class="cg-card__body">
+            <dl class="cg-deflist">
+                <dt>Contact number</dt><dd class="cg-mono">@(d.Phone ?? "—")</dd>
+                <dt>Email</dt><dd>@(d.Email ?? "—")</dd>
+                <dt>Address</dt><dd>@await Html.PartialAsync("_AddressDisplay", a)</dd>
+                <dt>Emergency contact</dt><dd>@(Model.EmergencyContactName ?? "—")@(Model.EmergencyContactPhone is null ? "" : $" · {Model.EmergencyContactPhone}")</dd>
+                <dt>Joined</dt><dd>@(Model.JoinedOn?.ToString("d MMM yyyy") ?? "—")</dd>
+            </dl>
+        </div>
+    </section>
+    <section class="cg-card">
+        <div class="cg-card__head"><h2 class="cg-card__title">Licence</h2></div>
+        <div class="cg-card__body">
+            <dl class="cg-deflist">
+                <dt>Licence number</dt><dd class="cg-mono">@(d.LicenseNumber ?? "—")</dd>
+                <dt>Category</dt><dd>@(d.LicenseCategory ?? "—")</dd>
+                <dt>Expires</dt><dd>@(d.LicenseExpiresOn?.ToString("d MMM yyyy") ?? "Not recorded")</dd>
+            </dl>
+        </div>
+    </section>
+</div>
+
+<div id="photo" data-driver-photo>
+    @await Html.PartialAsync("_PhotoManager", new PhotoManagerModel(
+        "Drivers", d.DriverId, d.FullName, Model.HasPhoto, Model.PhotoUpdatedAt, false,
+        "Driver photo",
+        "Helps staff recognise the driver at pickup and drop-off."))
+</div>
+
+<section class="cg-card">
+    <div class="cg-card__head">
+        <div>
+            <h2 class="cg-card__title">Assigned transportation</h2>
+            <div class="cg-card__sub">Buses this driver currently drives.</div>
+        </div>
+    </div>
+    @if (Model.Buses.Count == 0)
+    {
+        <div class="cg-card__body cg-muted cg-text-sm">Not assigned to a bus. Choose this driver when editing a bus on the Transportation page.</div>
+    }
+    else
+    {
+        <div class="cg-table-wrap">
+            <table class="cg-table">
+                <thead><tr><th>Bus</th><th>Registration</th><th>Route</th><th>Status</th><th>Students</th></tr></thead>
+                <tbody>
+                @foreach (var b in Model.Buses)
+                {
+                    <tr>
+                        <td><a href="/Transportation/Bus/@b.BusId">@b.BusNumber</a></td>
+                        <td class="cg-mono">@(b.RegistrationNumber ?? "—")</td>
+                        <td>@(b.RouteName ?? "—")</td>
+                        <td>@await Html.PartialAsync("_Ui", ("bus", (object)b.Status))</td>
+                        <td>@b.StudentCount</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+<section class="cg-card">
+    <div class="cg-card__head">
+        <div>
+            <h2 class="cg-card__title">Assigned students <span class="cg-badge cg-badge--neutral" data-roster-count>@Model.Students.Count</span></h2>
+            <div class="cg-card__sub">Students currently on this driver's buses, counted live from their assignments.</div>
+        </div>
+    </div>
+    @await Html.PartialAsync("_Roster", (Model.Students, true))
+</section>
+
+<div class="cg-modal" id="driverProfile" hidden role="dialog" aria-modal="true" aria-labelledby="driverProfileTitle">
+    <div class="cg-modal__panel" style="max-width:760px">
+        <div class="cg-modal__head">
+            <h2 class="cg-modal__title" id="driverProfileTitle">Edit driver profile</h2>
+            <button type="button" class="cg-iconbtn" data-cg-modal-close aria-label="Close">@await Html.PartialAsync("_Icon", "x")</button>
+        </div>
+        <form action="/Transportation/EditDriverProfile/@d.DriverId" method="post" data-cg-busy>
+            @Html.AntiForgeryToken()
+            <div class="cg-modal__body cg-form">
+                <div class="cg-form-row">
+                    <div class="cg-field"><label class="cg-label" for="dpName">Full name <span class="cg-label__req">*</span></label><input class="cg-input" id="dpName" name="FullName" value="@d.FullName" maxlength="150" required /></div>
+                    <div class="cg-field"><label class="cg-label" for="dpCode">Driver ID</label><input class="cg-input cg-mono" id="dpCode" name="EmployeeCode" value="@d.EmployeeCode" maxlength="30" /></div>
+                </div>
+                <div class="cg-form-row">
+                    <div class="cg-field"><label class="cg-label" for="dpPhone">Contact number</label><input class="cg-input" id="dpPhone" name="Phone" type="tel" value="@d.Phone" maxlength="30" /></div>
+                    <div class="cg-field"><label class="cg-label" for="dpEmail">Email (optional)</label><input class="cg-input" id="dpEmail" name="Email" type="email" value="@d.Email" maxlength="200" /></div>
+                </div>
+                <div class="cg-form-row">
+                    <div class="cg-field"><label class="cg-label" for="dpLic">Licence number</label><input class="cg-input cg-mono" id="dpLic" name="LicenseNumber" value="@d.LicenseNumber" maxlength="50" /></div>
+                    <div class="cg-field"><label class="cg-label" for="dpCat">Licence category</label><input class="cg-input" id="dpCat" name="LicenseCategory" value="@d.LicenseCategory" maxlength="30" placeholder="e.g. HTV" /></div>
+                    <div class="cg-field"><label class="cg-label" for="dpExp">Licence expiry</label><input class="cg-input" id="dpExp" name="LicenseExpiresOn" type="date" value="@d.LicenseExpiresOn?.ToString("yyyy-MM-dd")" /></div>
+                </div>
+                <div class="cg-form-row">
+                    <div class="cg-field"><label class="cg-label" for="dpEcName">Emergency contact</label><input class="cg-input" id="dpEcName" name="EmergencyContactName" value="@Model.EmergencyContactName" maxlength="150" /></div>
+                    <div class="cg-field"><label class="cg-label" for="dpEcPhone">Emergency contact number</label><input class="cg-input" id="dpEcPhone" name="EmergencyContactPhone" type="tel" value="@Model.EmergencyContactPhone" maxlength="30" /></div>
+                    <div class="cg-field"><label class="cg-label" for="dpJoined">Joined on</label><input class="cg-input" id="dpJoined" name="JoinedOn" type="date" value="@Model.JoinedOn?.ToString("yyyy-MM-dd")" /></div>
+                </div>
+                <div class="cg-section-head" style="margin-top:6px"><span class="cg-section-head__title">Residential address</span></div>
+                <div class="cg-form-row">
+                    <div class="cg-field"><label class="cg-label" for="dpA1">Address line 1</label><input class="cg-input" id="dpA1" name="Address.Line1" value="@a?.Line1" maxlength="200" /></div>
+                    <div class="cg-field"><label class="cg-label" for="dpA2">Address line 2</label><input class="cg-input" id="dpA2" name="Address.Line2" value="@a?.Line2" maxlength="200" /></div>
+                </div>
+                <div class="cg-form-row">
+                    <div class="cg-field"><label class="cg-label" for="dpLoc">Area / locality</label><input class="cg-input" id="dpLoc" name="Address.Locality" value="@a?.Locality" maxlength="100" /></div>
+                    <div class="cg-field"><label class="cg-label" for="dpCity">City</label><input class="cg-input" id="dpCity" name="Address.City" value="@a?.City" maxlength="100" /></div>
+                    <div class="cg-field"><label class="cg-label" for="dpState">State</label><input class="cg-input" id="dpState" name="Address.State" value="@a?.State" maxlength="100" /></div>
+                    <div class="cg-field"><label class="cg-label" for="dpPin">PIN</label><input class="cg-input cg-mono" id="dpPin" name="Address.PostalCode" value="@a?.PostalCode" maxlength="20" /></div>
+                </div>
+                <input type="hidden" name="Address.Landmark" value="@a?.Landmark" />
+                <input type="hidden" name="Address.District" value="@a?.District" />
+                <input type="hidden" name="Address.Country" value="@a?.Country" />
+            </div>
+            <div class="cg-modal__foot">
+                <button type="button" class="cg-btn cg-btn--secondary" data-cg-modal-close>Cancel</button>
+                <button type="submit" class="cg-btn cg-btn--primary"><span class="cg-btn__label">Save profile</span></button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@await Html.PartialAsync("_DeleteModal", ("driverDelete", d.FullName, "driver", $"/Transportation/DeleteDriver/{d.DriverId}", Model.Deletion))

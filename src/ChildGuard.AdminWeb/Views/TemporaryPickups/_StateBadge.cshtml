@@ -1,0 +1,28 @@
+@model TemporaryPickupState
+@switch (Model)
+{
+    case TemporaryPickupState.PendingApproval:
+        <span class="cg-badge cg-badge--warning"><span class="cg-badge__dot"></span>Awaiting approval</span>
+        break;
+    case TemporaryPickupState.Scheduled:
+        <span class="cg-badge cg-badge--info"><span class="cg-badge__dot"></span>Approved · starts later</span>
+        break;
+    case TemporaryPickupState.Active:
+        <span class="cg-badge cg-badge--success"><span class="cg-badge__dot"></span>Active now</span>
+        break;
+    case TemporaryPickupState.Completed:
+        <span class="cg-badge cg-badge--success">Picked up</span>
+        break;
+    case TemporaryPickupState.Rejected:
+        <span class="cg-badge cg-badge--danger">Rejected</span>
+        break;
+    case TemporaryPickupState.Revoked:
+        <span class="cg-badge cg-badge--danger">Revoked</span>
+        break;
+    case TemporaryPickupState.Cancelled:
+        <span class="cg-badge cg-badge--neutral">Cancelled</span>
+        break;
+    default:
+        <span class="cg-badge cg-badge--neutral">Expired</span>
+        break;
+}

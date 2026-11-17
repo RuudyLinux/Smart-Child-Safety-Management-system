@@ -1,27 +1,100 @@
-@model UpdateStudentRequest
-@{ ViewData["Title"] = "Edit Student"; var id = ViewData["StudentId"]; }
+@model UpdateStudentRecordRequest
+@{
+    ViewData["Title"] = "Edit student";
+    var id = (int)ViewData["StudentId"]!;
+    var hasPhoto = ViewData["HasPhoto"] as bool? ?? false;
+}
 
-<div class="cg-card" style="max-width:480px;">
-    <h3 class="cg-card__title">Edit Student</h3>
-    @if (!ViewData.ModelState.IsValid)
-    {
-        <div class="cg-alert cg-alert--error">@Html.ValidationSummary()</div>
-    }
-    <form asp-action="Edit" asp-route-id="@id" method="post">
-        @Html.AntiForgeryToken()
-        <div class="cg-form-group">
-            <label class="cg-label">Full Name</label>
-            <input class="cg-input" name="FullName" value="@Model.FullName" required />
-        </div>
-        <div class="cg-form-group">
-            <label class="cg-label">Date of Birth</label>
-            <input class="cg-input" type="date" name="DateOfBirth" value="@Model.DateOfBirth.ToString("yyyy-MM-dd")" required />
-        </div>
-        <div class="cg-form-group">
-            <label class="cg-label">Grade</label>
-            <input class="cg-input" name="Grade" value="@Model.Grade" />
-        </div>
-        <button class="cg-btn cg-btn--primary" type="submit">Save Changes</button>
-        <a class="cg-btn cg-btn--secondary" href="/Students/Details/@id">Cancel</a>
-    </form>
+<div class="cg-page-head">
+    <div class="cg-page-head__text">
+        <nav class="cg-breadcrumb" style="margin-bottom:6px">
+            <a href="/Students/Details/@id">@await Html.PartialAsync("_Icon", "arrow-left") Back to @Model.FullName</a>
+        </nav>
+        <h1 class="cg-page-head__title">Edit student</h1>
+        <p class="cg-page-head__sub">Guardians, RFID and the photo are managed from the student's profile.</p>
+    </div>
 </div>
+
+<div class="cg-grid cg-grid--sidebar">
+    <section class="cg-card">
+        <div class="cg-card__head">
+            <h2 class="cg-card__title">Student details</h2>
+        </div>
+        <div class="cg-card__body">
+            @if (!ViewData.ModelState.IsValid)
+            {
+                <div class="cg-alert cg-alert--danger" role="alert">
+                    <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "alert-circle")</span>
+                    <div class="cg-alert__body">
+                        @foreach (var error in ViewData.ModelState.Values.SelectMany(v => v.Errors))
+                        {
+                            <div>@error.ErrorMessage</div>
+                        }
+                    </div>
+                </div>
+            }
+
+            <form asp-action="Edit" asp-route-id="@id" method="post" class="cg-form" data-cg-busy>
+                @Html.AntiForgeryToken()
+
+                <div class="cg-field">
+                    <label class="cg-label" for="FullName">Full name <span class="cg-label__req">*</span></label>
+                    <input class="cg-input" id="FullName" name="FullName" value="@Model.FullName" maxlength="150" required />
+                </div>
+
+                <div class="cg-form-row">
+                    <div class="cg-field">
+                        <label class="cg-label" for="DateOfBirth">Date of birth <span class="cg-label__req">*</span></label>
+                        <input class="cg-input" id="DateOfBirth" type="date" name="DateOfBirth"
+                               value="@Model.DateOfBirth.ToString("yyyy-MM-dd")"
+                               max="@DateTime.Today.AddDays(-1).ToString("yyyy-MM-dd")" required />
+                    </div>
+                    <div class="cg-field">
+                        <label class="cg-label" for="Grade">Grade</label>
+                        <input class="cg-input" id="Grade" name="Grade" value="@Model.Grade" maxlength="50" />
+                    </div>
+                </div>
+
+                <div class="cg-form-row">
+                    <div class="cg-field">
+                        <label class="cg-label" for="Section">Section</label>
+                        <input class="cg-input" id="Section" name="Section" value="@Model.Section" maxlength="20" />
+                    </div>
+                    <div class="cg-field">
+                        <label class="cg-label" for="AdmissionNumber">Admission number</label>
+                        <input class="cg-input cg-mono" id="AdmissionNumber" name="AdmissionNumber" value="@Model.AdmissionNumber" maxlength="50"
+                               readonly aria-readonly="true" placeholder="Not assigned" />
+                        <p class="cg-hint">Assigned automatically at enrollment.</p>
+                    </div>
+                    <div class="cg-field">
+                        <label class="cg-label" for="Gender">Gender</label>
+                        <select class="cg-select" id="Gender" name="Gender">
+                            <option value="" selected="@(Model.Gender is null)">Not specified</option>
+                            @foreach (var g in Enum.GetValues<Gender>())
+                            {
+                                <option value="@g" selected="@(Model.Gender == g)">@g</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+
+                <div class="cg-btn-group">
+                    <button class="cg-btn cg-btn--primary" type="submit">
+                        <span class="cg-btn__label">Save changes</span>
+                    </button>
+                    <a class="cg-btn cg-btn--secondary" href="/Students/Details/@id">Cancel</a>
+                </div>
+            </form>
+        </div>
+    </section>
+
+    @await Html.PartialAsync("_PhotoManager", new PhotoManagerModel(
+        "Students", id, Model.FullName, hasPhoto, null, false,
+        "Student photo",
+        "Helps staff match a child to their record at the pickup desk."))
+</div>
+
+@if (ViewData["AddressForm"] is AddressFormModel addressForm)
+{
+    @await Html.PartialAsync("_AddressForm", addressForm)
+}

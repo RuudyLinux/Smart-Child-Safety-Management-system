@@ -1,0 +1,10 @@
+@model ImportStatus
+@{
+    var (css, label) = Model switch
+    {
+        ImportStatus.Completed => ("cg-badge--success", "Completed"),
+        ImportStatus.CompletedWithErrors => ("cg-badge--warning", "Completed with errors"),
+        _ => ("cg-badge--danger", "Failed")
+    };
+}
+<span class="cg-badge @css"><span class="cg-badge__dot"></span>@label</span>
