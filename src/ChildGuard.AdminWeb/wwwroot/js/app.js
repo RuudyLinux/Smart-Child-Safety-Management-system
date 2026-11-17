@@ -13,6 +13,22 @@
   function $$(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
   function on(el, ev, fn) { if (el) el.addEventListener(ev, fn); }
 
+  /**
+   * Runs fn once per element matching sel inside root (root included). An element is marked when
+   * bound, so re-running an initialiser over refreshed HTML (cg-ajax.js region swaps) never adds a
+   * second listener to an element that already has one.
+   */
+  function each(root, sel, key, fn) {
+    var list = $$(sel, root);
+    if (root !== document && root.matches && root.matches(sel)) list.unshift(root);
+    var mark = 'cgBound' + key;
+    list.forEach(function (el) {
+      if (el.dataset[mark]) return;
+      el.dataset[mark] = '1';
+      fn(el);
+    });
+  }
+
   /** localStorage is unavailable in some privacy modes; a missing preference is not an error. */
   function readPref(key) { try { return window.localStorage.getItem(key); } catch (e) { return null; } }
   function writePref(key, value) { try { window.localStorage.setItem(key, value); } catch (e) { /* ignore */ } }
@@ -98,49 +114,53 @@
   }
 
   // -------------------------------------------------------------- Dropdowns
-  function initDropdowns() {
-    function closeAll(except) {
-      $$('.cg-dropdown.is-open').forEach(function (d) {
-        if (d === except) return;
-        d.classList.remove('is-open');
-        var t = $('[data-cg-dropdown]', d);
-        if (t) t.setAttribute('aria-expanded', 'false');
-      });
-    }
+  function closeAllDropdowns(except) {
+    $$('.cg-dropdown.is-open').forEach(function (d) {
+      if (d === except) return;
+      d.classList.remove('is-open');
+      var t = $('[data-cg-dropdown]', d);
+      if (t) t.setAttribute('aria-expanded', 'false');
+    });
+  }
 
-    $$('[data-cg-dropdown]').forEach(function (trigger) {
+  /** Document-wide dropdown behaviour: bound once per page. */
+  function initDropdownsGlobal() {
+    on(document, 'click', function () { closeAllDropdowns(null); });
+    on(document, 'keydown', function (e) {
+      if (e.key !== 'Escape') return;
+      var open = $('.cg-dropdown.is-open');
+      closeAllDropdowns(null);
+      // Return focus to the trigger if it was inside the menu, so Escape does not drop it.
+      if (open && open.contains(document.activeElement)) { var t = $('[data-cg-dropdown]', open); if (t) t.focus(); }
+    });
+  }
+
+  function initDropdowns(root) {
+    each(root, '[data-cg-dropdown]', 'Dropdown', function (trigger) {
       var host = trigger.closest('.cg-dropdown');
       if (!host) return;
       on(trigger, 'click', function (e) {
         e.stopPropagation();
         var willOpen = !host.classList.contains('is-open');
-        closeAll(host);
+        closeAllDropdowns(host);
         host.classList.toggle('is-open', willOpen);
         trigger.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
       });
     });
-
-    on(document, 'click', function () { closeAll(null); });
-    on(document, 'keydown', function (e) {
-      if (e.key !== 'Escape') return;
-      var open = $('.cg-dropdown.is-open');
-      closeAll(null);
-      // Return focus to the trigger if it was inside the menu, so Escape does not drop it.
-      if (open && open.contains(document.activeElement)) { var t = $('[data-cg-dropdown]', open); if (t) t.focus(); }
-    });
-    $$('.cg-dropdown__menu').forEach(function (menu) {
+    each(root, '.cg-dropdown__menu', 'DropdownMenu', function (menu) {
       on(menu, 'click', function (e) { e.stopPropagation(); });
     });
   }
 
   // ------------------------------------------------------------------- Tabs
-  function initTabs() {
-    $$('[data-cg-tabs]').forEach(function (group) {
+  function initTabs(root) {
+    each(root, '[data-cg-tabs]', 'Tabs', function (group) {
       var tabs = $$('[data-cg-tab]', group);
       var scope = group.getAttribute('data-cg-tabs');
-      var panels = $$('[data-cg-tabpanel][data-cg-tabs-scope="' + scope + '"]');
 
       function activate(name, pushHash) {
+        // Looked up on every switch: a region refresh may have replaced a panel since binding.
+        var panels = $$('[data-cg-tabpanel][data-cg-tabs-scope="' + scope + '"]');
         tabs.forEach(function (t) {
           var active = t.getAttribute('data-cg-tab') === name;
           t.classList.toggle('is-active', active);
@@ -231,8 +251,20 @@
   }
 
   /** Server-rendered TempData messages surface as toasts on first paint. */
-  function initServerToasts() {
-    $$('[data-cg-toast]').forEach(function (node) {
+  /** Re-applies each tab group's active tab to its panels (after a region refresh replaced some). */
+  function syncTabPanels() {
+    $$('[data-cg-tabs]').forEach(function (group) {
+      var active = $('[data-cg-tab].is-active', group);
+      if (!active) return;
+      var name = active.getAttribute('data-cg-tab');
+      $$('[data-cg-tabpanel][data-cg-tabs-scope="' + group.getAttribute('data-cg-tabs') + '"]').forEach(function (p) {
+        p.classList.toggle('is-active', p.getAttribute('data-cg-tabpanel') === name);
+      });
+    });
+  }
+
+  function initServerToasts(root) {
+    $$('[data-cg-toast]', root).forEach(function (node) {
       toasts.show(node.getAttribute('data-cg-toast-message') || node.textContent.trim(),
         node.getAttribute('data-cg-toast') || 'info',
         node.getAttribute('data-cg-toast-title') || null);
@@ -241,28 +273,31 @@
   }
 
   // ----------------------------------------------------------------- Modals
-  function initModals() {
-    var FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
-    var opener = null;
+  var MODAL_FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  var modalOpener = null;
 
-    function open(id) {
-      var modal = document.getElementById(id);
-      if (!modal) return;
-      opener = document.activeElement;
-      modal.hidden = false;
-      document.body.style.overflow = 'hidden';
-      // Prefer the first form field over the header's close button.
-      var focusable = modal.querySelector('input:not([type="hidden"]), select, textarea') || modal.querySelector(FOCUSABLE);
-      if (focusable) focusable.focus();
-    }
-    function close(modal) {
-      if (!modal || modal.hidden) return;
-      modal.hidden = true;
-      document.body.style.overflow = '';
-      if (opener && document.contains(opener)) opener.focus();
-      opener = null;
-    }
+  function openModal(id) {
+    var modal = document.getElementById(id);
+    if (!modal) return;
+    modalOpener = document.activeElement;
+    modal.hidden = false;
+    document.body.style.overflow = 'hidden';
+    // Prefer the first form field over the header's close button.
+    var focusable = modal.querySelector('input:not([type="hidden"]), select, textarea') || modal.querySelector(MODAL_FOCUSABLE);
+    if (focusable) focusable.focus();
+  }
 
+  function closeModal(modal) {
+    if (!modal || modal.hidden) return;
+    modal.hidden = true;
+    document.body.style.overflow = '';
+    if (modalOpener && document.contains(modalOpener)) modalOpener.focus();
+    modalOpener = null;
+  }
+
+  /** Document-wide modal keyboard handling: bound once per page. */
+  function initModalsGlobal() {
+    var FOCUSABLE = MODAL_FOCUSABLE;
     // Keep Tab inside an open modal; otherwise focus walks into the page behind it.
     on(document, 'keydown', function (e) {
       if (e.key !== 'Tab') return;
@@ -276,28 +311,32 @@
       else if (!modal.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
     });
 
-    $$('[data-cg-modal-open]').forEach(function (btn) {
-      on(btn, 'click', function (e) {
-        e.preventDefault();
-        open(btn.getAttribute('data-cg-modal-open'));
-      });
-    });
-    $$('[data-cg-modal-close]').forEach(function (btn) {
-      on(btn, 'click', function () { close(btn.closest('.cg-modal')); });
-    });
-    $$('.cg-modal').forEach(function (modal) {
-      // Click on the scrim, but not a click that started inside the panel.
-      on(modal, 'mousedown', function (e) { if (e.target === modal) close(modal); });
-    });
     on(document, 'keydown', function (e) {
       if (e.key !== 'Escape') return;
-      $$('.cg-modal').forEach(function (m) { if (!m.hidden) close(m); });
+      $$('.cg-modal').forEach(function (m) { if (!m.hidden) closeModal(m); });
+    });
+  }
+
+  function initModals(root) {
+    each(root, '[data-cg-modal-open]', 'ModalOpen', function (btn) {
+      on(btn, 'click', function (e) {
+        e.preventDefault();
+        openModal(btn.getAttribute('data-cg-modal-open'));
+      });
+    });
+    each(root, '[data-cg-modal-close]', 'ModalClose', function (btn) {
+      on(btn, 'click', function () { closeModal(btn.closest('.cg-modal')); });
+    });
+    each(root, '.cg-modal', 'Modal', function (modal) {
+      // Click on the scrim, but not a click that started inside the panel.
+      on(modal, 'mousedown', function (e) { if (e.target === modal) closeModal(modal); });
     });
   }
 
   // ----------------------------------------------- Destructive confirmation
-  function initConfirms() {
-    $$('[data-cg-confirm]').forEach(function (form) {
+  function initConfirms(root) {
+    // Forms only: cg-ajax.js asks for buttons ([data-cg-action][data-cg-confirm]) itself.
+    each(root, 'form[data-cg-confirm]', 'Confirm', function (form) {
       on(form, 'submit', function (e) {
         if (form.dataset.cgConfirmed === '1') return;
         e.preventDefault();
@@ -315,8 +354,8 @@
   }
 
   // ------------------------------------------------------- Password reveal
-  function initPasswordToggles() {
-    $$('[data-cg-reveal]').forEach(function (btn) {
+  function initPasswordToggles(root) {
+    each(root, '[data-cg-reveal]', 'Reveal', function (btn) {
       on(btn, 'click', function () {
         var input = document.getElementById(btn.getAttribute('data-cg-reveal'));
         if (!input) return;
@@ -329,40 +368,50 @@
   }
 
   // ------------------------------------------------- Submit loading states
-  function initSubmitStates() {
-    $$('form[data-cg-busy]').forEach(function (form) {
+  /** Shows or clears a button's loading state (spinner + is-loading). Shared with cg-ajax.js. */
+  function setBusy(btn, busy) {
+    if (!btn) return;
+    if (busy) {
+      if (btn.classList.contains('is-loading')) return;
+      btn.classList.add('is-loading');
+      var spinner = document.createElement('span');
+      spinner.className = 'cg-btn__spinner';
+      btn.insertBefore(spinner, btn.firstChild);
+    } else {
+      btn.classList.remove('is-loading');
+      var s = btn.querySelector('.cg-btn__spinner');
+      if (s) s.remove();
+    }
+  }
+
+  function initSubmitStatesGlobal() {
+    // Back/forward cache restores the page exactly as it was left, spinner included.
+    on(window, 'pageshow', function (e) {
+      if (!e.persisted) return;
+      $$('.cg-btn.is-loading').forEach(function (btn) { setBusy(btn, false); });
+      $$('form[data-cg-confirm]').forEach(function (form) { delete form.dataset.cgConfirmed; });
+    });
+  }
+
+  function initSubmitStates(root) {
+    // AJAX forms show their own busy state (cg-ajax.js); this is the full-page post.
+    each(root, 'form[data-cg-busy]:not([data-cg-ajax])', 'Busy', function (form) {
       on(form, 'submit', function (e) {
         // Decide after every submit handler has run: a declined confirmation cancels
         // the event, and a button left "loading" then could never be pressed again.
         setTimeout(function () {
           if (e.defaultPrevented) return;
-          var btn = form.querySelector('button[type="submit"], .cg-btn--primary');
-          if (!btn || btn.classList.contains('is-loading')) return;
-          btn.classList.add('is-loading');
-          var spinner = document.createElement('span');
-          spinner.className = 'cg-btn__spinner';
-          btn.insertBefore(spinner, btn.firstChild);
+          setBusy(form.querySelector('button[type="submit"], .cg-btn--primary'), true);
         }, 0);
       });
-    });
-
-    // Back/forward cache restores the page exactly as it was left, spinner included.
-    on(window, 'pageshow', function (e) {
-      if (!e.persisted) return;
-      $$('.cg-btn.is-loading').forEach(function (btn) {
-        btn.classList.remove('is-loading');
-        var spinner = btn.querySelector('.cg-btn__spinner');
-        if (spinner) spinner.remove();
-      });
-      $$('form[data-cg-confirm]').forEach(function (form) { delete form.dataset.cgConfirmed; });
     });
   }
 
   // ------------------------------------------------ Client-side table tools
   // Server-side data, browser-side refinement: filtering, sorting and paging
   // act on rows already delivered, so no request is made while the admin types.
-  function initTables() {
-    $$('[data-cg-table]').forEach(function (table) {
+  function initTables(root) {
+    each(root, '[data-cg-table]', 'Table', function (table) {
       var scope = table.getAttribute('data-cg-table');
       var tbody = table.querySelector('tbody');
       if (!tbody) return;
@@ -463,8 +512,8 @@
   // ------------------------------------------------------- Photo dropzones
   // Uploads post as a normal multipart form. The browser-side checks here are a
   // courtesy that saves a round trip; the API validates the bytes regardless.
-  function initDropzones() {
-    $$('[data-cg-dropzone]').forEach(function (zone) {
+  function initDropzones(root) {
+    each(root, '[data-cg-dropzone]', 'Dropzone', function (zone) {
       var input = zone.querySelector('input[type="file"]');
       var form = zone.closest('form');
       if (!input || !form) return;
@@ -743,8 +792,8 @@
   }
 
   // ---------------------------------------------- Relative timestamp labels
-  function initRelativeTimes() {
-    $$('[data-cg-ago]').forEach(function (el) {
+  function initRelativeTimes(root) {
+    $$('[data-cg-ago]', root).forEach(function (el) {
       var iso = el.getAttribute('data-cg-ago');
       var when = new Date(iso);
       if (isNaN(when.getTime())) return;
@@ -770,8 +819,11 @@
   // A table wider than its card scrolls sideways. Keyboard users must be able to
   // reach that scroll (WCAG 2.1.1), so an overflowing wrapper becomes a labelled,
   // focusable region; it goes back to plain markup when it fits again.
-  function initScrollRegions() {
-    var wraps = $$('.cg-table-wrap');
+  var scrollObserver = null;
+
+  function initScrollRegions(root) {
+    var wraps = [];
+    each(root, '.cg-table-wrap', 'Scroll', function (w) { wraps.push(w); });
     if (!wraps.length) return;
 
     function label(wrap) {
@@ -795,16 +847,17 @@
 
     wraps.forEach(sync);
     if ('ResizeObserver' in window) {
-      var ro = new ResizeObserver(function (entries) { entries.forEach(function (e) { sync(e.target); }); });
-      wraps.forEach(function (w) { ro.observe(w); });
+      // One observer for the page; wrappers removed by a region refresh are simply garbage collected.
+      scrollObserver = scrollObserver || new ResizeObserver(function (entries) { entries.forEach(function (e) { sync(e.target); }); });
+      wraps.forEach(function (w) { scrollObserver.observe(w); });
     }
   }
 
   // ------------------------------------------------------- Avatar fallback
   // A broken image must never leave a torn icon on a child's record; the
   // initials underneath are revealed instead.
-  function initAvatarFallbacks() {
-    $$('.cg-avatar img').forEach(function (img) {
+  function initAvatarFallbacks(root) {
+    each(root, '.cg-avatar img', 'Avatar', function (img) {
       on(img, 'error', function () { img.remove(); });
     });
   }
@@ -815,9 +868,12 @@
   // absent (reduced motion, or automation such as the E2E suite).
   var motionOn = document.documentElement.classList.contains('cg-motion');
 
-  function initCountUps() {
+  function initCountUps(root) {
     if (!motionOn || !('IntersectionObserver' in window)) return;
-    var targets = $$('.cg-kpi__value, .cg-hero__stat-value, .cg-donut__center-value, .cg-kpi__breakdown-value');
+    var targets = [];
+    each(root, '.cg-kpi__value, .cg-hero__stat-value, .cg-donut__center-value, .cg-kpi__breakdown-value', 'CountUp',
+      function (el) { targets.push(el); });
+    if (!targets.length) return;
     var numberRe = /^(\d{1,3}(?:,\d{3})*|\d+)(\.\d+)?$/;
 
     function firstNumberNode(el) {
@@ -866,9 +922,9 @@
   }
 
   // Soft light that follows the pointer across KPI cards.
-  function initPointerSheen() {
+  function initPointerSheen(root) {
     if (!motionOn || !window.matchMedia('(hover: hover)').matches) return;
-    $$('.cg-kpi').forEach(function (card) {
+    each(root, '.cg-kpi', 'Sheen', function (card) {
       on(card, 'pointermove', function (e) {
         var r = card.getBoundingClientRect();
         card.style.setProperty('--mx', (e.clientX - r.left) + 'px');
@@ -892,7 +948,10 @@
       start();
     });
     on(document, 'submit', function (e) {
-      if (!e.defaultPrevented && !(e.target && e.target.hasAttribute('data-cg-no-progress'))) start();
+      var form = e.target;
+      // An AJAX form never unloads the page; it shows its own busy state.
+      if (e.defaultPrevented || !form || form.hasAttribute('data-cg-no-progress') || form.hasAttribute('data-cg-ajax')) return;
+      start();
     });
     var safety;
     function start() {
@@ -936,27 +995,46 @@
     if (target && (!document.activeElement || document.activeElement === document.body)) target.focus();
   }
 
+  /**
+   * Binds every widget found inside root. Safe to call again on HTML that replaced part of the page
+   * (cg-ajax.js region refresh): elements already bound are skipped, document-level handlers are not
+   * touched.
+   */
+  function initWidgets(root) {
+    initCountUps(root);
+    initPointerSheen(root);
+    initDropdowns(root);
+    initTabs(root);
+    initServerToasts(root);
+    initModals(root);
+    initConfirms(root);
+    initPasswordToggles(root);
+    initSubmitStates(root);
+    initTables(root);
+    initDropzones(root);
+    initRelativeTimes(root);
+    initAvatarFallbacks(root);
+    initScrollRegions(root);
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
     initAutofocus();
-    initCountUps();
-    initPointerSheen();
     initNavProgress();
     initPrefetch();
     initSidebar();
-    initDropdowns();
-    initTabs();
-    initServerToasts();
-    initModals();
-    initConfirms();
-    initPasswordToggles();
-    initSubmitStates();
-    initTables();
-    initDropzones();
+    initDropdownsGlobal();
+    initModalsGlobal();
+    initSubmitStatesGlobal();
     initGlobalSearch();
-    initRelativeTimes();
-    initAvatarFallbacks();
-    initScrollRegions();
+    initWidgets(document);
   });
 
   window.CgToast = toasts;
+  var cg = window.cg = window.cg || {};
+  cg.init = initWidgets;
+  cg.toast = function (message, kind, title) { toasts.show(message, kind, title); };
+  cg.setBusy = setBusy;
+  cg.openModal = openModal;
+  cg.closeModal = closeModal;
+  cg.syncTabPanels = syncTabPanels;
 })();
