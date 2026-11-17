@@ -1,17 +1,16 @@
-@model List<GuardianListItemDto>
+@model ListPageViewModel<GuardianListItemDto>
 @{
     ViewData["Title"] = "Guardians";
-    var withPhoto = Model.Count(g => g.HasPhoto);
-    var faceReady = Model.Count(g => g.FaceRegistered);
-    var pendingReset = Model.Count(g => g.PasswordResetRequired);
-    var unlinked = Model.Count(g => g.LinkedStudentCount == 0);
+    var q = (ListQuery)ViewData["Query"]!;
+    var summary = ViewBag.Summary as GuardianListSummaryDto;
+    string Figure(int? n) => n?.ToString() ?? "–";
 }
 
 <div class="cg-page-head">
     <div class="cg-page-head__text">
         <h1 class="cg-page-head__title">Guardians</h1>
         <p class="cg-page-head__sub">
-            @Model.Count registered · @faceReady ready for face verification · @withPhoto with a photo on file
+            @Figure(summary?.Total) registered · @Figure(summary?.FaceRegistered) ready for face verification · @Figure(summary?.WithPhoto) with a photo on file
         </p>
     </div>
     <div class="cg-page-head__actions">
@@ -19,122 +18,147 @@
     </div>
 </div>
 
-@if (ViewBag.LoadError is string loadError)
-{
-    <div class="cg-alert cg-alert--danger" role="alert">
-        <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "alert-circle")</span>
-        <div class="cg-alert__body">@loadError</div>
-    </div>
-}
-
 <div class="cg-grid cg-grid--4">
     <article class="cg-kpi">
         <div class="cg-kpi__top">
             <div class="cg-kpi__label">Registered guardians</div>
             <span class="cg-kpi__icon cg-kpi__icon--info">@await Html.PartialAsync("_Icon", "guardians")</span>
         </div>
-        <div class="cg-kpi__value cg-kpi__value--sm">@Model.Count</div>
+        <div class="cg-kpi__value cg-kpi__value--sm">@Figure(summary?.Total)</div>
     </article>
     <article class="cg-kpi">
         <div class="cg-kpi__top">
             <div class="cg-kpi__label">Face registered</div>
             <span class="cg-kpi__icon cg-kpi__icon--success">@await Html.PartialAsync("_Icon", "camera")</span>
         </div>
-        <div class="cg-kpi__value cg-kpi__value--sm">@faceReady</div>
+        <div class="cg-kpi__value cg-kpi__value--sm">@Figure(summary?.FaceRegistered)</div>
         <div class="cg-kpi__note">Can be verified at the pickup desk</div>
     </article>
     <article class="cg-kpi">
         <div class="cg-kpi__top">
             <div class="cg-kpi__label">Awaiting first sign-in</div>
-            <span class="cg-kpi__icon @(pendingReset > 0 ? "cg-kpi__icon--warning" : "cg-kpi__icon--neutral")">
+            <span class="cg-kpi__icon @(summary?.AwaitingFirstSignIn > 0 ? "cg-kpi__icon--warning" : "cg-kpi__icon--neutral")">
                 @await Html.PartialAsync("_Icon", "key")
             </span>
         </div>
-        <div class="cg-kpi__value cg-kpi__value--sm">@pendingReset</div>
+        <div class="cg-kpi__value cg-kpi__value--sm">@Figure(summary?.AwaitingFirstSignIn)</div>
         <div class="cg-kpi__note">Still on an issued password</div>
     </article>
     <article class="cg-kpi">
         <div class="cg-kpi__top">
             <div class="cg-kpi__label">No linked children</div>
-            <span class="cg-kpi__icon @(unlinked > 0 ? "cg-kpi__icon--warning" : "cg-kpi__icon--neutral")">
+            <span class="cg-kpi__icon @(summary?.WithoutStudents > 0 ? "cg-kpi__icon--warning" : "cg-kpi__icon--neutral")">
                 @await Html.PartialAsync("_Icon", "user-x")
             </span>
         </div>
-        <div class="cg-kpi__value cg-kpi__value--sm">@unlinked</div>
+        <div class="cg-kpi__value cg-kpi__value--sm">@Figure(summary?.WithoutStudents)</div>
         <div class="cg-kpi__note">Cannot collect anyone yet</div>
     </article>
 </div>
 
 <section class="cg-card">
-    <div class="cg-toolbar">
-        <div class="cg-input-group cg-toolbar__grow" style="max-width:320px">
-            <span class="cg-input-group__icon">@await Html.PartialAsync("_Icon", "search")</span>
-            <input class="cg-input" placeholder="Search name, email or number"
-                   data-cg-search data-cg-search-scope="guardians" aria-label="Search guardians" />
+    @* Search, filters and sort run on the server; with JavaScript only the list region below is re-rendered
+       and the URL keeps the view, so Back, Refresh and bookmarks restore it. *@
+    <form method="get" action="/Guardians" class="cg-toolbar" data-cg-list="list" role="search">
+        <div class="cg-row cg-toolbar__grow" style="max-width:380px">
+            <div class="cg-input-group" style="flex:1">
+                <span class="cg-input-group__icon">@await Html.PartialAsync("_Icon", "search")</span>
+                <input class="cg-input" name="search" value="@q.Search" placeholder="Search name, email or number"
+                       aria-label="Search guardians" autocomplete="off" />
+            </div>
+            <button class="cg-btn cg-btn--secondary" type="submit">Search</button>
         </div>
 
-        <select class="cg-select" style="max-width:170px" data-cg-filter="verification" data-cg-filter-scope="guardians"
+        <select class="cg-select" style="max-width:170px" name="verification" data-cg-filter="verification" data-cg-filter-scope="guardians"
                 aria-label="Filter by face registration">
             <option value="__all">Any verification</option>
-            <option value="ready">Face registered</option>
-            <option value="missing">No face registered</option>
+            <option value="ready" selected="@(q.Value("verification") == "ready")">Face registered</option>
+            <option value="missing" selected="@(q.Value("verification") == "missing")">No face registered</option>
         </select>
 
-        <select class="cg-select" style="max-width:160px" data-cg-filter="children" data-cg-filter-scope="guardians"
+        <select class="cg-select" style="max-width:160px" name="children" data-cg-filter="children" data-cg-filter-scope="guardians"
                 aria-label="Filter by linked children">
             <option value="__all">Any children</option>
-            <option value="linked">Has children</option>
-            <option value="none">No children</option>
+            <option value="linked" selected="@(q.Value("children") == "linked")">Has children</option>
+            <option value="none" selected="@(q.Value("children") == "none")">No children</option>
         </select>
 
-        <select class="cg-select" style="max-width:150px" data-cg-filter="status" data-cg-filter-scope="guardians"
+        <select class="cg-select" style="max-width:150px" name="status" data-cg-filter="status" data-cg-filter-scope="guardians"
                 aria-label="Filter by account status">
             <option value="__all">Any status</option>
-            <option value="Active">Active</option>
-            <option value="Inactive">Inactive</option>
-                <option value="Archived">Archived</option>
+            <option value="Active" selected="@(q.Value("status") == "Active")">Active</option>
+            <option value="Inactive" selected="@(q.Value("status") == "Inactive")">Inactive</option>
+            <option value="Archived" selected="@(q.Value("status") == "Archived")">Archived</option>
         </select>
 
-        <button type="button" class="cg-btn cg-btn--ghost cg-btn--sm" data-cg-reset data-cg-reset-scope="guardians">Clear</button>
-        <span class="cg-toolbar__spacer"></span>
-        <span class="cg-text-sm cg-muted" data-cg-count data-cg-count-scope="guardians"></span>
-    </div>
+        @if (q.SortKey is not null)
+        {
+            <input type="hidden" name="sort" value="@q.SortKey" />
+            <input type="hidden" name="dir" value="@(q.Descending ? "desc" : "asc")" />
+        }
 
-    @if (!Model.Any())
-    {
-        @await Html.PartialAsync("_EmptyState", ("guardians", "No guardians yet",
-            "Add a guardian and ChildGuard emails them their sign-in details automatically.",
-            "Add guardian", "/Guardians/Create"))
-    }
-    else
-    {
-        <div class="cg-table-wrap">
-            <table class="cg-table" data-cg-table="guardians" data-cg-page-size="25">
-                <thead>
-                    <tr>
-                        <th><span class="cg-th-sort" data-cg-sort="name">Guardian @await Html.PartialAsync("_Icon", "arrow-down")</span></th>
-                        <th>Contact</th>
-                        <th><span class="cg-th-sort" data-cg-sort="children">Children @await Html.PartialAsync("_Icon", "arrow-down")</span></th>
-                        <th>Verification</th>
-                        <th>Account</th>
-                        <th><span class="cg-th-sort" data-cg-sort="activity">Last activity @await Html.PartialAsync("_Icon", "arrow-down")</span></th>
-                        <th class="cg-table__actions">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                @foreach (var g in Model)
+        @* Clears the filters, keeps the name search. *@
+        <a class="cg-btn cg-btn--ghost cg-btn--sm" data-cg-reset data-cg-reset-scope="guardians" data-cg-list-link
+           href="@q.ClearedFilters().Url()">Clear</a>
+        <span class="cg-toolbar__spacer"></span>
+    </form>
+
+    @* The announcer sits outside the region: a live region replaced already filled is announced unreliably,
+       so cg-ajax.js copies the new count into it. *@
+    <span class="cg-sr-only" data-cg-list-status role="status" aria-live="polite"></span>
+    <div data-cg-region="list">
+        @if (ViewBag.LoadError is string loadError)
+        {
+            <div class="cg-card__body">
+                <div class="cg-alert cg-alert--danger" role="alert">
+                    <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "alert-circle")</span>
+                    <div class="cg-alert__body">
+                        <div>@loadError</div>
+                        <a href="@q.Url(page: q.CurrentPage)" data-cg-list-link>Try again</a>
+                    </div>
+                </div>
+            </div>
+        }
+        else if (Model.PastTheEnd)
+        {
+            <div class="cg-empty" data-cg-page-missing>
+                <div class="cg-empty__art">@await Html.PartialAsync("_Icon", "filter")</div>
+                <div class="cg-empty__title">There is no page @Model.Page</div>
+                <p class="cg-empty__text">This list has @Model.PageCount page@(Model.PageCount == 1 ? "" : "s") of results now.</p>
+                <a class="cg-btn cg-btn--secondary cg-btn--sm" href="@q.Url(page: Model.PageCount)" data-cg-list-link>Go to page @Model.PageCount</a>
+            </div>
+        }
+        else if (Model.Total == 0 && !q.HasFilters)
+        {
+            @await Html.PartialAsync("_EmptyState", ("guardians", "No guardians yet",
+                "Add a guardian and ChildGuard emails them their sign-in details automatically.",
+                (string?)"Add guardian", (string?)"/Guardians/Create"))
+        }
+        else
+        {
+            <div class="cg-row cg-row--between" style="padding:0 16px">
+                <span class="cg-text-sm cg-muted" data-cg-count data-cg-count-scope="guardians">@Model.Total @(Model.Total == 1 ? "record" : "records")</span>
+            </div>
+            <div class="cg-table-wrap">
+                <table class="cg-table">
+                    <thead>
+                        <tr>
+                            @await Html.PartialAsync("_SortHeader", new SortHeaderModel("name", "Guardian", q.SortKey, q.Descending, q.Url))
+                            <th>Contact</th>
+                            @await Html.PartialAsync("_SortHeader", new SortHeaderModel("children", "Children", q.SortKey, q.Descending, q.Url))
+                            <th>Verification</th>
+                            <th>Account</th>
+                            @await Html.PartialAsync("_SortHeader", new SortHeaderModel("activity", "Last activity", q.SortKey, q.Descending, q.Url))
+                            <th class="cg-table__actions">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>                @foreach (var g in Model.Items)
                 {
                     var photoUrl = g.HasPhoto
                         ? Url.Action("Photo", "Guardians", new { id = g.GuardianId, v = g.PhotoUpdatedAt?.Ticks })
                         : null;
-                    <tr data-row
-                        data-search="@g.FullName @g.Email @g.Phone"
-                        data-verification="@(g.FaceRegistered ? "ready" : "missing")"
-                        data-children="@(g.LinkedStudentCount == 0 ? "none" : "linked")"
-                        data-status="@(g.ArchivedAt is not null ? "Archived" : g.Status.ToString())"
-                        data-sort-name="@g.FullName"
-                        data-sort-children="@g.LinkedStudentCount"
-                        data-sort-activity="@(g.LastActivityAt?.Ticks ?? 0)">
+                    <tr data-row>
+
                         <td>
                             <a class="cg-identity" href="/Guardians/Details/@g.GuardianId" style="color:inherit">
                                 @await Html.PartialAsync("_Avatar", new AvatarModel(photoUrl, g.FullName, "sm", true))
@@ -217,19 +241,20 @@
                         </td>
                     </tr>
                 }
-                </tbody>
-            </table>
-        </div>
+                    </tbody>
+                </table>
+            </div>
 
-        <div class="cg-empty" data-cg-noresults data-cg-noresults-scope="guardians" hidden>
-            <div class="cg-empty__art">@await Html.PartialAsync("_Icon", "filter")</div>
-            <div class="cg-empty__title">No guardians match these filters</div>
-            <p class="cg-empty__text">Clear one or more filters to widen the list.</p>
-        </div>
+            @if (Model.Total == 0)
+            {
+                <div class="cg-empty" data-cg-noresults data-cg-noresults-scope="guardians">
+                    <div class="cg-empty__art">@await Html.PartialAsync("_Icon", "filter")</div>
+                    <div class="cg-empty__title">No guardians match these filters</div>
+                    <p class="cg-empty__text">Clear one or more filters, or try a different name.</p>
+                </div>
+            }
 
-        <div class="cg-pagination">
-            <span class="cg-text-sm">Showing up to 25 guardians per page</span>
-            <div class="cg-pagination__pages" data-cg-pager data-cg-pager-scope="guardians"></div>
-        </div>
-    }
+            @await Html.PartialAsync("_Pager", new PagerModel("guardians", Model.Page, Model.PageCount, Model.FirstRow, Model.LastRow, Model.Total, "guardians", p => q.Url(page: p)))
+        }
+    </div>
 </section>

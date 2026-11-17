@@ -18,7 +18,8 @@ test.describe('Guardians', () => {
   });
 
   test.describe('validation', () => {
-    test.use({ allowErrors: [/status of 400/] });
+    // The refusals are HTTP 400 (bad input) and 409 (duplicate number) answers to the form's request.
+    test.use({ allowErrors: [/status of 40[09]/] });
     test('rejects a bad email, a bad phone and a duplicate contact number', async ({ page, data }) => {
       const existing = await data.guardian();
       await page.goto('/Guardians/Create');
@@ -73,16 +74,19 @@ test.describe('Guardians', () => {
     await data.link(s.id, parent.id);
     await data.guardian({ fullName: `${tag} Lonely` });
     await page.goto('/Guardians');
-    await page.locator('[data-cg-search][data-cg-search-scope="guardians"]').fill(tag);
-    const rows = page.locator('tr[data-row]:visible');
+    await page.locator('input[name="search"]').fill(tag);
+    const rows = page.locator('[data-cg-region="list"] tr[data-row]');
     await expect(rows).toHaveCount(2);
     await page.locator('[data-cg-filter="children"]').selectOption({ label: 'No children' });
     await expect(rows).toHaveCount(1);
     await expect(rows).toContainText('Lonely');
-    await page.getByRole('button', { name: 'Clear' }).click();
-    await expect(page.locator('[data-cg-search][data-cg-search-scope="guardians"]')).toHaveValue('');
-    await page.locator('[data-cg-search][data-cg-search-scope="guardians"]').fill(tag);
+    // Clear drops the filters but keeps the name search typed so far.
+    await page.getByRole('link', { name: 'Clear' }).click();
+    await expect(page.locator('[data-cg-filter="children"]')).toHaveValue('__all');
+    await expect(page.locator('input[name="search"]')).toHaveValue(tag);
+    await expect(rows).toHaveCount(2);
     await page.locator('[data-cg-sort="name"]').click();
+    await expect(page.locator('[data-cg-sort="name"]')).toHaveClass(/is-asc/);
     expect(await rows.locator('.cg-identity__name').allInnerTexts()).toEqual([`${tag} Lonely`, `${tag} Parent`]);
   });
 

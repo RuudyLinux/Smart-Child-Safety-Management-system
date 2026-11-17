@@ -22,6 +22,11 @@ public abstract class BaseAdminController : Controller
         ViewData["Section"] = section;
     }
 
+    /// <summary>
+    /// True when the browser asked for the list region alone (typing, a filter, a page): the page's other parts
+    /// (header figures, filter options) are not part of it, so the action need not fetch them.
+    /// </summary>
+    protected bool ListRegionOnly => AjaxRequest.IsAjax(Request) && Request.Headers["X-CG-Regions"].ToString() == "list";
     public const string InvalidFormMessage = "Please fix the highlighted fields.";
 
     /// <summary>
@@ -42,6 +47,18 @@ public abstract class BaseAdminController : Controller
         return Redirect(redirectUrl ?? LocalReferer());
     }
 
+    /// <summary>
+    /// A write that succeeded with something the admin must act on (for example a guardian created whose
+    /// credential email could not be sent): loads <paramref name="redirectUrl"/> and shows the message there as
+    /// an error toast. Always a navigation, so the message travels with the next page.
+    /// </summary>
+    protected IActionResult DoneWithWarning(string message, string redirectUrl)
+    {
+        TempData["Error"] = message;
+        return AjaxRequest.IsAjax(Request)
+            ? Envelope(200, new AjaxEnvelope(true, message, redirectUrl, null, null))
+            : Redirect(redirectUrl);
+    }
     /// <summary>A refused or failed write: an error envelope with the matching status, or PRG with an error toast.</summary>
     protected IActionResult Failed(string message, int status = 400, string? redirectUrl = null)
     {
@@ -72,6 +89,26 @@ public abstract class BaseAdminController : Controller
         return Failed(result.Error ?? "The request failed.", result.StatusCode is >= 400 and <= 599 ? result.StatusCode : 502, redirectUrl);
     }
 
+    /// <summary>
+    /// An API call from a Create/Edit form was refused. AJAX: field errors (from the API or from binding the
+    /// form) go beside their fields; another 4xx refusal (a duplicate email, a conflict) is a form-level message
+    /// that is also toasted; a server failure is only a toast. Otherwise null, with the message added to the
+    /// model so the caller re-renders its view: <c>return RefuseForm(result) ?? View(model);</c>
+    /// </summary>
+    protected IActionResult? RefuseForm<T>(ApiResult<T> result)
+    {
+        var fieldErrors = AddApiErrors(result) | !ModelState.IsValid;
+        var message = result.Error ?? "The change could not be saved.";
+        if (!AjaxRequest.IsAjax(Request))
+        {
+            if (!fieldErrors) ModelState.AddModelError(string.Empty, message);
+            return null;
+        }
+        if (fieldErrors) return Invalid(ModelState);
+        if (result.StatusCode is < 400 or >= 500) return Failed(message, result.StatusCode >= 500 ? result.StatusCode : 502);
+        return Envelope(result.StatusCode, new AjaxEnvelope(false, message, null, null,
+            new Dictionary<string, string[]> { [string.Empty] = new[] { message } }));
+    }
     /// <summary>Copies the API's field validation errors into ModelState; false when it sent none.</summary>
     protected bool AddApiErrors<T>(ApiResult<T> result)
     {

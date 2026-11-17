@@ -36,13 +36,15 @@
                 </div>
             }
 
-            <form asp-action="Create" method="post" class="cg-form" data-cg-busy>
+            <form asp-action="Create" method="post" class="cg-form" data-cg-busy data-cg-ajax>
+                <div class="cg-alert cg-alert--danger" data-cg-error-summary role="alert" hidden></div>
                 @Html.AntiForgeryToken()
 
                 <div class="cg-field">
                     <label class="cg-label" for="FullName">Full name <span class="cg-label__req">*</span></label>
                     <input class="cg-input" id="FullName" name="FullName" value="@Model.FullName"
                            maxlength="150" required autofocus />
+                    <span class="cg-error-text" data-valmsg-for="FullName" role="alert"></span>
                 </div>
 
                 <div class="cg-field">
@@ -52,6 +54,7 @@
                         <input class="cg-input" id="Email" type="email" name="Email" value="@Model.Email"
                                maxlength="200" required />
                     </div>
+                    <span class="cg-error-text" data-valmsg-for="Email" role="alert"></span>
                     <p class="cg-hint">Sign-in details and one-time codes are sent here. It must be unique.</p>
                 </div>
 
@@ -62,6 +65,7 @@
                         <input class="cg-input" id="ContactNumber" type="tel" name="ContactNumber"
                                value="@Model.ContactNumber" maxlength="30" required />
                     </div>
+                    <span class="cg-error-text" data-valmsg-for="ContactNumber" role="alert"></span>
                     <p class="cg-hint">This is the guardian's sign-in ID in the mobile app, so it must be unique.</p>
                 </div>
 

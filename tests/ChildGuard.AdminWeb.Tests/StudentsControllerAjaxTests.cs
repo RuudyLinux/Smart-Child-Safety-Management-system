@@ -45,13 +45,13 @@ public class StudentsControllerAjaxTests
     }
 
     [Fact]
-    public async Task Edit_Conflict_IsReportedAsItself_NotAsFieldErrors()
+    public async Task Edit_Conflict_ShowsTheRealReasonInTheForm()
     {
         var (status, e) = Read(await Controller(HttpStatusCode.Conflict, "{\"message\":\"Admission number already in use.\"}")
             .Edit(1, Edit, CancellationToken.None));
         Assert.Equal(409, status);
         Assert.Equal("Admission number already in use.", e.Message);
-        Assert.Null(e.Errors);
+        Assert.Equal(new[] { "Admission number already in use." }, e.Errors![""]);   // the form's summary slot
     }
 
     [Fact]

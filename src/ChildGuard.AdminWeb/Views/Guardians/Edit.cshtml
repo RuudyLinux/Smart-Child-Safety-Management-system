@@ -3,6 +3,8 @@
     ViewData["Title"] = "Edit guardian";
     var guardianId = (int)ViewData["GuardianId"]!;
     var hasPhoto = ViewData["HasPhoto"] as bool? ?? false;
+    var photoUpdatedAt = ViewData["PhotoUpdatedAt"] as DateTime?;
+    ViewData["AjaxForms"] = true;
 }
 
 <div class="cg-page-head">
@@ -34,12 +36,14 @@
                 </div>
             }
 
-            <form asp-action="Edit" asp-route-id="@guardianId" method="post" class="cg-form" data-cg-busy>
+            <form asp-action="Edit" asp-route-id="@guardianId" method="post" class="cg-form" data-cg-busy data-cg-ajax>
+                <div class="cg-alert cg-alert--danger" data-cg-error-summary role="alert" hidden></div>
                 @Html.AntiForgeryToken()
 
                 <div class="cg-field">
                     <label class="cg-label" for="FullName">Full name <span class="cg-label__req">*</span></label>
                     <input class="cg-input" id="FullName" name="FullName" value="@Model.FullName" maxlength="150" required />
+                    <span class="cg-error-text" data-valmsg-for="FullName" role="alert"></span>
                 </div>
 
                 <div class="cg-field">
@@ -48,6 +52,7 @@
                         <span class="cg-input-group__icon">@await Html.PartialAsync("_Icon", "mail")</span>
                         <input class="cg-input" id="Email" type="email" name="Email" value="@Model.Email" maxlength="200" required />
                     </div>
+                    <span class="cg-error-text" data-valmsg-for="Email" role="alert"></span>
                 </div>
 
                 <div class="cg-field">
@@ -57,6 +62,7 @@
                         <input class="cg-input" id="ContactNumber" type="tel" name="ContactNumber"
                                value="@Model.ContactNumber" maxlength="30" required />
                     </div>
+                    <span class="cg-error-text" data-valmsg-for="ContactNumber" role="alert"></span>
                     <p class="cg-hint">The guardian signs in with this number, so it must stay unique.</p>
                 </div>
 
@@ -67,6 +73,7 @@
                         <option value="@RecordStatus.Inactive" selected="@(Model.Status == RecordStatus.Inactive)">Inactive</option>
                     </select>
                     <p class="cg-hint">An inactive guardian cannot sign in or be verified for pickup.</p>
+                    <span class="cg-error-text" data-valmsg-for="Status" role="alert"></span>
                 </div>
 
                 <div class="cg-btn-group">
@@ -79,13 +86,15 @@
         </div>
     </section>
 
-    @await Html.PartialAsync("_PhotoManager", new PhotoManagerModel(
-        "Guardians", guardianId, Model.FullName, hasPhoto, null, true,
-        "Guardian photo",
-        "Shown to staff at the pickup desk beside the live face-verification result."))
+    <div data-cg-region="photo">
+        @await Html.PartialAsync("_PhotoManager", new PhotoManagerModel(
+            "Guardians", guardianId, Model.FullName, hasPhoto, photoUpdatedAt, true,
+            "Guardian photo",
+            "Shown to staff at the pickup desk beside the live face-verification result."))
+    </div>
 </div>
 
 @if (ViewData["AddressForm"] is AddressFormModel addressForm)
 {
-    @await Html.PartialAsync("_AddressForm", addressForm)
+    <div data-cg-region="address">@await Html.PartialAsync("_AddressForm", addressForm)</div>
 }

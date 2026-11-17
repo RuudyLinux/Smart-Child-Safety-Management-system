@@ -5,6 +5,8 @@
         ? Url.Action("Photo", "Guardians", new { id = Model.GuardianId, v = Model.PhotoUpdatedAt?.Ticks })
         : null;
     var authorisedChildren = Model.Students.Count(s => s.IsAuthorizedForPickup);
+    // Shared partials (photo, lifecycle, banner) render their forms as AJAX forms on this page.
+    ViewData["AjaxForms"] = true;
 }
 
 <div class="cg-page-head">
@@ -15,7 +17,7 @@
     </div>
 </div>
 
-<section class="cg-profile">
+<section class="cg-profile" data-cg-region="guardian-header">
     @await Html.PartialAsync("_Avatar", new AvatarModel(photoUrl, Model.FullName, "2xl", true, true))
 
     <div class="cg-profile__main">
@@ -77,7 +79,7 @@
         }
         else if (Model.Status == RecordStatus.Active)
         {
-            <form asp-action="UpdateStatus" asp-route-id="@Model.GuardianId" method="post" class="cg-inline-form"
+            <form asp-action="UpdateStatus" asp-route-id="@Model.GuardianId" method="post" class="cg-inline-form" data-cg-ajax
                   data-cg-confirm="Deactivate @Model.FullName? They will be unable to sign in or be verified for pickup until the account is reactivated.">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="status" value="Inactive" />
@@ -86,7 +88,7 @@
         }
         else
         {
-            <form asp-action="UpdateStatus" asp-route-id="@Model.GuardianId" method="post" class="cg-inline-form">
+            <form asp-action="UpdateStatus" asp-route-id="@Model.GuardianId" method="post" class="cg-inline-form" data-cg-ajax>
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="status" value="Active" />
                 <button class="cg-btn cg-btn--success" type="submit">Activate</button>
@@ -95,15 +97,17 @@
     </div>
 </section>
 
-@if (ViewBag.Lifecycle is RecordLifecycleModel lifecycle)
-{
-    @await Html.PartialAsync("_ArchivedBanner", lifecycle)
-}
+<div data-cg-region="archived-banner">
+    @if (ViewBag.Lifecycle is RecordLifecycleModel lifecycle)
+    {
+        @await Html.PartialAsync("_ArchivedBanner", lifecycle)
+    }
+</div>
 
 <div class="cg-tabs" data-cg-tabs="guardian" role="tablist">
     <button class="cg-tab is-active" data-cg-tab="children" role="tab" aria-selected="true">
         @await Html.PartialAsync("_Icon", "students") Linked children
-        <span class="cg-tab__count">@Model.Students.Count</span>
+        <span class="cg-tab__count" data-cg-region="children-count">@Model.Students.Count</span>
     </button>
     <button class="cg-tab" data-cg-tab="photo" role="tab" aria-selected="false">
         @await Html.PartialAsync("_Icon", "image") Photo &amp; Face ID
@@ -119,7 +123,7 @@
 
 @* ---------------------------------------------------------- Linked children *@
 <div class="cg-tabpanel is-active" data-cg-tabpanel="children" data-cg-tabs-scope="guardian" style="padding-top:18px">
-    <section class="cg-card">
+    <section class="cg-card" data-cg-region="children">
         <div class="cg-card__head">
             <div>
                 <h2 class="cg-card__title">Children linked to @Model.FullName</h2>
@@ -191,10 +195,12 @@
 
 @* ------------------------------------------------------------------- Photo *@
 <div class="cg-tabpanel" data-cg-tabpanel="photo" data-cg-tabs-scope="guardian" style="padding-top:18px">
-    @await Html.PartialAsync("_PhotoManager", new PhotoManagerModel(
-        "Guardians", Model.GuardianId, Model.FullName, Model.HasPhoto, Model.PhotoUpdatedAt, true,
-        "Guardian photo",
-        "Shown to staff at the pickup desk beside the live face-verification result."))
+    <div data-cg-region="photo">
+        @await Html.PartialAsync("_PhotoManager", new PhotoManagerModel(
+            "Guardians", Model.GuardianId, Model.FullName, Model.HasPhoto, Model.PhotoUpdatedAt, true,
+            "Guardian photo",
+            "Shown to staff at the pickup desk beside the live face-verification result."))
+    </div>
 
     @* Face ID: what the pickup desk compares against. Separate from the reference photo
        above. Registered here in person, or by the guardian in the app; either replaces the
@@ -333,7 +339,7 @@
 @* --------------------------------------------------------- Account & access *@
 <div class="cg-tabpanel" data-cg-tabpanel="account" data-cg-tabs-scope="guardian" style="padding-top:18px">
     <div class="cg-grid cg-grid--2">
-        <section class="cg-card">
+        <section class="cg-card" data-cg-region="account-card">
             <div class="cg-card__head">
                 <h2 class="cg-card__title">Account</h2>
             </div>
@@ -391,7 +397,7 @@
                 </div>
 
                 <form asp-action="UpdateCredentials" asp-route-id="@Model.GuardianId" method="post" class="cg-form"
-                      data-cg-busy
+                      data-cg-busy data-cg-ajax data-cg-reset-on-success
                       data-cg-confirm="Issue a new password for @Model.FullName? Their current password stops working immediately.">
                     @Html.AntiForgeryToken()
                     <div class="cg-field">
@@ -406,6 +412,7 @@
                             </button>
                         </div>
                         <p class="cg-hint">At least 8 characters, including one uppercase letter and one digit.</p>
+                        <span class="cg-error-text" data-valmsg-for="newPassword" role="alert"></span>
                     </div>
                     <button class="cg-btn cg-btn--primary" type="submit">
                         <span class="cg-btn__label">Issue password</span>
@@ -423,5 +430,5 @@
 
 @if (ViewBag.Lifecycle is RecordLifecycleModel lifecycleCard)
 {
-    <div style="margin-top:16px">@await Html.PartialAsync("_RecordLifecycle", lifecycleCard)</div>
+    <div style="margin-top:16px" data-cg-region="lifecycle">@await Html.PartialAsync("_RecordLifecycle", lifecycleCard)</div>
 }

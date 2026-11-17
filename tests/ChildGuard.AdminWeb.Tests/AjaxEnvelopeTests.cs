@@ -2,6 +2,7 @@ using ChildGuard.AdminWeb.Controllers;
 using ChildGuard.AdminWeb.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 
 namespace ChildGuard.AdminWeb.Tests;
@@ -17,6 +18,8 @@ public class AjaxEnvelopeTests
         public IActionResult? CallInvalid(string? message = null) => Invalid(ModelState, message);
         public IActionResult CallFromApi<T>(ApiResult<T> result, string message, string? redirect, params string[] regions) =>
             FromApi(result, message, redirect, regions);
+        public IActionResult? CallRefuseForm<T>(ApiResult<T> result) => RefuseForm(result);
+        public ModelStateDictionary State => ModelState;
     }
 
     private sealed class MemoryTempDataProvider : ITempDataProvider
@@ -170,6 +173,56 @@ public class AjaxEnvelopeTests
         // ApiResult never carries 0 today, but a failure without a status must not become 200.
         var result = Controller(ajax: true).CallFromApi(ApiResult<object>.Fail("Unreachable.", 0), "Saved.", null);
         Assert.Equal(502, Status(result));
+    }
+
+    [Fact]
+    public void RefuseForm_Ajax_FieldErrors_AreKeyedByField()
+    {
+        var api = ApiResult<object>.Fail("Validation failed.", 400,
+            new Dictionary<string, string[]> { ["Email"] = new[] { "Enter a valid email." } });
+        var (status, e) = (Status(Controller(ajax: true).CallRefuseForm(api)!), Envelope(Controller(ajax: true).CallRefuseForm(api)!));
+        Assert.Equal(400, status);
+        Assert.Equal(new[] { "Enter a valid email." }, e.Errors!["Email"]);
+        Assert.Equal(BaseAdminController.InvalidFormMessage, e.Message);
+    }
+
+    [Fact]
+    public void RefuseForm_Ajax_Conflict_IsAFormLevelMessage_NotAGenericOne()
+    {
+        // A duplicate email or number: the admin sees the real reason in the form and in the toast.
+        var result = Controller(ajax: true).CallRefuseForm(ApiResult<object>.Fail("That email is already registered.", 409))!;
+        Assert.Equal(409, Status(result));
+        var e = Envelope(result);
+        Assert.Equal("That email is already registered.", e.Message);
+        Assert.Equal(new[] { "That email is already registered." }, e.Errors![""]);
+    }
+
+    [Theory]
+    [InlineData(500)]
+    [InlineData(502)]
+    [InlineData(0)]
+    public void RefuseForm_Ajax_ServerFailure_IsAToastNotAFormError(int apiStatus)
+    {
+        var result = Controller(ajax: true).CallRefuseForm(ApiResult<object>.Fail("An unexpected error occurred.", apiStatus))!;
+        Assert.Equal(apiStatus >= 500 ? apiStatus : 502, Status(result));
+        Assert.Null(Envelope(result).Errors);
+    }
+
+    [Fact]
+    public void RefuseForm_NonAjax_AddsTheMessageToTheModel_AndReturnsNull()
+    {
+        var c = Controller(ajax: false);
+        Assert.Null(c.CallRefuseForm(ApiResult<object>.Fail("That email is already registered.", 409)));
+        Assert.Equal("That email is already registered.", c.State[string.Empty]!.Errors.Single().ErrorMessage);
+    }
+
+    [Fact]
+    public void RefuseForm_BindingErrorsOnTheForm_AreKeptBesideTheirFields()
+    {
+        var c = Controller(ajax: true);
+        c.State.AddModelError("FullName", "The FullName field is required.");
+        var result = c.CallRefuseForm(ApiResult<object>.Fail("Full name is required.", 400))!;
+        Assert.Equal(new[] { "The FullName field is required." }, Envelope(result).Errors!["FullName"]);
     }
 
     [Theory]

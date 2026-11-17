@@ -64,13 +64,8 @@ public class StudentsController : BaseAdminController
         var result = await Api.PostAsync<StudentDetailDto>("/api/students", request, ct);
         if (!result.Succeeded)
         {
-            // Field errors from the API or from binding this form both belong beside their fields.
-            var fieldErrors = AddApiErrors(result) | !ModelState.IsValid;
-            // AJAX: field errors go beside their fields; any other refusal is reported as itself.
-            if (AjaxRequest.IsAjax(Request) && !fieldErrors) return FromApi(result, "");
-            if (!fieldErrors) ModelState.AddModelError("", result.Error!);
             SetPage("Add student", "People");
-            return Invalid(ModelState) ?? View(request);
+            return RefuseForm(result) ?? View(request);
         }
         return Done($"{result.Value!.FullName} added. Assign an RFID card and a guardian to complete the record.",
             DetailsUrl(result.Value.StudentId));
@@ -163,13 +158,9 @@ public class StudentsController : BaseAdminController
         var result = await Api.PutAsync<StudentDetailDto>($"/api/students/{id}/record", request, ct);
         if (!result.Succeeded)
         {
-            // Field errors from the API or from binding this form both belong beside their fields.
-            var fieldErrors = AddApiErrors(result) | !ModelState.IsValid;
-            if (AjaxRequest.IsAjax(Request) && !fieldErrors) return FromApi(result, "");
-            if (!fieldErrors) ModelState.AddModelError("", result.Error!);
             SetPage("Edit student", "People");
             ViewData["StudentId"] = id;
-            return Invalid(ModelState) ?? View(request);
+            return RefuseForm(result) ?? View(request);
         }
         return Done("Student details updated.", DetailsUrl(id));
     }

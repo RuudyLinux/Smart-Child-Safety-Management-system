@@ -13,12 +13,25 @@ public class GuardiansController : BaseAdminController
 
     public GuardiansController(ApiClient api) : base(api) { }
 
+    /// <summary>
+    /// The guardian list, paged, filtered and sorted by the API. The URL holds the whole view, so links, Back and
+    /// Refresh restore it; cg-ajax.js swaps only the "list" region when the admin changes it.
+    /// </summary>
     public async Task<IActionResult> Index(CancellationToken ct)
     {
         SetPage("Guardians", "People");
-        var result = await Api.GetAsync<List<GuardianListItemDto>>("/api/guardians", ct);
-        if (!result.Succeeded) ViewBag.LoadError = result.Error;
-        return View(result.Value ?? new());
+        var query = new ListQuery(ListDefinitions.Guardians, Request.Query);
+        var rowsTask = Api.GetPagedAsync<GuardianListItemDto>("/api/guardians?" + query.ToApiQuery(), ct);
+
+        // A list change re-renders only the list region: the header figures are not part of it.
+        var summaryTask = ListRegionOnly ? null : Api.GetAsync<GuardianListSummaryDto>("/api/guardians/summary", ct);
+        var rows = await rowsTask;
+        if (!rows.Succeeded) ViewBag.LoadError = rows.Error;
+        if (summaryTask is not null) ViewBag.Summary = (await summaryTask).Value;
+
+        ViewData["Query"] = query;
+        var page = rows.Value ?? new ChildGuard.Application.Common.Paged<GuardianListItemDto>(Array.Empty<GuardianListItemDto>(), 0);
+        return View(new ListPageViewModel<GuardianListItemDto>(page.Items, page.Total, query.CurrentPage, query.PageSize));
     }
 
     [HttpGet]
@@ -34,16 +47,12 @@ public class GuardiansController : BaseAdminController
     {
         SetPage("Add guardian", "People");
         var result = await Api.PostAsync<CreateGuardianResultDto>("/api/guardians", request, ct);
-        if (!result.Succeeded)
-        {
-            ModelState.AddModelError(string.Empty, result.Error ?? "Could not create the guardian.");
-            return View(request);
-        }
+        if (!result.Succeeded) return RefuseForm(result) ?? View(request);
 
-        TempData[result.Value!.CredentialEmailSent ? "Success" : "Error"] = result.Value.CredentialEmailSent
-            ? "Guardian account created. Login credentials were sent to the guardian's registered email address."
-            : $"Guardian account created, but the credential email could not be delivered: {result.Value.EmailError}";
-        return RedirectToAction(nameof(Details), new { id = result.Value.GuardianId });
+        var url = DetailsUrl(result.Value!.GuardianId);
+        return result.Value.CredentialEmailSent
+            ? Done("Guardian account created. Login credentials were sent to the guardian's registered email address.", url)
+            : DoneWithWarning($"Guardian account created, but the credential email could not be delivered: {result.Value.EmailError}", url);
     }
 
     public async Task<IActionResult> Details(int id, CancellationToken ct)
@@ -57,13 +66,19 @@ public class GuardiansController : BaseAdminController
         return View(result.Value);
     }
 
+    private static string DetailsUrl(int id, string? tab = null) => $"/Guardians/Details/{id}" + (tab is null ? "" : "#" + tab);
+
+    // Page parts on Details that each kind of change affects (data-cg-region names in Details.cshtml).
+    private static readonly string[] RecordRegions =
+        { "guardian-header", "archived-banner", "lifecycle", "account-card", "children", "children-count" };
+    private static readonly string[] PhotoRegions = { "photo", "guardian-header" };
+
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Archive(int id, string? reason, CancellationToken ct)
     {
         var result = await Api.PostAsync<LifecycleResultDto>($"/api/guardians/{id}/archive", new ArchiveRecordRequest(reason ?? ""), ct);
-        TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded ? Message(result.Value!) : result.Error;
-        return RedirectToAction(nameof(Details), new { id });
+        return FromApi(result, result.Succeeded ? Message(result.Value!) : "", DetailsUrl(id), RecordRegions);
     }
 
     [HttpPost]
@@ -71,8 +86,7 @@ public class GuardiansController : BaseAdminController
     public async Task<IActionResult> Restore(int id, string? reason, CancellationToken ct)
     {
         var result = await Api.PostAsync<LifecycleResultDto>($"/api/guardians/{id}/restore", new RestoreRecordRequest(reason), ct);
-        TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded ? Message(result.Value!) : result.Error;
-        return RedirectToAction(nameof(Details), new { id });
+        return FromApi(result, result.Succeeded ? Message(result.Value!) : "", DetailsUrl(id), RecordRegions);
     }
 
     [HttpPost]
@@ -80,18 +94,10 @@ public class GuardiansController : BaseAdminController
     public async Task<IActionResult> DeletePermanently(int id, string? reason, bool confirmed, CancellationToken ct)
     {
         if (!confirmed)
-        {
-            TempData["Error"] = "Confirm that you understand the deletion cannot be undone.";
-            return RedirectToAction(nameof(Details), new { id });
-        }
+            return Failed("Confirm that you understand the deletion cannot be undone.", 400, DetailsUrl(id));
         var result = await Api.DeleteAsync<LifecycleResultDto>($"/api/guardians/{id}", new DeleteRecordRequest(reason ?? ""), ct);
-        if (!result.Succeeded)
-        {
-            TempData["Error"] = result.Error;
-            return RedirectToAction(nameof(Details), new { id });
-        }
-        TempData["Success"] = result.Value!.Message;
-        return RedirectToAction(nameof(Index));
+        // The record is gone: the browser leaves its page for the list.
+        return FromApi(result, result.Succeeded ? result.Value!.Message : "", result.Succeeded ? "/Guardians" : DetailsUrl(id));
     }
 
     private static string Message(LifecycleResultDto r) => r.Effects.Count == 0 ? r.Message : $"{r.Message} {string.Join(" ", r.Effects)}";
@@ -105,6 +111,8 @@ public class GuardiansController : BaseAdminController
         SetPage($"Edit {result.Value!.FullName}", "People");
         ViewData["GuardianId"] = id;
         ViewData["HasPhoto"] = result.Value.HasPhoto;
+        // Versions the photo URL, so a replaced photo is never served from the browser's cache.
+        ViewData["PhotoUpdatedAt"] = result.Value.PhotoUpdatedAt;
         ViewData["AddressForm"] = new AddressFormModel($"/Guardians/EditAddress/{id}", id, result.Value.Address,
             "Residential address", "Shown on the guardian's profile. Optional.");
         var g = result.Value;
@@ -116,13 +124,9 @@ public class GuardiansController : BaseAdminController
     public async Task<IActionResult> EditAddress(int id, AddressDto address, CancellationToken ct)
     {
         var result = await Api.PutAsync<object?>($"/api/guardians/{id}/address", address, ct);
-        if (!result.Succeeded)
-        {
-            TempData["Error"] = result.Error;
-            return RedirectToAction(nameof(Edit), null, new { id }, "address");
-        }
-        TempData["Success"] = "Address saved.";
-        return RedirectToAction(nameof(Details), new { id });
+        // A refused address stays on the Edit page with its message; a saved one returns to the profile, as before.
+        if (!result.Succeeded) return FromApi(result, "", $"/Guardians/Edit/{id}#address");
+        return Done("Address saved.", DetailsUrl(id));
     }
 
     [HttpPost]
@@ -134,12 +138,10 @@ public class GuardiansController : BaseAdminController
         {
             SetPage("Edit guardian", "People");
             ViewData["GuardianId"] = id;
-            ModelState.AddModelError(string.Empty, result.Error ?? "Could not update the guardian.");
-            return View(request);
+            return RefuseForm(result) ?? View(request);
         }
 
-        TempData["Success"] = "Guardian details updated.";
-        return RedirectToAction(nameof(Details), new { id });
+        return Done("Guardian details updated.", DetailsUrl(id));
     }
 
     [HttpPost]
@@ -147,10 +149,7 @@ public class GuardiansController : BaseAdminController
     public async Task<IActionResult> UpdateStatus(int id, RecordStatus status, CancellationToken ct)
     {
         var result = await Api.PatchAsync<object?>($"/api/guardians/{id}/status", new UpdateGuardianStatusRequest(status), ct);
-        TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded
-            ? $"Guardian account {(status == RecordStatus.Active ? "activated" : "deactivated")}."
-            : result.Error;
-        return RedirectToAction(nameof(Details), new { id });
+        return FromApi(result, $"Guardian account {(status == RecordStatus.Active ? "activated" : "deactivated")}.", DetailsUrl(id), RecordRegions);
     }
 
     [HttpPost]
@@ -159,10 +158,8 @@ public class GuardiansController : BaseAdminController
     {
         var result = await Api.PatchAsync<object?>(
             $"/api/guardians/{id}/credentials", new AdminUpdateGuardianCredentialsRequest(newPassword), ct);
-        TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded
-            ? "Password issued. The guardian must change it at their next sign-in."
-            : result.Error;
-        return RedirectToAction(nameof(Details), null, new { id }, "account");
+        return FromApi(result, "Password issued. The guardian must change it at their next sign-in.",
+            DetailsUrl(id, "account"), "account-card");
     }
 
     // ---- Profile photo ----
@@ -184,19 +181,13 @@ public class GuardiansController : BaseAdminController
     public async Task<IActionResult> UploadPhoto(int id, IFormFile? file, CancellationToken ct)
     {
         if (file is null || file.Length == 0)
-        {
-            TempData["Error"] = "Select an image to upload.";
-            return RedirectToAction(nameof(Details), null, new { id }, "photo");
-        }
+            return Failed("Select an image to upload.", 400, DetailsUrl(id, "photo"));
 
         await using var stream = file.OpenReadStream();
         var result = await Api.PostFileAsync<PhotoStateDto>(
             $"/api/guardians/{id}/photo", stream, file.FileName, file.ContentType, ct);
 
-        TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded
-            ? "Guardian photo saved."
-            : result.Error;
-        return RedirectToAction(nameof(Details), null, new { id }, "photo");
+        return FromApi(result, "Guardian photo saved.", DetailsUrl(id, "photo"), PhotoRegions);
     }
 
     /// <summary>
@@ -247,9 +238,6 @@ public class GuardiansController : BaseAdminController
     public async Task<IActionResult> DeletePhoto(int id, CancellationToken ct)
     {
         var result = await Api.DeleteAsync<object?>($"/api/guardians/{id}/photo", ct);
-        TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded
-            ? "Guardian photo removed."
-            : result.Error;
-        return RedirectToAction(nameof(Details), null, new { id }, "photo");
+        return FromApi(result, "Guardian photo removed.", DetailsUrl(id, "photo"), PhotoRegions);
     }
 }
