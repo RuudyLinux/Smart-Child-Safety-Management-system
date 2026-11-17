@@ -13,7 +13,8 @@ test.describe('Guardians', () => {
     await expect(page).toHaveURL(/\/Guardians\/Details\/\d+$/);
     await toast(page);
     await expect(page.locator('.cg-profile__name')).toHaveText(name);
-    await page.goto('/Guardians');
+    // The list is server-paged: find the new guardian through the search, not by its place on page 1.
+    await page.goto('/Guardians?search=' + encodeURIComponent(name));
     await expect(page.locator('tr[data-row]', { hasText: name })).toHaveCount(1);
   });
 
