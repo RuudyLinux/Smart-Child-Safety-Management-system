@@ -62,7 +62,7 @@
 }
 
 <section class="cg-card">
-    <form method="get" action="/Audit" class="cg-toolbar" style="flex-wrap:wrap" aria-label="Filter the audit log">
+    <form method="get" action="/Audit" class="cg-toolbar" style="flex-wrap:wrap" aria-label="Filter the audit log" data-cg-list="list">
         <div class="cg-input-group cg-toolbar__grow" style="min-width:200px;max-width:280px">
             <span class="cg-input-group__icon">@await Html.PartialAsync("_Icon", "search")</span>
             <input class="cg-input" name="search" value="@f.Search" maxlength="200" placeholder="Search summaries" aria-label="Search summaries" />
@@ -89,12 +89,18 @@
         <button class="cg-btn cg-btn--secondary cg-btn--sm" type="submit">Apply</button>
         @if (filtered)
         {
-            <a class="cg-btn cg-btn--ghost cg-btn--sm" href="/Audit">Clear</a>
+            <a class="cg-btn cg-btn--ghost cg-btn--sm" href="/Audit" data-cg-list-link>Clear</a>
         }
         <span class="cg-toolbar__spacer"></span>
-        <span class="cg-text-sm cg-muted" data-audit-total>@p.Total entr@(p.Total == 1 ? "y" : "ies")</span>
     </form>
 
+    @* The announcer sits outside the region: a live region replaced already filled is announced unreliably,
+       so cg-ajax.js copies the new count into it. *@
+    <span class="cg-sr-only" data-cg-list-status role="status" aria-live="polite"></span>
+    <div data-cg-region="list">
+    <div class="cg-row cg-row--between" style="padding:0 20px 8px">
+        <span class="cg-text-sm cg-muted" data-audit-total data-cg-count>@p.Total entr@(p.Total == 1 ? "y" : "ies")</span>
+    </div>
     @if (f.StudentId is not null || f.GuardianId is not null)
     {
         <div class="cg-alert cg-alert--info" style="margin:0 20px 12px">
@@ -165,9 +171,10 @@
         <div class="cg-pagination">
             <span class="cg-text-sm">Page @p.Page of @pages</span>
             <div class="cg-pagination__pages">
-                @if (p.Page > 1) { <a class="cg-btn cg-btn--secondary cg-btn--sm" href="@PageUrl(p.Page - 1)">Newer</a> }
-                @if (p.Page < pages) { <a class="cg-btn cg-btn--secondary cg-btn--sm" href="@PageUrl(p.Page + 1)">Older</a> }
+                @if (p.Page > 1) { <a class="cg-btn cg-btn--secondary cg-btn--sm" href="@PageUrl(p.Page - 1)" data-cg-list-link>Newer</a> }
+                @if (p.Page < pages) { <a class="cg-btn cg-btn--secondary cg-btn--sm" href="@PageUrl(p.Page + 1)" data-cg-list-link>Older</a> }
             </div>
         </div>
     }
+    </div>
 </section>

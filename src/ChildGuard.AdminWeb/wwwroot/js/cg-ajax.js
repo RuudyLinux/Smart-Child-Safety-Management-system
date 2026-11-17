@@ -364,7 +364,12 @@
     var params = new URL(url, location.href).searchParams;
     Array.prototype.forEach.call(form.elements, function (el) {
       if (!el.name || el.type === 'submit' || el.type === 'button') return;
-      if (el.type === 'hidden') return;   // sort/dir: the server renders them for the current view
+      if (el.type === 'hidden') {
+        // sort/dir are handled by loadList; any other hidden field carries a filter (for example the audit log's
+        // student): follow the URL so a stale value is never sent with the next change.
+        if (el.name !== 'sort' && el.name !== 'dir') el.value = params.get(el.name) || '';
+        return;
+      }
       var v = params.get(el.name);
       if (el.tagName === 'SELECT') el.value = v !== null && Array.prototype.some.call(el.options, function (o) { return o.value === v; }) ? v : (el.options[0] ? el.options[0].value : '');
       else if (el !== document.activeElement) el.value = v || '';

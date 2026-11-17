@@ -22,9 +22,9 @@
 }
 
 <section class="cg-card">
-    <form class="cg-toolbar" method="get" action="/BulkImport/History">
+    <form class="cg-toolbar" method="get" action="/BulkImport/History" data-cg-list="list">
         <label class="cg-sr" for="biHistoryCategory">Data</label>
-        <select class="cg-select" style="max-width:200px" id="biHistoryCategory" name="category" onchange="this.form.submit()">
+        <select class="cg-select" style="max-width:200px" id="biHistoryCategory" name="category">
             <option value="">All data</option>
             @foreach (var c in Enum.GetValues<ImportCategory>())
             {
@@ -34,12 +34,14 @@
         <noscript><button class="cg-btn cg-btn--secondary cg-btn--sm" type="submit">Filter</button></noscript>
     </form>
 
-    @if (Model.Count == 0)
-    {
-        @await Html.PartialAsync("_EmptyState", ("layers", "No imports found", "Run a bulk import and it will be listed here.", "New import", "/BulkImport"))
-    }
-    else
-    {
-        @await Html.PartialAsync("_ImportHistoryTable", Model)
-    }
+    <div data-cg-region="list">
+        @if (Model.Count == 0)
+        {
+            @await Html.PartialAsync("_EmptyState", ("layers", "No imports found", "Run a bulk import and it will be listed here.", "New import", "/BulkImport"))
+        }
+        else
+        {
+            @await Html.PartialAsync("_ImportHistoryTable", Model)
+        }
+    </div>
 </section>
