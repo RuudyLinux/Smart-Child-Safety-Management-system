@@ -125,9 +125,9 @@ public class StudentsController : BaseAdminController
     public async Task<IActionResult> EditAddress(int id, AddressDto address, CancellationToken ct)
     {
         var result = await Api.PutAsync<StudentDetailDto>($"/api/students/{id}/address", address, ct);
+        // A refused address stays on the Edit page with its message; a saved one returns to the profile, as before.
         if (!result.Succeeded) return FromApi(result, "", $"/Students/Edit/{id}#address");
-        // AJAX: the Edit page stays and its address card refreshes. Without JavaScript: back to the profile, as before.
-        return Done("Address saved.", DetailsUrl(id), "address");
+        return Done("Address saved.", DetailsUrl(id));
     }
 
     [HttpPost]

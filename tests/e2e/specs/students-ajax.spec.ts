@@ -87,17 +87,24 @@ test.describe('Students without page reloads', () => {
     expect(navs.count).toBe(0);
   });
 
-  test('address saves in place on the edit page', async ({ page, data }) => {
+  test('a saved address returns to the profile, a refused one stays put', async ({ page, data }) => {
     const s = await data.student();
     await page.goto(`/Students/Edit/${s.id}`);
     const navs = countNavigations(page);
     const region = page.locator('[data-cg-region="address"]');
+    // Refused by the server (the field's own pattern removed): no page load, message shown.
+    await region.locator('[name="PostalCode"]').evaluate((el: HTMLInputElement) => el.removeAttribute('pattern'));
     await region.locator('input[name="Line1"]').fill('12 Market Road');
-    await region.locator('input[name="City"]').fill('Pune');
+    await region.locator('[name="PostalCode"]').fill('<56>');
     await region.getByRole('button', { name: /Save address/i }).click();
-    expect(await toast(page, 'Address saved.')).toContain('Address saved.');
-    await expect(region.locator('input[name="City"]')).toHaveValue('Pune');
+    expect(await toast(page, 'ostal code')).toMatch(/postal code/i);
     expect(navs.count).toBe(0);
+
+    await region.locator('[name="PostalCode"]').fill('411001');
+    await region.getByRole('button', { name: /Save address/i }).click();
+    await expect(page).toHaveURL(new RegExp(`/Students/Details/${s.id}$`));
+    expect(await toast(page, 'Address saved.')).toContain('Address saved.');
+    await expect(page.locator('address')).toContainText('12 Market Road');
   });
 
   test('permanent delete goes to the list', async ({ page, data }) => {
