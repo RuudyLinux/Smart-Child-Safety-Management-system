@@ -1,5 +1,8 @@
+using ChildGuard.Application.Common;
+using ChildGuard.Application.DTOs;
 using ChildGuard.Application.Interfaces;
 using ChildGuard.Domain.Entities;
+using ChildGuard.Domain.Enums;
 using ChildGuard.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -35,6 +38,48 @@ public class GuardianRepository : IGuardianRepository
             .Include(g => g.FaceData)
             .OrderBy(g => g.FullName)
             .ToListAsync(ct);
+
+    public async Task<(List<Guardian> Items, int Total)> GetPageAsync(GuardianListFilter filter, PageRequest page, CancellationToken ct = default)
+    {
+        var query = _db.Guardians.AsNoTracking();
+        if (!string.IsNullOrWhiteSpace(filter.Search))
+        {
+            var text = filter.Search.Trim();
+            // Name or email, case-insensitive on both engines (as SearchAsync).
+            if (_db.Database.IsNpgsql())
+            {
+                var pattern = "%" + text.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_") + "%";
+                query = query.Where(g => EF.Functions.ILike(g.FullName, pattern, "\\") || EF.Functions.ILike(g.Email, pattern, "\\"));
+            }
+            else
+                query = query.Where(g => g.FullName.Contains(text) || g.Email.Contains(text));
+        }
+        query = filter.Status switch
+        {
+            ListStatusFilter.Archived => query.Where(g => g.ArchivedAt != null),
+            ListStatusFilter.Active => query.Where(g => g.ArchivedAt == null && g.Status == RecordStatus.Active),
+            ListStatusFilter.Inactive => query.Where(g => g.ArchivedAt == null && g.Status == RecordStatus.Inactive),
+            _ => query
+        };
+
+        var total = await query.CountAsync(ct);
+        var desc = page.Descending;
+        IOrderedQueryable<Guardian> ordered = page.Sort switch
+        {
+            "email" => desc ? query.OrderByDescending(g => g.Email) : query.OrderBy(g => g.Email),
+            "students" => (desc ? query.OrderByDescending(g => g.StudentGuardians.Count) : query.OrderBy(g => g.StudentGuardians.Count))
+                .ThenBy(g => g.FullName),
+            "status" => (desc ? query.OrderByDescending(g => g.ArchivedAt != null ? 3 : (int)g.Status) : query.OrderBy(g => g.ArchivedAt != null ? 3 : (int)g.Status))
+                .ThenBy(g => g.FullName),
+            _ => desc ? query.OrderByDescending(g => g.FullName) : query.OrderBy(g => g.FullName)
+        };
+        var items = await ordered.ThenBy(g => g.GuardianId)
+            .Skip(page.Skip).Take(page.PageSize)
+            .Include(g => g.StudentGuardians)
+            .Include(g => g.FaceData)
+            .ToListAsync(ct);
+        return (items, total);
+    }
 
     public Task<List<Guardian>> SearchAsync(string text, string? digits, int take, CancellationToken ct = default)
     {

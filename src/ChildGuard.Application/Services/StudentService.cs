@@ -40,9 +40,20 @@ public class StudentService : IStudentService
         _safety = safety;
     }
 
-    public async Task<List<StudentListItemDto>> GetAllAsync(string? search, CancellationToken ct = default)
+    public async Task<List<StudentListItemDto>> GetAllAsync(string? search, CancellationToken ct = default) =>
+        await ToListItemsAsync(await _students.GetAllAsync(search, ct), ct);
+
+    public async Task<Paged<StudentListItemDto>> GetPageAsync(StudentListFilter filter, PageRequest page, CancellationToken ct = default)
     {
-        var students = await _students.GetAllAsync(search, ct);
+        var (students, total) = await _students.GetPageAsync(filter, page, _clock.Today, _clock.TodayStartUtc, ct);
+        return new Paged<StudentListItemDto>(await ToListItemsAsync(students, ct), total);
+    }
+
+    public Task<List<string>> GetGradesAsync(CancellationToken ct = default) => _students.GetGradesAsync(ct);
+
+    /// <summary>List rows in the order given: one snapshot query and one photo query for the whole set.</summary>
+    private async Task<List<StudentListItemDto>> ToListItemsAsync(List<Student> students, CancellationToken ct)
+    {
         if (students.Count == 0) return new List<StudentListItemDto>();
 
         var ids = students.Select(s => s.StudentId).ToList();

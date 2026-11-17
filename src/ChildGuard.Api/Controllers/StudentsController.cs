@@ -1,3 +1,5 @@
+using ChildGuard.Application.Common;
+using ChildGuard.Api.Common;
 using ChildGuard.Application.DTOs;
 using ChildGuard.Application.Interfaces;
 using FluentValidation;
@@ -37,9 +39,32 @@ public class StudentsController : ControllerBase
         _guardianLinkValidator = guardianLinkValidator;
     }
 
+    /// <summary>
+    /// The student list. Without <c>page</c> the whole list, exactly as before (only <c>search</c> applies).
+    /// With <c>page</c>: one page of the same rows, filtered and sorted in the database, total in X-Total-Count.
+    /// </summary>
     [HttpGet]
-    public async Task<IActionResult> GetAll([FromQuery] string? search, CancellationToken ct) =>
-        Ok(await _studentService.GetAllAsync(search, ct));
+    public async Task<IActionResult> GetAll(
+        [FromQuery] string? search, [FromQuery] string? grade, [FromQuery] string? status,
+        [FromQuery] bool? hasRfid, [FromQuery] bool? hasGuardian, [FromQuery] bool? presentToday,
+        [FromQuery] int? page, [FromQuery] int? pageSize, [FromQuery] string? sort, [FromQuery] string? dir,
+        CancellationToken ct)
+    {
+        var paging = PageRequest.From(page, pageSize, sort, dir, ListSorts.Students);
+        if (!paging.Succeeded) return BadRequest(new { message = paging.Error });
+        if (paging.Value is null) return Ok(await _studentService.GetAllAsync(search, ct));
+
+        if (!PagingHeaders.TryParseStatus(status, out var statusFilter))
+            return BadRequest(new { message = "status must be Active, Inactive or Archived." });
+        var result = await _studentService.GetPageAsync(
+            new StudentListFilter(search, grade, statusFilter, hasRfid, hasGuardian, presentToday), paging.Value, ct);
+        PagingHeaders.SetTotal(Response, result.Total);
+        return Ok(result.Items);
+    }
+
+    /// <summary>Distinct grades in use, for the list's grade filter (independent of the page shown).</summary>
+    [HttpGet("grades")]
+    public async Task<IActionResult> GetGrades(CancellationToken ct) => Ok(await _studentService.GetGradesAsync(ct));
 
     [HttpGet("{id:int}")]
     public async Task<IActionResult> GetById(int id, CancellationToken ct)

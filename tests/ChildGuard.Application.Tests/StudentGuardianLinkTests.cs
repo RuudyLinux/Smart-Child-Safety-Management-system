@@ -17,6 +17,9 @@ public class StudentGuardianLinkTests
         public Task<List<Student>> GetAllAsync(string? search, CancellationToken ct = default) =>
             Task.FromResult(Students.ToList());
 
+        public Task<(List<Student> Items, int Total)> GetPageAsync(ChildGuard.Application.DTOs.StudentListFilter filter, ChildGuard.Application.Common.PageRequest page, DateOnly today, DateTime todayStartUtc, CancellationToken ct = default) => throw new NotSupportedException("Not used by these tests.");
+        public Task<List<string>> GetGradesAsync(CancellationToken ct = default) => throw new NotSupportedException("Not used by these tests.");
+
         public Task<Student?> GetByIdAsync(int id, CancellationToken ct = default) =>
             Task.FromResult(Students.FirstOrDefault(s => s.StudentId == id));
 
