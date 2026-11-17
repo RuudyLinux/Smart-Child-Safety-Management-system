@@ -108,9 +108,13 @@
                             <div class="cg-field">
                                 <label class="cg-label" for="checkpointSelect">Checkpoint</label>
                                 <select id="checkpointSelect" class="cg-select">
-                                    <option value="BusBoarding">Bus boarding — drop-off</option>
-                                    <option value="SchoolArrival" selected>School arrival — drop-off</option>
-                                    <option value="SchoolDeparture">School departure — pickup</option>
+                                    <option value="Auto" selected>Automatic (follows the school timetable)</option>
+                                    <optgroup label="Choose manually (exceptions)">
+                                        <option value="BusBoarding">Bus boarding: morning, at the home stop</option>
+                                        <option value="SchoolArrival">School arrival: entering school</option>
+                                        <option value="SchoolDeparture">School departure: guardian pickup</option>
+                                        <option value="BusDropoff">Bus drop-off: afternoon, at the home stop</option>
+                                    </optgroup>
                                 </select>
                             </div>
                         </div>
