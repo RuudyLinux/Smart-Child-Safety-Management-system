@@ -57,6 +57,7 @@ public class GuardiansController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetAll(
         [FromQuery] string? search, [FromQuery] string? status,
+        [FromQuery] bool? faceReady, [FromQuery] bool? hasStudents, [FromQuery] bool? hasPhoto, [FromQuery] bool? awaitingFirstSignIn,
         [FromQuery] int? page, [FromQuery] int? pageSize, [FromQuery] string? sort, [FromQuery] string? dir,
         CancellationToken ct)
     {
@@ -66,10 +67,14 @@ public class GuardiansController : ControllerBase
 
         if (!PagingHeaders.TryParseStatus(status, out var statusFilter))
             return BadRequest(new { message = "status must be Active, Inactive or Archived." });
-        var result = await _guardianService.GetPageAsync(new GuardianListFilter(search, statusFilter), paging.Value, ct);
+        var result = await _guardianService.GetPageAsync(new GuardianListFilter(search, statusFilter, faceReady, hasStudents, hasPhoto, awaitingFirstSignIn), paging.Value, ct);
         PagingHeaders.SetTotal(Response, result.Total);
         return Ok(result.Items);
     }
+
+    /// <summary>School-wide figures for the list header, in one call.</summary>
+    [HttpGet("summary")]
+    public async Task<IActionResult> GetSummary(CancellationToken ct) => Ok(await _guardianService.GetSummaryAsync(ct));
 
     /// <summary>
     /// Creates a Guardian on the fixed initial password and emails the credentials

@@ -36,6 +36,7 @@ internal sealed class FakeGuardianRepository : IGuardianRepository
             .OrderBy(g => g.FullName).Take(take).ToList());
 
     public Task<List<Guardian>> GetAllAsync(CancellationToken ct = default) => Task.FromResult(Guardians.ToList());
+    public Task<ChildGuard.Application.DTOs.GuardianListSummaryDto> GetSummaryAsync(CancellationToken ct = default) => throw new NotSupportedException("Not used by these tests.");
     public Task<(List<Guardian> Items, int Total)> GetPageAsync(ChildGuard.Application.DTOs.GuardianListFilter filter, ChildGuard.Application.Common.PageRequest page, CancellationToken ct = default) => throw new NotSupportedException("Not used by these tests.");
 
     public Task<bool> EmailExistsAsync(string email, CancellationToken ct = default) =>

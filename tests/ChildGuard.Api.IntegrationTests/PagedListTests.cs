@@ -241,6 +241,107 @@ public class PagedListTests : IClassFixture<ApiFactory>
 
     // ------------------------------------------------------------- Guardians
 
+    private static async Task<(List<GuardianListItemDto> Items, int? Total)> GetGuardiansAsync(HttpClient admin, string query)
+    {
+        var r = await admin.GetAsync("/api/guardians?" + query);
+        Assert.True(r.IsSuccessStatusCode, $"{(int)r.StatusCode}: {await r.Content.ReadAsStringAsync()}");
+        int? total = r.Headers.TryGetValues("X-Total-Count", out var v) ? int.Parse(v.Single()) : null;
+        return ((await r.Content.ReadFromJsonAsync<List<GuardianListItemDto>>(Json.Options))!, total);
+    }
+
+    private static async Task<int> CreateGuardianAsync(HttpClient admin, string name, string email, string phone)
+    {
+        var r = await admin.PostAsJsonAsync("/api/guardians", new CreateGuardianRequest(name, email, phone), Json.Options);
+        Assert.True(r.IsSuccessStatusCode, await r.Content.ReadAsStringAsync());
+        return (await r.Content.ReadFromJsonAsync<CreateGuardianResultDto>(Json.Options))!.GuardianId;
+    }
+
+    [Fact]
+    public async Task Guardians_SearchByNameEmailOrPhone()
+    {
+        var admin = await _api.AdminClientAsync();
+        await CreateGuardianAsync(admin, "Gsearch Alpha", "gsearch.alpha@childguard.test", "+91 98111 22301");
+        await CreateGuardianAsync(admin, "Gsearch Beta", "other.beta@childguard.test", "+91 98111 22302");
+
+        Assert.Equal(2, (await GetGuardiansAsync(admin, "search=Gsearch&page=1")).Total);                    // name
+        Assert.Equal("Gsearch Alpha", Assert.Single((await GetGuardiansAsync(admin, "search=gsearch.alpha&page=1")).Items).FullName); // email
+        Assert.Equal("Gsearch Beta", Assert.Single((await GetGuardiansAsync(admin, "search=98111%2022302&page=1")).Items).FullName);  // phone as typed
+        Assert.Equal("Gsearch Beta", Assert.Single((await GetGuardiansAsync(admin, "search=9811122302&page=1")).Items).FullName);     // phone digits only
+    }
+
+    [Fact]
+    public async Task Guardians_FilterHasStudentsAndFaceReady()
+    {
+        var admin = await _api.AdminClientAsync();
+        var child = await _api.NewChildAsync(withFace: true);          // linked guardian with a registered face
+        using (var db = _api.NewDb()) { db.Guardians.Single(g => g.GuardianId == child.GuardianId).FullName = "Gflags Linked"; db.SaveChanges(); }
+        await CreateGuardianAsync(admin, "Gflags Lonely", "gflags.lonely@childguard.test", "+91 98111 22303");
+
+        var linked = await GetGuardiansAsync(admin, "search=Gflags&hasStudents=true&page=1");
+        Assert.Equal("Gflags Linked", Assert.Single(linked.Items).FullName);
+        var lonely = await GetGuardiansAsync(admin, "search=Gflags&hasStudents=false&page=1");
+        Assert.Equal("Gflags Lonely", Assert.Single(lonely.Items).FullName);
+        var faceReady = await GetGuardiansAsync(admin, "search=Gflags&faceReady=true&page=1");
+        Assert.Equal("Gflags Linked", Assert.Single(faceReady.Items).FullName);
+        var noFace = await GetGuardiansAsync(admin, "search=Gflags&faceReady=false&page=1");
+        Assert.Equal("Gflags Lonely", Assert.Single(noFace.Items).FullName);
+    }
+
+    [Fact]
+    public async Task Guardians_SortByActivity_MostRecentFirst_NoActivityLast()
+    {
+        var admin = await _api.AdminClientAsync();
+        var early = await _api.NewChildAsync();
+        var late = await _api.NewChildAsync();
+        using (var db = _api.NewDb())
+        {
+            db.Guardians.Single(g => g.GuardianId == early.GuardianId).FullName = "Gact Early";
+            db.Guardians.Single(g => g.GuardianId == late.GuardianId).FullName = "Gact Late";
+            db.SaveChanges();
+        }
+        var idle = await CreateGuardianAsync(admin, "Gact Idle", "gact.idle@childguard.test", "+91 98111 22304");
+        await admin.ScanOkAsync(early, JourneyEventType.SchoolArrival);
+        await admin.VerifyFaceAsync(_api, early);
+        _api.Time.Advance(TimeSpan.FromMinutes(5));
+        await admin.ScanOkAsync(late, JourneyEventType.SchoolArrival);
+        await admin.VerifyFaceAsync(_api, late);
+
+        var desc = await GetGuardiansAsync(admin, "search=Gact&page=1&sort=activity&dir=desc");
+        Assert.Equal(new[] { late.GuardianId, early.GuardianId, idle }, desc.Items.Select(g => g.GuardianId));
+        var asc = await GetGuardiansAsync(admin, "search=Gact&page=1&sort=activity&dir=asc");
+        Assert.Equal(new[] { idle, early.GuardianId, late.GuardianId }, asc.Items.Select(g => g.GuardianId));
+    }
+
+    [Fact]
+    public async Task Guardians_Summary_CountsMatchTheFilters()
+    {
+        var admin = await _api.AdminClientAsync();
+        async Task<GuardianListSummaryDto> Summary() =>
+            (await admin.GetFromJsonAsync<GuardianListSummaryDto>("/api/guardians/summary", Json.Options))!;
+        var before = await Summary();
+        await CreateGuardianAsync(admin, "Gsum One", "gsum.one@childguard.test", "+91 98111 22305");
+        var child = await _api.NewChildAsync(withFace: true);
+        var after = await Summary();
+
+        Assert.Equal(before.Total + 2, after.Total);                          // the created guardian and the child's guardian
+        Assert.Equal(before.WithoutStudents + 1, after.WithoutStudents);      // only the created one has no child
+        Assert.Equal(before.FaceRegistered + 1, after.FaceRegistered);        // only the child's guardian has a face
+        // Each figure is what the matching list filter returns.
+        Assert.Equal(after.Total, (await GetGuardiansAsync(admin, "page=1&pageSize=1")).Total);
+        Assert.Equal(after.FaceRegistered, (await GetGuardiansAsync(admin, "faceReady=true&page=1&pageSize=1")).Total);
+        Assert.Equal(after.WithoutStudents, (await GetGuardiansAsync(admin, "hasStudents=false&page=1&pageSize=1")).Total);
+        Assert.Equal(after.AwaitingFirstSignIn, (await GetGuardiansAsync(admin, "awaitingFirstSignIn=true&page=1&pageSize=1")).Total);
+        Assert.Equal(after.WithPhoto, (await GetGuardiansAsync(admin, "hasPhoto=true&page=1&pageSize=1")).Total);
+        Assert.True(child.GuardianId > 0);
+    }
+
+    [Fact]
+    public async Task Guardians_SummaryRequiresAdmin()
+    {
+        var r = await _api.CreateClient().GetAsync("/api/guardians/summary");
+        Assert.Equal(HttpStatusCode.Unauthorized, r.StatusCode);
+    }
+
     [Fact]
     public async Task Guardians_WithoutPage_Unchanged_WithPage_Sliced()
     {

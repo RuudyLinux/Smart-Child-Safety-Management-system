@@ -8,6 +8,8 @@ public interface IGuardianService
     Task<List<GuardianListItemDto>> GetAllAsync(CancellationToken ct = default);
     Task<Paged<GuardianListItemDto>> GetPageAsync(GuardianListFilter filter, PageRequest page, CancellationToken ct = default);
 
+    Task<GuardianListSummaryDto> GetSummaryAsync(CancellationToken ct = default);
+
     /// <summary>
     /// Creates a Guardian on the fixed initial password, flags the account for the
     /// mandatory first-login reset, and emails the credentials to the Guardian's

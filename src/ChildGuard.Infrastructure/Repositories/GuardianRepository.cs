@@ -45,15 +45,24 @@ public class GuardianRepository : IGuardianRepository
         if (!string.IsNullOrWhiteSpace(filter.Search))
         {
             var text = filter.Search.Trim();
-            // Name or email, case-insensitive on both engines (as SearchAsync).
+            // Phone numbers are stored normalised, so a typed number matches as typed or by its digits (3 or more).
+            var digitsOnly = new string(text.Where(char.IsDigit).ToArray());
+            var digits = digitsOnly.Length >= 3 ? digitsOnly : null;
+            // Name, email or phone, case-insensitive on both engines (as SearchAsync).
             if (_db.Database.IsNpgsql())
             {
                 var pattern = "%" + text.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_") + "%";
-                query = query.Where(g => EF.Functions.ILike(g.FullName, pattern, "\\") || EF.Functions.ILike(g.Email, pattern, "\\"));
+                query = query.Where(g => EF.Functions.ILike(g.FullName, pattern, "\\") || EF.Functions.ILike(g.Email, pattern, "\\")
+                                         || (g.Phone != null && (g.Phone.Contains(text) || (digits != null && g.Phone.Contains(digits)))));
             }
             else
-                query = query.Where(g => g.FullName.Contains(text) || g.Email.Contains(text));
+                query = query.Where(g => g.FullName.Contains(text) || g.Email.Contains(text)
+                                         || (g.Phone != null && (g.Phone.Contains(text) || (digits != null && g.Phone.Contains(digits)))));
         }
+        if (filter.FaceReady is bool face) query = query.Where(g => (g.FaceData != null && g.FaceData.IsActive) == face);
+        if (filter.HasStudents is bool students) query = query.Where(g => g.StudentGuardians.Any() == students);
+        if (filter.HasPhoto is bool photo) query = query.Where(g => (g.Photo != null) == photo);
+        if (filter.AwaitingFirstSignIn is bool pending) query = query.Where(g => g.PasswordResetRequired == pending);
         query = filter.Status switch
         {
             ListStatusFilter.Archived => query.Where(g => g.ArchivedAt != null),
@@ -71,6 +80,13 @@ public class GuardianRepository : IGuardianRepository
                 .ThenBy(g => g.FullName),
             "status" => (desc ? query.OrderByDescending(g => g.ArchivedAt != null ? 3 : (int)g.Status) : query.OrderBy(g => g.ArchivedAt != null ? 3 : (int)g.Status))
                 .ThenBy(g => g.FullName),
+            // Last verification attempt; guardians with none sort as the least active (last when descending).
+            "activity" => (desc
+                    ? query.OrderBy(g => _db.GuardianVerifications.Any(v => v.GuardianId == g.GuardianId) ? 0 : 1)
+                        .ThenByDescending(g => _db.GuardianVerifications.Where(v => v.GuardianId == g.GuardianId).Max(v => (DateTime?)v.AttemptedAt))
+                    : query.OrderBy(g => _db.GuardianVerifications.Any(v => v.GuardianId == g.GuardianId) ? 1 : 0)
+                        .ThenBy(g => _db.GuardianVerifications.Where(v => v.GuardianId == g.GuardianId).Max(v => (DateTime?)v.AttemptedAt)))
+                .ThenBy(g => g.FullName),
             _ => desc ? query.OrderByDescending(g => g.FullName) : query.OrderBy(g => g.FullName)
         };
         var items = await ordered.ThenBy(g => g.GuardianId)
@@ -81,6 +97,17 @@ public class GuardianRepository : IGuardianRepository
         return (items, total);
     }
 
+    public async Task<GuardianListSummaryDto> GetSummaryAsync(CancellationToken ct = default)
+    {
+        // Plain counts, one per figure: each is an indexed scan and reads the same as its list filter.
+        var guardians = _db.Guardians.AsNoTracking();
+        return new GuardianListSummaryDto(
+            Total: await guardians.CountAsync(ct),
+            FaceRegistered: await guardians.CountAsync(g => g.FaceData != null && g.FaceData.IsActive, ct),
+            WithPhoto: await guardians.CountAsync(g => g.Photo != null, ct),
+            AwaitingFirstSignIn: await guardians.CountAsync(g => g.PasswordResetRequired, ct),
+            WithoutStudents: await guardians.CountAsync(g => !g.StudentGuardians.Any(), ct));
+    }
     public Task<List<Guardian>> SearchAsync(string text, string? digits, int take, CancellationToken ct = default)
     {
         var query = _db.Guardians.AsNoTracking()

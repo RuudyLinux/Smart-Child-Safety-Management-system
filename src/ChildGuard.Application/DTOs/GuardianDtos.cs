@@ -52,3 +52,6 @@ public record CreateGuardianRequest(string FullName, string Email, string Contac
 /// rather than the failure being swallowed.
 /// </summary>
 public record CreateGuardianResultDto(int GuardianId, bool CredentialEmailSent, string? EmailError);
+
+/// <summary>School-wide guardian figures for the Guardians page header, in one call (same meaning as the list filters).</summary>
+public record GuardianListSummaryDto(int Total, int FaceRegistered, int WithPhoto, int AwaitingFirstSignIn, int WithoutStudents);

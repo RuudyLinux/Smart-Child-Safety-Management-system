@@ -92,6 +92,8 @@ public class GuardianService : IGuardianService
         return new Paged<GuardianListItemDto>(await ToListItemsAsync(list, ct), total);
     }
 
+    public Task<GuardianListSummaryDto> GetSummaryAsync(CancellationToken ct = default) => _guardians.GetSummaryAsync(ct);
+
     private async Task<List<GuardianListItemDto>> ToListItemsAsync(List<Guardian> list, CancellationToken ct)
     {
         if (list.Count == 0) return new List<GuardianListItemDto>();

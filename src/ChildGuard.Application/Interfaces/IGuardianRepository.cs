@@ -16,6 +16,9 @@ public interface IGuardianRepository
 
     /// <summary>One page of guardians matching <paramref name="filter"/>.</summary>
     Task<(List<Guardian> Items, int Total)> GetPageAsync(GuardianListFilter filter, PageRequest page, CancellationToken ct = default);
+
+    /// <summary>School-wide counts for the list header (each equals the matching list filter's total).</summary>
+    Task<GuardianListSummaryDto> GetSummaryAsync(CancellationToken ct = default);
     /// <summary>
     /// Guardians whose email or name contains <paramref name="text"/> (case-insensitive), or whose contact number
     /// contains <paramref name="digits"/>, with their linked students and face data.

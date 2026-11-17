@@ -14,11 +14,16 @@ public sealed record StudentListFilter(
     string? Search, string? Grade, ListStatusFilter? Status, bool? HasRfid, bool? HasGuardian, bool? PresentToday);
 
 /// <summary>Server-side filters for the paged guardian list (GET /api/guardians?page=…).</summary>
-public sealed record GuardianListFilter(string? Search, ListStatusFilter? Status);
+/// <param name="Search">Name, email or phone (as typed, or its digits).</param>
+/// <param name="FaceReady">An active registered face.</param>
+/// <param name="AwaitingFirstSignIn">Still on an issued password.</param>
+public sealed record GuardianListFilter(
+    string? Search, ListStatusFilter? Status, bool? FaceReady = null, bool? HasStudents = null,
+    bool? HasPhoto = null, bool? AwaitingFirstSignIn = null);
 
 /// <summary>Sort keys each paged list accepts (lower case).</summary>
 public static class ListSorts
 {
     public static readonly IReadOnlySet<string> Students = new HashSet<string> { "name", "grade", "activity", "status" };
-    public static readonly IReadOnlySet<string> Guardians = new HashSet<string> { "name", "email", "students", "status" };
+    public static readonly IReadOnlySet<string> Guardians = new HashSet<string> { "name", "email", "students", "status", "activity" };
 }
