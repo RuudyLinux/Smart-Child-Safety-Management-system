@@ -43,6 +43,35 @@ public class StudentsListRequestTests : IClassFixture<AdminWebFactory>
         Assert.Contains("data-cg-region=\"list\"", await response.Content.ReadAsStringAsync());
     }
 
+    /// <summary>The API holds 60 matching students; whatever page is asked for, it answers with no rows.</summary>
+    private static HttpResponseMessage SixtyButEmptyPage(HttpRequestMessage r)
+    {
+        var response = Api(r);
+        if (r.RequestUri!.AbsolutePath == "/api/students") { response.Headers.Remove("X-Total-Count"); response.Headers.Add("X-Total-Count", "60"); }
+        return response;
+    }
+
+    [Fact]
+    public async Task PageBeyondTheEnd_SaysSoAndLinksToTheLastPage()
+    {
+        var client = await _factory.SignedInClientAsync(SixtyButEmptyPage);
+        var html = await (await client.SendAsync(AdminWebFactory.Get("/Students?search=mira&page=9", ajax: true, regions: "list"))).Content.ReadAsStringAsync();
+        Assert.Contains("There is no page 9", html);
+        Assert.Contains("href=\"/Students?search=mira&amp;page=3\"", html);   // 60 rows = 3 pages
+        Assert.DoesNotContain("Showing 201", html);
+    }
+
+    [Fact]
+    public async Task HugePage_IsClampedBeforeTheApiIsAsked()
+    {
+        var client = await _factory.SignedInClientAsync(SixtyButEmptyPage);
+        var response = await client.SendAsync(AdminWebFactory.Get("/Students?page=2147483647", ajax: true, regions: "list"));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var page = int.Parse(System.Text.RegularExpressions.Regex.Match(Assert.Single(_factory.Calls), @"[?&]page=(\d+)").Groups[1].Value);
+        Assert.True((long)(page - 1) * 25 <= int.MaxValue, $"page {page} would overflow the API's offset");
+        Assert.Contains("There is no page", await response.Content.ReadAsStringAsync());
+    }
+
     [Fact]
     public async Task OtherRegionRefresh_StillGetsTheWholePage()
     {

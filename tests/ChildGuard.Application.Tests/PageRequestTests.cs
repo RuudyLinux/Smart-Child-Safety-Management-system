@@ -33,6 +33,25 @@ public class PageRequestTests
     public void From_OutOfRange_IsError(int page, int size) =>
         Assert.False(PageRequest.From(page, size, null, null, Sorts).Succeeded);
 
+    [Theory]
+    [InlineData(int.MaxValue, 25)]
+    [InlineData(100_000_000, 100)]
+    public void From_PageSoLargeTheOffsetOverflows_IsError(int page, int size)
+    {
+        var r = PageRequest.From(page, size, null, null, Sorts);
+        Assert.False(r.Succeeded);
+        Assert.Contains("too large", r.Error);
+    }
+
+    [Fact]
+    public void From_LargestSafePage_IsAllowed()
+    {
+        // (page - 1) * pageSize must still fit the database OFFSET (an int).
+        var page = int.MaxValue / 25;
+        Assert.True(PageRequest.From(page, 25, null, null, Sorts).Succeeded);
+        Assert.Equal((page - 1) * 25, PageRequest.From(page, 25, null, null, Sorts).Value!.Skip);
+    }
+
     [Fact]
     public void From_PageSize100_IsAllowed() =>
         Assert.Equal(100, PageRequest.From(1, 100, null, null, Sorts).Value!.PageSize);

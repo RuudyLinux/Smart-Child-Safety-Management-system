@@ -19,6 +19,8 @@ public sealed record PageRequest(int Page, int PageSize, string? Sort, bool Desc
 
         var size = pageSize ?? DefaultPageSize;
         if (size is < 1 or > MaxPageSize) return Result<PageRequest?>.Failure($"pageSize must be between 1 and {MaxPageSize}.");
+        // The row offset must fit the database's OFFSET; a page that far out cannot exist anyway.
+        if ((long)(page.Value - 1) * size > int.MaxValue) return Result<PageRequest?>.Failure("page is too large.");
 
         string? key = null;
         if (!string.IsNullOrWhiteSpace(sort))

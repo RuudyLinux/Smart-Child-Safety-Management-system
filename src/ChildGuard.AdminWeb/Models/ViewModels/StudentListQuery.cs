@@ -21,7 +21,10 @@ public sealed class StudentListQuery
     public string? Dir { get; set; }
     public int? Page { get; set; }
 
-    public int CurrentPage => Page is > 1 ? Page.Value : 1;
+    /// <summary>Highest page whose row offset still fits the API's limit; anything beyond is clamped to it.</summary>
+    public const int MaxPage = int.MaxValue / PageSize;
+
+    public int CurrentPage => Page is > 1 ? Math.Min(Page.Value, MaxPage) : 1;
     public string? SortKey => Sort is not null && Sorts.Contains(Sort) ? Sort : null;
     public bool Descending => string.Equals(Dir, "desc", StringComparison.Ordinal);
 
@@ -94,6 +97,9 @@ public sealed record StudentListFigures(int? OnRoll, int? PresentToday, int? Wit
 public sealed record ListPageViewModel<T>(IReadOnlyList<T> Items, int Total, int Page, int PageSize)
 {
     public int PageCount => Total == 0 ? 1 : (Total + PageSize - 1) / PageSize;
-    public int FirstRow => Total == 0 ? 0 : (Page - 1) * PageSize + 1;
-    public int LastRow => Math.Min(Total, Page * PageSize);
+    public int FirstRow => Total == 0 ? 0 : (int)Math.Min(int.MaxValue, (long)(Page - 1) * PageSize + 1);
+    public int LastRow => (int)Math.Min(Total, (long)Page * PageSize);
+
+    /// <summary>A page after the last one (a stale bookmark, or Back after records were removed).</summary>
+    public bool PastTheEnd => Items.Count == 0 && Total > 0 && Page > PageCount;
 }
