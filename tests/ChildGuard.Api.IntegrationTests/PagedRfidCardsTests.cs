@@ -46,14 +46,16 @@ public class PagedRfidCardsTests : IClassFixture<ApiFactory>
     public async Task Paged_SlicesCountsAndNewestFirst()
     {
         var admin = await _api.AdminClientAsync();
-        var tag = Uid("PG");
+        // Use a 4-char unique suffix so the security-hardened search (EndsWith last ≤4 chars) can still isolate
+        // exactly this test's cards without relying on prefix search, which would reveal hidden UID portions.
+        var suffix = Guid.NewGuid().ToString("N")[..4].ToUpperInvariant();
         for (var i = 1; i <= 5; i++)
         {
-            await RegisterSpareAsync(admin, $"{tag}{i}");
+            await RegisterSpareAsync(admin, $"PAG{i:D6}{suffix}");
             _api.Time.Advance(TimeSpan.FromMinutes(1));
         }
-        var (page1, total) = await GetAsync(admin, $"search={tag}&page=1&pageSize=2");
-        var (page3, _) = await GetAsync(admin, $"search={tag}&page=3&pageSize=2");
+        var (page1, total) = await GetAsync(admin, $"search={suffix}&page=1&pageSize=2");
+        var (page3, _) = await GetAsync(admin, $"search={suffix}&page=3&pageSize=2");
         Assert.Equal(5, total);
         Assert.Equal(2, page1.Count);
         Assert.Single(page3);
@@ -83,13 +85,14 @@ public class PagedRfidCardsTests : IClassFixture<ApiFactory>
     public async Task Sorts_ByStatusAndStudent()
     {
         var admin = await _api.AdminClientAsync();
-        var tag = Uid("SRT");
-        var a = await RegisterSpareAsync(admin, tag + "A");
-        var b = await RegisterSpareAsync(admin, tag + "B");
+        // 4-char unique suffix: security fix restricts UID search to exact/suffix/name, not prefix.
+        var suffix = Guid.NewGuid().ToString("N")[..4].ToUpperInvariant();
+        var a = await RegisterSpareAsync(admin, $"SR1A{suffix}");
+        var b = await RegisterSpareAsync(admin, $"SR2B{suffix}");
         Assert.True((await admin.PatchAsJsonAsync($"/api/rfid/cards/{b}/status", new UpdateRfidStatusRequest(RfidCardStatus.Lost), Json.Options)).IsSuccessStatusCode);
-        var asc = await GetAsync(admin, $"search={tag}&page=1&sort=status&dir=asc");
+        var asc = await GetAsync(admin, $"search={suffix}&page=1&sort=status&dir=asc");
         Assert.Equal(new[] { a, b }, asc.Items.Select(c => c.RfidCardId));        // Active before Lost
-        var desc = await GetAsync(admin, $"search={tag}&page=1&sort=status&dir=desc");
+        var desc = await GetAsync(admin, $"search={suffix}&page=1&sort=status&dir=desc");
         Assert.Equal(new[] { b, a }, desc.Items.Select(c => c.RfidCardId));
     }
 

@@ -21,6 +21,7 @@
     </div>
 </div>
 
+<div data-cg-region="kpi">
 <div class="cg-grid cg-grid--4">
     <article class="cg-kpi">
         <div class="cg-kpi__top">
@@ -54,11 +55,12 @@
         <div class="cg-kpi__value cg-kpi__value--sm">@Figure(summary?.Approved)</div>
     </article>
 </div>
+</div>@* /data-cg-region="kpi" *@
 
 <section class="cg-card">
-    @* Search, filters and sort run on the server; with JavaScript only the list region below is re-rendered
-       and the URL keeps the view, so Back, Refresh and bookmarks restore it. *@
-    <form method="get" action="/Verification/History" class="cg-toolbar" data-cg-list="list" role="search">
+    @* Search, filters and sort run on the server; with JavaScript only the list and kpi regions are
+       re-rendered in place, so the URL keeps the view and Back/Refresh/bookmarks restore it. *@
+    <form method="get" action="/Verification/History" class="cg-toolbar" data-cg-list="list kpi" role="search">
         <select class="cg-select" name="studentId" style="max-width:220px" data-cg-filter="studentId" aria-label="Filter by student">
             <option value="__all">All students</option>
             @foreach (var s in students)

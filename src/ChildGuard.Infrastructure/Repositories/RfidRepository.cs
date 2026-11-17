@@ -24,15 +24,23 @@ public class RfidRepository : IRfidRepository
         if (!string.IsNullOrWhiteSpace(filter.Search))
         {
             var text = filter.Search.Trim();
-            // The student's name, or the card UID as typed; case-insensitive on both engines.
+            // The student's name, the whole card UID (exact), or the last characters the admin can already see
+            // ("****B2C3" or "B2C3"). A partial match on the hidden part would let the search reveal the masked UID.
+            var tail = text.TrimStart('*');
+            var showsTail = tail.Length is >= 1 and <= 4;
             if (_db.Database.IsNpgsql())
             {
-                var pattern = "%" + text.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_") + "%";
-                query = query.Where(c => EF.Functions.ILike(c.CardUid, pattern, "\\")
-                    || (c.Student != null && EF.Functions.ILike(c.Student.FullName, pattern, "\\")));
+                string Esc(string v) => v.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
+                var exactPattern = Esc(text);
+                var namePattern = "%" + exactPattern + "%";
+                var tailPattern = "%" + Esc(tail);
+                query = query.Where(c => EF.Functions.ILike(c.CardUid, exactPattern, "\\")
+                    || (showsTail && EF.Functions.ILike(c.CardUid, tailPattern, "\\"))
+                    || (c.Student != null && EF.Functions.ILike(c.Student.FullName, namePattern, "\\")));
             }
             else
-                query = query.Where(c => c.CardUid.Contains(text) || (c.Student != null && c.Student.FullName.Contains(text)));
+                query = query.Where(c => c.CardUid == text || (showsTail && c.CardUid.EndsWith(tail))
+                    || (c.Student != null && c.Student.FullName.Contains(text)));
         }
 
         var total = await query.CountAsync(ct);

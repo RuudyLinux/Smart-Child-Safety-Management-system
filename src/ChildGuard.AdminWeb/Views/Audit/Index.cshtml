@@ -53,14 +53,6 @@
     </div>
 </div>
 
-@if (ViewBag.LoadError is string loadError)
-{
-    <div class="cg-alert cg-alert--danger" role="alert">
-        <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "alert-circle")</span>
-        <div class="cg-alert__body">@loadError</div>
-    </div>
-}
-
 <section class="cg-card">
     <form method="get" action="/Audit" class="cg-toolbar" style="flex-wrap:wrap" aria-label="Filter the audit log" data-cg-list="list">
         <div class="cg-input-group cg-toolbar__grow" style="min-width:200px;max-width:280px">
@@ -98,6 +90,13 @@
        so cg-ajax.js copies the new count into it. *@
     <span class="cg-sr-only" data-cg-list-status role="status" aria-live="polite"></span>
     <div data-cg-region="list">
+    @if (ViewBag.LoadError is string loadError)
+    {
+        <div class="cg-alert cg-alert--danger" role="alert">
+            <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "alert-circle")</span>
+            <div class="cg-alert__body">@loadError</div>
+        </div>
+    }
     <div class="cg-row cg-row--between" style="padding:0 20px 8px">
         <span class="cg-text-sm cg-muted" data-audit-total data-cg-count>@p.Total entr@(p.Total == 1 ? "y" : "ies")</span>
     </div>

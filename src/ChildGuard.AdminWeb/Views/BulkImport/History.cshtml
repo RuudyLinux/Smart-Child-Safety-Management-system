@@ -13,14 +13,6 @@
     </div>
 </div>
 
-@if (ViewBag.LoadError is string loadError)
-{
-    <div class="cg-alert cg-alert--danger" role="alert">
-        <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "alert-circle")</span>
-        <div class="cg-alert__body">@loadError</div>
-    </div>
-}
-
 <section class="cg-card">
     <form class="cg-toolbar" method="get" action="/BulkImport/History" data-cg-list="list">
         <label class="cg-sr" for="biHistoryCategory">Data</label>
@@ -35,6 +27,13 @@
     </form>
 
     <div data-cg-region="list">
+    @if (ViewBag.LoadError is string loadError)
+    {
+        <div class="cg-alert cg-alert--danger" role="alert">
+            <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "alert-circle")</span>
+            <div class="cg-alert__body">@loadError</div>
+        </div>
+    }
         @if (Model.Count == 0)
         {
             @await Html.PartialAsync("_EmptyState", ("layers", "No imports found", "Run a bulk import and it will be listed here.", "New import", "/BulkImport"))

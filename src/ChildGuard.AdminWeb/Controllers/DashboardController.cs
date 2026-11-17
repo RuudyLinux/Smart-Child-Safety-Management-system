@@ -12,7 +12,15 @@ public class DashboardController : BaseAdminController
     {
         SetPage("Dashboard", "Overview");
         var result = await Api.GetAsync<DashboardSummaryDto>("/api/dashboard/summary", ct);
-        if (!result.Succeeded) ViewBag.LoadError = result.Error;
+        if (!result.Succeeded)
+        {
+            // For an AJAX region refresh (e.g. the live 60-second poll) return a non-2xx status so the
+            // shared AJAX layer shows a transient toast and keeps the previous dashboard content intact,
+            // rather than wiping the region with an error panel. Full-page loads still render the error.
+            if (AjaxRequest.IsAjax(Request))
+                return StatusCode(result.StatusCode == 0 ? 503 : result.StatusCode, new { message = result.Error });
+            ViewBag.LoadError = result.Error;
+        }
         return View(result.Value);
     }
 

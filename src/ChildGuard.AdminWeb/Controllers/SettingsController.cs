@@ -110,7 +110,7 @@ public class SettingsController : BaseAdminController
     public async Task<IActionResult> AddDevice(string deviceLabel, CancellationToken ct)
     {
         var result = await Api.PostAsync<RfidDeviceDto>("/api/rfid/devices", new CreateRfidDeviceRequest(deviceLabel), ct);
-        return FromApi(result, $"Scanner {deviceLabel.Trim()} added. Issue it a key if it connects on its own; the pickup desk can use it right away.",
+        return FromApi(result, $"Scanner {deviceLabel?.Trim()} added. Issue it a key if it connects on its own; the pickup desk can use it right away.",
             "/Settings", ScannerRegions);
     }
 
@@ -119,7 +119,7 @@ public class SettingsController : BaseAdminController
     public async Task<IActionResult> RenameDevice(int id, string deviceLabel, CancellationToken ct)
     {
         var result = await Api.PutAsync<object?>($"/api/rfid/devices/{id}", new UpdateRfidDeviceRequest(deviceLabel), ct);
-        return FromApi(result, $"Scanner renamed to {deviceLabel.Trim()}.", "/Settings", ScannerRegions);
+        return FromApi(result, $"Scanner renamed to {deviceLabel?.Trim()}.", "/Settings", ScannerRegions);
     }
 
     private async Task LoadAsync(CancellationToken ct)
