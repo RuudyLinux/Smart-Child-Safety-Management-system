@@ -1,9 +1,0 @@
-@model SortHeaderModel
-@* A server-side sort column: the header cell carries aria-sort; its link works without JavaScript and
-   cg-ajax.js loads it into the list region. *@
-<th aria-sort="@(Model.Active ? (Model.Descending ? "descending" : "ascending") : "none")">
-    <a class="cg-th-sort @(Model.Active ? (Model.Descending ? "is-desc" : "is-asc") : "")" data-cg-sort="@Model.Key"
-       data-cg-list-link href="@Model.Href">
-        @Model.Label @await Html.PartialAsync("_Icon", "arrow-down")
-    </a>
-</th>
