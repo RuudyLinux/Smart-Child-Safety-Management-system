@@ -25,6 +25,8 @@ jobs:
           dotnet-version: 10.0.x
       - run: dotnet build ChildGuard.slnx -v q
       - run: dotnet test tests/ChildGuard.Application.Tests --no-build
+      # AdminWeb: AJAX envelope, session expiry, API client paging (no database needed).
+      - run: dotnet test tests/ChildGuard.AdminWeb.Tests --no-build
 
   integration:
     name: Integration tests (${{ matrix.provider }})
