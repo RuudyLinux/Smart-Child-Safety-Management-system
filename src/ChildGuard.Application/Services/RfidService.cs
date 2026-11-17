@@ -17,7 +17,6 @@ public class RfidService : IRfidService
     private readonly SchoolClock _clock;
     private readonly RfidOptions _rfidOptions;
     private readonly IAuditTrail _audit;
-    private readonly ISchoolScheduleProvider _schedule;
 
     public RfidService(
         IRfidRepository rfid,
@@ -28,10 +27,8 @@ public class RfidService : IRfidService
         JourneyValidationService validation,
         SchoolClock clock,
         RfidOptions rfidOptions,
-        IAuditTrail? audit = null,
-        ISchoolScheduleProvider? schedule = null)
+        IAuditTrail? audit = null)
     {
-        _schedule = schedule ?? new ConfiguredSchoolScheduleProvider(new SchoolOptions());
         _audit = audit ?? NullAuditTrail.Instance;
         _clock = clock;
         _rfidOptions = rfidOptions;
@@ -436,23 +433,6 @@ public class RfidService : IRfidService
             return new RfidIdentifyResultDto(false, null, student?.FullName, RfidMasking.Mask(card.CardUid), "Student is not active.");
 
         return new RfidIdentifyResultDto(true, student.StudentId, student.FullName, RfidMasking.Mask(card.CardUid), "Student identified.");
-    }
-
-    public async Task<NextCheckpointDto> ResolveCheckpointAsync(RfidIdentifyRequest request, CancellationToken ct = default)
-    {
-        var found = await IdentifyAsync(request, ct);
-        if (!found.StudentIdentified || found.StudentId is null)
-            return new NextCheckpointDto(false, found.StudentId, found.StudentName, found.MaskedCardUid, null, null, found.Message, false);
-
-        var studentId = found.StudentId.Value;
-        var today = _clock.Today;
-        var last = await _journey.GetLastEventSinceAsync(studentId, _clock.TodayStartUtc, ct);
-        var travelsByBus = (await _students.GetTransportHistoryAsync(studentId, ct)).Any(a => a.Status == RecordStatus.Active);
-        var info = (await _schedule.GetAsync(today, today, ct)).For(today);
-
-        var decision = CheckpointResolver.Resolve(last?.EventType, travelsByBus, info, TimeOnly.FromDateTime(_clock.LocalNow));
-        return new NextCheckpointDto(true, studentId, found.StudentName, found.MaskedCardUid,
-            decision.Checkpoint, decision.Checkpoint is { } c ? JourneyEventNames.Label(c) : null, decision.Reason, decision.OffSchedule);
     }
 
     public async Task<RfidScanResultDto> ProcessScanAsync(RfidScanRequest request, CancellationToken ct = default)

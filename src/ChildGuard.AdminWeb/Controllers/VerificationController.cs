@@ -95,19 +95,6 @@ public class VerificationController : BaseAdminController
     }
 
     /// <summary>
-    /// Automatic checkpoint: asks the API which checkpoint applies to this card now (school schedule + journey so far).
-    /// Nothing is recorded.
-    /// </summary>
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> NextCheckpoint([FromBody] RfidIdentifyRequest request, CancellationToken ct)
-    {
-        var result = await Api.PostAsync<NextCheckpointDto>("/api/rfid/next-checkpoint", request, ct);
-        if (!result.Succeeded) return StatusCode(result.StatusCode, new { message = result.Error });
-        return Json(result.Value);
-    }
-
-    /// <summary>
     /// Pickup checkpoint: identify the student only. Nothing is recorded here; the
     /// departure is written by the handover approval once the guardian is verified.
     /// </summary>

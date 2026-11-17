@@ -3,8 +3,6 @@
     ViewData["Title"] = "Edit student";
     var id = (int)ViewData["StudentId"]!;
     var hasPhoto = ViewData["HasPhoto"] as bool? ?? false;
-    var photoUpdatedAt = ViewData["PhotoUpdatedAt"] as DateTime?;
-    ViewData["AjaxForms"] = true;
 }
 
 <div class="cg-page-head">
@@ -36,14 +34,12 @@
                 </div>
             }
 
-            <form asp-action="Edit" asp-route-id="@id" method="post" class="cg-form" data-cg-busy data-cg-ajax>
-                <div class="cg-alert cg-alert--danger" data-cg-error-summary role="alert" hidden></div>
+            <form asp-action="Edit" asp-route-id="@id" method="post" class="cg-form" data-cg-busy>
                 @Html.AntiForgeryToken()
 
                 <div class="cg-field">
                     <label class="cg-label" for="FullName">Full name <span class="cg-label__req">*</span></label>
                     <input class="cg-input" id="FullName" name="FullName" value="@Model.FullName" maxlength="150" required />
-                    <span class="cg-error-text" data-valmsg-for="FullName" role="alert"></span>
                 </div>
 
                 <div class="cg-form-row">
@@ -52,12 +48,10 @@
                         <input class="cg-input" id="DateOfBirth" type="date" name="DateOfBirth"
                                value="@Model.DateOfBirth.ToString("yyyy-MM-dd")"
                                max="@DateTime.Today.AddDays(-1).ToString("yyyy-MM-dd")" required />
-                    <span class="cg-error-text" data-valmsg-for="DateOfBirth" role="alert"></span>
                     </div>
                     <div class="cg-field">
                         <label class="cg-label" for="Grade">Grade</label>
                         <input class="cg-input" id="Grade" name="Grade" value="@Model.Grade" maxlength="50" />
-                    <span class="cg-error-text" data-valmsg-for="Grade" role="alert"></span>
                     </div>
                 </div>
 
@@ -65,14 +59,12 @@
                     <div class="cg-field">
                         <label class="cg-label" for="Section">Section</label>
                         <input class="cg-input" id="Section" name="Section" value="@Model.Section" maxlength="20" />
-                    <span class="cg-error-text" data-valmsg-for="Section" role="alert"></span>
                     </div>
                     <div class="cg-field">
                         <label class="cg-label" for="AdmissionNumber">Admission number</label>
                         <input class="cg-input cg-mono" id="AdmissionNumber" name="AdmissionNumber" value="@Model.AdmissionNumber" maxlength="50"
                                readonly aria-readonly="true" placeholder="Not assigned" />
                         <p class="cg-hint">Assigned automatically at enrollment.</p>
-                    <span class="cg-error-text" data-valmsg-for="AdmissionNumber" role="alert"></span>
                     </div>
                     <div class="cg-field">
                         <label class="cg-label" for="Gender">Gender</label>
@@ -83,7 +75,6 @@
                                 <option value="@g" selected="@(Model.Gender == g)">@g</option>
                             }
                         </select>
-                    <span class="cg-error-text" data-valmsg-for="Gender" role="alert"></span>
                     </div>
                 </div>
 
@@ -97,15 +88,13 @@
         </div>
     </section>
 
-    <div data-cg-region="photo">
-        @await Html.PartialAsync("_PhotoManager", new PhotoManagerModel(
-            "Students", id, Model.FullName, hasPhoto, photoUpdatedAt, false,
-            "Student photo",
-            "Helps staff match a child to their record at the pickup desk."))
-    </div>
+    @await Html.PartialAsync("_PhotoManager", new PhotoManagerModel(
+        "Students", id, Model.FullName, hasPhoto, null, false,
+        "Student photo",
+        "Helps staff match a child to their record at the pickup desk."))
 </div>
 
 @if (ViewData["AddressForm"] is AddressFormModel addressForm)
 {
-    <div data-cg-region="address">@await Html.PartialAsync("_AddressForm", addressForm)</div>
+    @await Html.PartialAsync("_AddressForm", addressForm)
 }

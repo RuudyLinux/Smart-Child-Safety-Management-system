@@ -37,10 +37,7 @@ test.describe('Settings > Database', () => {
     await modal.locator('input[type="file"]').setInputFiles({ name: 'notes.json', mimeType: 'application/json', buffer: Buffer.from('{"hello":1}') });
     await modal.getByRole('button', { name: 'Import and replace' }).click();
     expect(await toast(page, 'not a ChildGuard backup')).toContain('not a ChildGuard backup');
-    // Other workers add students in parallel, so the count may grow; a refused import must never shrink it.
-    const after = page.locator('[data-db-count="Students"] .cg-kpi__value');
-    await expect(after).toHaveText(/^\d+$/);
-    expect(Number(await after.innerText())).toBeGreaterThanOrEqual(Number(before));
+    await expect(page.locator('[data-db-count="Students"] .cg-kpi__value')).toHaveText(before);
   });
 });
 

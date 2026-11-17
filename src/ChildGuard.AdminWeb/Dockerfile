@@ -17,9 +17,6 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 COPY --from=build /app .
 
-# Listens on 10000 by default (Render's port). A host that assigns its own port in the PORT environment
-# variable is honoured instead; ASPNETCORE_URLS overrides both. Api__BaseUrl may be any http(s) address,
-# including a path prefix (https://school.org/childguard-api).
 ENV ASPNETCORE_ENVIRONMENT=Production \
     ASPNETCORE_HTTP_PORTS=10000
 

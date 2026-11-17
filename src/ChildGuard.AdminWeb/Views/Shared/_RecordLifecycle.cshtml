@@ -1,5 +1,4 @@
 @model RecordLifecycleModel
-@{ /* "on" when the page's controller answers AJAX envelopes (cg-ajax.js). An explicit value, not null: tag-helper forms render a null attribute as present. */ var cgAjax = ViewData["AjaxForms"] is true ? "on" : "off"; }
 @{
     var archived = Model.ArchivedAt is not null;
     var check = Model.Check;
@@ -40,7 +39,7 @@
                 </div>
                 <button type="button" class="cg-iconbtn" data-cg-modal-close aria-label="Close">@await Html.PartialAsync("_Icon", "x")</button>
             </div>
-            <form action="/@Model.Controller/Archive/@Model.Id" method="post" data-cg-busy data-cg-ajax="@cgAjax">
+            <form action="/@Model.Controller/Archive/@Model.Id" method="post" data-cg-busy>
                 @Html.AntiForgeryToken()
                 <div class="cg-modal__body cg-form">
                     @if (check?.Warnings.Count > 0)
@@ -102,7 +101,7 @@
         }
         else
         {
-            <form action="/@Model.Controller/DeletePermanently/@Model.Id" method="post" data-cg-busy data-cg-ajax="@cgAjax">
+            <form action="/@Model.Controller/DeletePermanently/@Model.Id" method="post" data-cg-busy>
                 @Html.AntiForgeryToken()
                 <div class="cg-modal__body cg-form">
                     <p class="cg-text-sm" style="margin:0">This @Model.Noun has no history, so it can be deleted.</p>

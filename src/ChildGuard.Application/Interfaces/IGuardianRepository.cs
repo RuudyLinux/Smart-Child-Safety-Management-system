@@ -1,5 +1,3 @@
-using ChildGuard.Application.DTOs;
-using ChildGuard.Application.Common;
 using ChildGuard.Domain.Entities;
 
 namespace ChildGuard.Application.Interfaces;
@@ -13,9 +11,6 @@ public interface IGuardianRepository
     Task<Guardian?> GetByIdAsync(int id, CancellationToken ct = default);
     Task<Guardian?> GetWithStudentsAsync(int id, CancellationToken ct = default);
     Task<List<Guardian>> GetAllAsync(CancellationToken ct = default);
-
-    /// <summary>One page of guardians matching <paramref name="filter"/>.</summary>
-    Task<(List<Guardian> Items, int Total)> GetPageAsync(GuardianListFilter filter, PageRequest page, CancellationToken ct = default);
     /// <summary>
     /// Guardians whose email or name contains <paramref name="text"/> (case-insensitive), or whose contact number
     /// contains <paramref name="digits"/>, with their linked students and face data.

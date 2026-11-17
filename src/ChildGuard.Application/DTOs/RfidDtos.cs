@@ -80,12 +80,3 @@ public record DeviceCredentialDto(int RfidDeviceId, string DeviceLabel, string A
 
 public record CreateRfidDeviceRequest(string DeviceLabel);
 public record UpdateRfidDeviceRequest(string DeviceLabel);
-
-/// <summary>
-/// The checkpoint chosen automatically for a card, from today's school schedule and the student's journey so far.
-/// Nothing is recorded; the desk then records it (or starts guardian verification for a school departure).
-/// </summary>
-/// <param name="Checkpoint">Null when the journey is complete for today or the card cannot be used.</param>
-public record NextCheckpointDto(
-    bool StudentIdentified, int? StudentId, string? StudentName, string? MaskedCardUid,
-    JourneyEventType? Checkpoint, string? CheckpointLabel, string Reason, bool OffSchedule);

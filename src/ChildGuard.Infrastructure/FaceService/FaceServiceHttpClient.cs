@@ -51,7 +51,7 @@ public class FaceServiceHttpClient : IFaceServiceClient
     {
         try
         {
-            var response = await _http.PostAsJsonAsync("register-face", new RegisterFaceApiRequest(imageBase64), ct);
+            var response = await _http.PostAsJsonAsync("/register-face", new RegisterFaceApiRequest(imageBase64), ct);
             if (!response.IsSuccessStatusCode)
                 return Result<FaceEmbeddingResult>.Failure(await ExtractErrorMessageAsync(response, ct));
 
@@ -71,7 +71,7 @@ public class FaceServiceHttpClient : IFaceServiceClient
     {
         try
         {
-            var response = await _http.PostAsJsonAsync("verify-face",
+            var response = await _http.PostAsJsonAsync("/verify-face",
                 new VerifyFaceApiRequest(storedEmbeddingJson, imageBase64), ct);
             if (!response.IsSuccessStatusCode)
                 return Result<FaceMatchResult>.Failure(await ExtractErrorMessageAsync(response, ct));
@@ -92,7 +92,7 @@ public class FaceServiceHttpClient : IFaceServiceClient
     {
         try
         {
-            var response = await _http.PostAsJsonAsync("analyze-image", new AnalyzeImageApiRequest(imageBase64, purpose), ct);
+            var response = await _http.PostAsJsonAsync("/analyze-image", new AnalyzeImageApiRequest(imageBase64, purpose), ct);
             if (!response.IsSuccessStatusCode)
                 return Result<ImageAnalysis>.Failure(await ExtractErrorMessageAsync(response, ct));
 
@@ -120,7 +120,7 @@ public class FaceServiceHttpClient : IFaceServiceClient
                 .Select(c => new IdentifyCandidateApi(c.GuardianId,
                     c.References.Select(r => new ReferenceApi(r.ReferenceId, r.EmbeddingJson)).ToList()))
                 .ToList());
-            var response = await _http.PostAsJsonAsync("identify", request, ct);
+            var response = await _http.PostAsJsonAsync("/identify", request, ct);
             if (!response.IsSuccessStatusCode)
                 return Result<FaceIdentification>.Failure(await ExtractErrorMessageAsync(response, ct));
 
@@ -146,7 +146,7 @@ public class FaceServiceHttpClient : IFaceServiceClient
         {
             var request = new RegisterReferenceApiRequest(imageBase64,
                 existing.Select(r => new ReferenceApi(r.ReferenceId, r.EmbeddingJson)).ToList());
-            var response = await _http.PostAsJsonAsync("register-reference", request, ct);
+            var response = await _http.PostAsJsonAsync("/register-reference", request, ct);
             if (!response.IsSuccessStatusCode)
                 return Result<ReferenceRegistration>.Failure(await ExtractErrorMessageAsync(response, ct));
 
@@ -173,7 +173,7 @@ public class FaceServiceHttpClient : IFaceServiceClient
                 frames.Select(f => new LiveFrameApi(f.ImageBase64, f.TMs)).ToList(),
                 candidates?.Select(c => new IdentifyCandidateApi(c.GuardianId,
                     c.References.Select(r => new ReferenceApi(r.ReferenceId, r.EmbeddingJson)).ToList())).ToList());
-            var response = await _http.PostAsJsonAsync("liveness/analyze", request, ct);
+            var response = await _http.PostAsJsonAsync("/liveness/analyze", request, ct);
             if (!response.IsSuccessStatusCode)
                 return Result<LivenessAnalysis>.Failure(await ExtractErrorMessageAsync(response, ct));
 

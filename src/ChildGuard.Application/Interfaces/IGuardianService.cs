@@ -6,7 +6,6 @@ namespace ChildGuard.Application.Interfaces;
 public interface IGuardianService
 {
     Task<List<GuardianListItemDto>> GetAllAsync(CancellationToken ct = default);
-    Task<Paged<GuardianListItemDto>> GetPageAsync(GuardianListFilter filter, PageRequest page, CancellationToken ct = default);
 
     /// <summary>
     /// Creates a Guardian on the fixed initial password, flags the account for the

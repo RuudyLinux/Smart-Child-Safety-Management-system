@@ -307,48 +307,4 @@ test.describe('Pickup & Drop-off desk', () => {
     await expect(page.locator('#studentCard')).toBeHidden();
     await expect(page.locator('#cardUidInput')).toHaveValue('');
   });
-
-  // Automatic checkpoint: these cases do not depend on the time of day or the school timetable
-  // (no bus assignment, or a journey state with only one possible next step).
-  test.describe('automatic checkpoint', () => {
-    async function scanAuto(page: import('@playwright/test').Page, cardUid: string) {
-      await page.goto('/Verification');
-      await expect(page.locator('#checkpointSelect')).toHaveValue('Auto');
-      await page.locator('#cardUidInput').fill(cardUid);
-      await page.getByRole('button', { name: 'Read card' }).click();
-    }
-
-    test('first scan of a student without a bus records school arrival @smoke', async ({ page, data }) => {
-      const s = await data.student();
-      const card = await data.card(s.id);
-      await scanAuto(page, card.cardUid);
-      await expect(page.locator('#checkpointHint')).toContainText('Automatic → School arrival');
-      await expect(page.locator('#studentName')).toHaveText(s.fullName);
-      await expect(page.locator('#studentStatusBadge')).toContainText('Checkpoint recorded');
-      await expect(page.locator('#pickupCard')).toBeHidden();
-
-      await page.goto(`/Journey/Student/${s.id}`);
-      await expect(page.locator('main')).toContainText(/arriv/i);
-    });
-
-    test('a student already at school is routed to the guardian pickup', async ({ page, data }) => {
-      const s = await data.student();
-      const card = await data.card(s.id);
-      await data.scan(card.cardUid, 'SchoolArrival');
-      const g = await data.guardian();
-      await data.link(s.id, g.id, 'Father', true);
-
-      await scanAuto(page, card.cardUid);
-      await expect(page.locator('#checkpointHint')).toContainText('Automatic → School departure');
-      await expect(page.locator('#pickupCard')).toBeVisible();
-      await expect(page.locator('#guardianList')).toContainText(g.fullName);
-    });
-
-    test('an unknown card is reported and nothing is recorded', async ({ page }) => {
-      await scanAuto(page, 'FFEE' + Date.now().toString(16).toUpperCase());
-      await expect(page.locator('#studentName')).toHaveText('Unknown card');
-      await expect(page.locator('#studentMessage')).toContainText('Card not recognised');
-      await expect(page.locator('#pickupCard')).toBeHidden();
-    });
-  });
 });

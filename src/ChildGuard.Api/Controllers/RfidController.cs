@@ -200,19 +200,6 @@ public class RfidController : ControllerBase
     }
 
     /// <summary>
-    /// Pickup desk, automatic mode: which checkpoint the system would record for this card now, decided from
-    /// today's School Time schedule and the student's journey so far. Records nothing.
-    /// </summary>
-    [HttpPost("next-checkpoint")]
-    [Authorize(Policy = "AdminOnly")]
-    [EnableRateLimiting(RateLimitPolicies.RfidScan)]
-    public async Task<IActionResult> NextCheckpoint(RfidIdentifyRequest request, CancellationToken ct)
-    {
-        await _identifyValidator.ValidateAndThrowAsync(request, ct);
-        return Ok(await _rfidService.ResolveCheckpointAsync(request, ct));
-    }
-
-    /// <summary>
     /// Issues (or rotates) the scanner's own API key. The key is in this response only —
     /// store it on the device; it cannot be retrieved again. Rotating invalidates the old key.
     /// </summary>

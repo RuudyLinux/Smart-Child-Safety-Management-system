@@ -1,5 +1,3 @@
-using ChildGuard.Application.DTOs;
-using ChildGuard.Application.Common;
 using ChildGuard.Domain.Entities;
 
 namespace ChildGuard.Application.Interfaces;
@@ -7,12 +5,6 @@ namespace ChildGuard.Application.Interfaces;
 public interface IStudentRepository
 {
     Task<List<Student>> GetAllAsync(string? search, CancellationToken ct = default);
-
-    /// <summary>One page of students matching <paramref name="filter"/>; "today" values come from SchoolClock.</summary>
-    Task<(List<Student> Items, int Total)> GetPageAsync(StudentListFilter filter, PageRequest page, DateOnly today, DateTime todayStartUtc, CancellationToken ct = default);
-
-    /// <summary>Distinct non-empty grades, sorted, for the list's grade filter.</summary>
-    Task<List<string>> GetGradesAsync(CancellationToken ct = default);
     Task<Student?> GetByIdAsync(int id, CancellationToken ct = default);
     Task<Student?> GetWithGuardiansAsync(int id, CancellationToken ct = default);
     Task AddAsync(Student student, CancellationToken ct = default);

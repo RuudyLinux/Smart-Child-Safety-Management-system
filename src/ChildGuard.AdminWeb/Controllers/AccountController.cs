@@ -15,26 +15,21 @@ public class AccountController : Controller
     public const string TooManyAttempts = "Too many sign-in attempts. Wait a minute and try again.";
     public const string ServerUnavailable = "The ChildGuard server is starting up or unavailable. Wait a few seconds and try again.";
 
-    // Free hosting puts the API (and its database) to sleep when idle. While they wake the API can
-    // answer 502/503/504 from the proxy, 500 when the first database connection times out, 408/425,
-    // or a non-JSON 200 page. All of those are retried until the time budget runs out; only a 4xx
-    // from the API itself is a final answer.
-    private static readonly TimeSpan SignInBudget = TimeSpan.FromSeconds(100);
-    // Growing pauses keep the retries well under the API's sign-in rate limit (10 a minute per caller,
-    // and every admin sign-in reaches the API from this server's address).
-    private static readonly int[] RetryDelaySeconds = { 3, 6, 10, 15, 20 };
+    // Free hosting puts the API to sleep when idle; it answers 502/503/504 while it wakes.
+    private static readonly int[] WakingStatuses = { 502, 503, 504 };
+    private const int SignInAttempts = 4;
+    private static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(5);
     private static readonly HttpClient WakeClient = new() { Timeout = TimeSpan.FromSeconds(90) };
-    private static readonly HttpClient ProbeClient = new() { Timeout = TimeSpan.FromSeconds(8) };
 
     private readonly ApiClient _api;
-    private readonly ApiEndpoint _endpoint;
+    private readonly IConfiguration _config;
     private readonly ILogger<AccountController> _log;
 
     // The long-timeout client: a sign-in that arrives while the API is waking waits for it instead of failing.
-    public AccountController(LongRunningApiClient api, ApiEndpoint endpoint, ILogger<AccountController> log)
+    public AccountController(LongRunningApiClient api, IConfiguration config, ILogger<AccountController> log)
     {
         _api = api;
-        _endpoint = endpoint;
+        _config = config;
         _log = log;
     }
 
@@ -53,74 +48,38 @@ public class AccountController : Controller
     /// </summary>
     private void WakeApi()
     {
-        var health = _endpoint.Resolve("/api/health");
+        var baseUrl = _config["Api:BaseUrl"] ?? "http://localhost:5275";
         _ = Task.Run(async () =>
         {
-            try { using var _ = await WakeClient.GetAsync(health); }
+            try { using var _ = await WakeClient.GetAsync(new Uri(new Uri(baseUrl), "/api/health")); }
             catch { /* best effort */ }
         });
     }
 
-    /// <summary>
-    /// Polled by the sign-in page while the admin types, so it can say "connecting" instead of letting a
-    /// sign-in run into a sleeping server. /api/health touches the database, so this wakes it too.
-    /// </summary>
-    [HttpGet]
-    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-    public async Task<IActionResult> ApiStatus(CancellationToken ct)
-    {
-        try
-        {
-            using var response = await ProbeClient.GetAsync(_endpoint.Resolve("/api/health"), ct);
-            return Json(new { ready = response.IsSuccessStatusCode });
-        }
-        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException && !ct.IsCancellationRequested)
-        {
-            return Json(new { ready = false });
-        }
-    }
-
-    /// <summary>A 4xx from the API itself is a final answer; anything else may be a server still waking.</summary>
-    internal static bool IsTransient(int status) => status is 0 or 408 or 425 || status >= 500 || status is >= 200 and < 300;
-
-    /// <summary>Signs in, retrying while the API wakes up. Only a 4xx from the API means the credentials were refused.</summary>
+    /// <summary>Signs in, retrying while the API wakes up. Only a 401 from the API means the credentials are wrong.</summary>
     private async Task<(ApiResult<LoginResponse>? Result, string? Error)> SignInAsync(LoginViewModel model, CancellationToken ct)
     {
-        // A cold start (web service + database) can take about a minute; past the budget the admin gets an
-        // answer instead of a spinning page.
+        // A cold start takes well under a minute; past this the admin gets an answer instead of a spinning page.
         using var budget = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        budget.CancelAfter(SignInBudget);
+        budget.CancelAfter(TimeSpan.FromSeconds(100));
         for (var attempt = 1; ; attempt++)
         {
             try
             {
                 var result = await _api.PostAsync<LoginResponse>("/api/auth/admin/login", new LoginRequest(model.Email, model.Password), budget.Token);
                 if (result.Succeeded) return (result, null);
+                if (result.StatusCode is 400 or 401 or 403) return (null, InvalidCredentials);
                 if (result.StatusCode == 429) return (null, TooManyAttempts);
-                if (!IsTransient(result.StatusCode))
-                {
-                    if (result.StatusCode is 400 or 401 or 403) return (null, InvalidCredentials);
-                    _log.LogWarning("Sign-in refused: the API answered {Status}: {Error}", result.StatusCode, result.Error);
-                    return (null, ServerUnavailable);
-                }
-                _log.LogWarning("Sign-in attempt {Attempt}: the API answered {Status} ({Error}); retrying", attempt, result.StatusCode, result.Error);
+                if (!WakingStatuses.Contains(result.StatusCode)) return (null, ServerUnavailable);
+                _log.LogWarning("Sign-in attempt {Attempt}: the API answered {Status} while waking", attempt, result.StatusCode);
             }
             catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException && !ct.IsCancellationRequested)
             {
-                _log.LogWarning("Sign-in attempt {Attempt} could not reach the API: {Error}: {Message}", attempt, ex.GetType().Name, ex.Message);
+                _log.LogWarning("Sign-in attempt {Attempt} could not reach the API: {Error}", attempt, ex.GetType().Name);
             }
-            if (budget.IsCancellationRequested)
-            {
-                _log.LogError("Sign-in gave up after {Attempts} attempts in {Budget}", attempt, SignInBudget);
-                return (null, ServerUnavailable);
-            }
-            var delay = TimeSpan.FromSeconds(RetryDelaySeconds[Math.Min(attempt, RetryDelaySeconds.Length) - 1]);
-            try { await Task.Delay(delay, budget.Token); }
-            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-            {
-                _log.LogError("Sign-in gave up after {Attempts} attempts in {Budget}", attempt, SignInBudget);
-                return (null, ServerUnavailable);
-            }
+            if (attempt >= SignInAttempts || budget.IsCancellationRequested) return (null, ServerUnavailable);
+            try { await Task.Delay(RetryDelay, budget.Token); }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested) { return (null, ServerUnavailable); }
         }
     }
 

@@ -68,14 +68,6 @@
                 </div>
             }
 
-            <div class="cg-alert cg-alert--info" role="status" id="cg-api-status" data-url="@Url.Action("ApiStatus", "Account")" hidden>
-                <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "clock")</span>
-                <div class="cg-alert__body">
-                    <div class="cg-alert__title">Connecting to the server…</div>
-                    <div>It was asleep and is starting up, which can take up to a minute. You can sign in now; it will wait for the server.</div>
-                </div>
-            </div>
-
             <form asp-action="Login" method="post" class="cg-form" data-cg-busy>
                 @Html.AntiForgeryToken()
 
@@ -124,7 +116,3 @@
         </div>
     </section>
 </div>
-
-@section Scripts {
-    <script src="~/js/login-status.js" asp-append-version="true"></script>
-}

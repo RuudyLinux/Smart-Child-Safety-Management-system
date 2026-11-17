@@ -3,13 +3,8 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
 
 var builder = WebApplication.CreateBuilder(args);
-HostPort.Apply(builder);
 
-builder.Services.AddControllersWithViews(options =>
-    {
-        options.Filters.Add<ApiSessionExpiredFilter>();
-        options.Filters.Add<AjaxAntiforgeryFilter>();
-    })
+builder.Services.AddControllersWithViews(options => options.Filters.Add<ApiSessionExpiredFilter>())
     .AddJsonOptions(options =>
         options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
 builder.Services.AddHttpContextAccessor();
@@ -44,22 +39,19 @@ builder.Services.Configure<Microsoft.AspNetCore.Mvc.CookieTempDataProviderOption
         : CookieSecurePolicy.Always);
 
 builder.Services.AddTransient<JwtForwardingHandler>();
-// Any host, port or path prefix; validated here so a bad value fails at startup with a clear message.
-var apiEndpoint = ApiEndpoint.From(builder.Configuration);
-builder.Services.AddSingleton(apiEndpoint);
-builder.Services.AddTransient<ApiPathBaseHandler>();
+var apiBaseUrl = builder.Configuration["Api:BaseUrl"] ?? "http://localhost:5275";
 builder.Services.AddHttpClient<ApiClient>(client =>
 {
-    client.BaseAddress = apiEndpoint.BaseUri;
+    client.BaseAddress = new Uri(apiBaseUrl);
     // A sleeping API (free hosting) needs about a minute to wake: raise this there.
     client.Timeout = TimeSpan.FromSeconds(builder.Configuration.GetValue("Api:TimeoutSeconds", 30));
-}).AddHttpMessageHandler<ApiPathBaseHandler>().AddHttpMessageHandler<JwtForwardingHandler>();
+}).AddHttpMessageHandler<JwtForwardingHandler>();
 
 builder.Services.AddHttpClient<LongRunningApiClient>(client =>
 {
-    client.BaseAddress = apiEndpoint.BaseUri;
+    client.BaseAddress = new Uri(apiBaseUrl);
     client.Timeout = TimeSpan.FromSeconds(builder.Configuration.GetValue("Api:LongRunningTimeoutSeconds", 300));
-}).AddHttpMessageHandler<ApiPathBaseHandler>().AddHttpMessageHandler<JwtForwardingHandler>();
+}).AddHttpMessageHandler<JwtForwardingHandler>();
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
@@ -80,17 +72,9 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         // 401 so the page script sends the browser to sign-in instead.
         options.Events.OnRedirectToLogin = context =>
         {
-            if (ApiSessionExpiredFilter.WantsHtml(context.Request))
-            {
-                context.Response.Redirect(context.RedirectUri);
-                return Task.CompletedTask;
-            }
-            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-            // cg-ajax.js reads the envelope and sends the browser to sign-in. An AJAX request only comes from an
-            // admin page that was already open, so a missing cookie here means the session ran out.
-            return AjaxRequest.IsAjax(context.Request)
-                ? context.Response.WriteAsJsonAsync(new AjaxEnvelope(false, ApiSessionExpiredFilter.ExpiredMessage, ApiSessionExpiredFilter.LoginUrl, null, null))
-                : Task.CompletedTask;
+            if (ApiSessionExpiredFilter.WantsHtml(context.Request)) context.Response.Redirect(context.RedirectUri);
+            else context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            return Task.CompletedTask;
         };
     });
 
@@ -127,6 +111,3 @@ app.MapControllerRoute(
     pattern: "{controller=Dashboard}/{action=Index}/{id?}");
 
 app.Run();
-
-/// <summary>Visible to tests/ChildGuard.AdminWeb.Tests (WebApplicationFactory).</summary>
-public partial class Program { }

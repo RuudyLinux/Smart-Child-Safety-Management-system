@@ -1,18 +1,18 @@
-@model ListPageViewModel<StudentListItemDto>
+@model List<StudentListItemDto>
 @{
     ViewData["Title"] = "Students";
     var grades = ViewBag.Grades as List<string> ?? new List<string>();
-    var q = (StudentListQuery)ViewData["Query"]!;
-    var figures = ViewBag.Figures as StudentListFigures;
-    var search = q.Search?.Trim();
-
+    var search = ViewData["Search"] as string;
+    var present = Model.Count(s => s.PresentToday);
+    var withRfid = Model.Count(s => s.MaskedRfid is not null);
+    var noGuardian = Model.Count(s => s.GuardianCount == 0);
 }
 
 <div class="cg-page-head">
     <div class="cg-page-head__text">
         <h1 class="cg-page-head__title">Students</h1>
         <p class="cg-page-head__sub">
-            @(figures?.OnRoll?.ToString() ?? "–") on roll · @(figures?.PresentToday?.ToString() ?? "–") checked in today · @(figures?.WithRfid?.ToString() ?? "–") carrying an RFID card
+            @Model.Count on roll · @present checked in today · @withRfid carrying an RFID card
         </p>
     </div>
     <div class="cg-page-head__actions">
@@ -22,7 +22,15 @@
     </div>
 </div>
 
-@if (figures?.WithoutGuardian is > 0 and var noGuardian)
+@if (ViewBag.LoadError is string loadError)
+{
+    <div class="cg-alert cg-alert--danger" role="alert">
+        <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "alert-circle")</span>
+        <div class="cg-alert__body">@loadError</div>
+    </div>
+}
+
+@if (noGuardian > 0)
 {
     <div class="cg-alert cg-alert--warning">
         <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "alert-triangle")</span>
@@ -34,123 +42,102 @@
 }
 
 <section class="cg-card">
-    @* Filters, search and sort run on the server; with JavaScript only the list region below is
-       re-rendered and the URL keeps the view, so Back, Refresh and bookmarks restore it. *@
-    <form method="get" action="/Students" class="cg-toolbar" data-cg-list="list" role="search">
-        <div class="cg-row" style="flex:1;min-width:220px;max-width:340px">
+    <div class="cg-toolbar">
+        @* The server search re-queries the API by name; the filters below refine
+           the rows already delivered, so they respond without a round trip. *@
+        <form method="get" class="cg-row" style="flex:1;min-width:220px;max-width:340px">
             <div class="cg-input-group" style="flex:1">
                 <span class="cg-input-group__icon">@await Html.PartialAsync("_Icon", "search")</span>
-                <input class="cg-input" name="search" value="@search" placeholder="Search all students by name"
-                       aria-label="Search students by name" autocomplete="off" />
+                <input class="cg-input" name="search" value="@search" placeholder="Search all students by name" />
             </div>
             <button class="cg-btn cg-btn--secondary" type="submit">Search</button>
-        </div>
+        </form>
 
-        <select class="cg-select" style="max-width:150px" name="grade" data-cg-filter="grade" data-cg-filter-scope="students"
+        <select class="cg-select" style="max-width:150px" data-cg-filter="grade" data-cg-filter-scope="students"
                 aria-label="Filter by grade">
             <option value="__all">All grades</option>
             @foreach (var grade in grades)
             {
-                <option value="@grade" selected="@string.Equals(q.Grade, grade, StringComparison.OrdinalIgnoreCase)">@grade</option>
+                <option value="@grade">@grade</option>
             }
         </select>
 
-        <select class="cg-select" style="max-width:170px" name="attendance" data-cg-filter="attendance" data-cg-filter-scope="students"
+        <select class="cg-select" style="max-width:170px" data-cg-filter="attendance" data-cg-filter-scope="students"
                 aria-label="Filter by today's attendance">
             <option value="__all">Any attendance</option>
-            <option value="present" selected="@(q.Attendance == "present")">Present today</option>
-            <option value="absent" selected="@(q.Attendance == "absent")">Not checked in</option>
+            <option value="present">Present today</option>
+            <option value="absent">Not checked in</option>
         </select>
 
-        <select class="cg-select" style="max-width:150px" name="rfid" data-cg-filter="rfid" data-cg-filter-scope="students"
+        <select class="cg-select" style="max-width:150px" data-cg-filter="rfid" data-cg-filter-scope="students"
                 aria-label="Filter by RFID card">
             <option value="__all">Any RFID</option>
-            <option value="assigned" selected="@(q.Rfid == "assigned")">Card assigned</option>
-            <option value="none" selected="@(q.Rfid == "none")">No card</option>
+            <option value="assigned">Card assigned</option>
+            <option value="none">No card</option>
         </select>
 
-        <select class="cg-select" style="max-width:160px" name="guardian" data-cg-filter="guardian" data-cg-filter-scope="students"
+        <select class="cg-select" style="max-width:160px" data-cg-filter="guardian" data-cg-filter-scope="students"
                 aria-label="Filter by guardian">
             <option value="__all">Any guardian</option>
-            <option value="linked" selected="@(q.Guardian == "linked")">Has a guardian</option>
-            <option value="none" selected="@(q.Guardian == "none")">No guardian</option>
+            <option value="linked">Has a guardian</option>
+            <option value="none">No guardian</option>
         </select>
 
-        <select class="cg-select" style="max-width:150px" name="status" data-cg-filter="status" data-cg-filter-scope="students"
+        <select class="cg-select" style="max-width:150px" data-cg-filter="status" data-cg-filter-scope="students"
                 aria-label="Filter by record status">
             <option value="__all">Any status</option>
-            <option value="Active" selected="@(q.Status == "Active")">Active</option>
-            <option value="Inactive" selected="@(q.Status == "Inactive")">Inactive</option>
-            <option value="Archived" selected="@(q.Status == "Archived")">Archived</option>
+            <option value="Active">Active</option>
+            <option value="Inactive">Inactive</option>
+                <option value="Archived">Archived</option>
         </select>
 
-        @if (q.SortKey is not null)
-        {
-            <input type="hidden" name="sort" value="@q.SortKey" />
-            <input type="hidden" name="dir" value="@(q.Descending ? "desc" : "asc")" />
-        }
+        <button type="button" class="cg-btn cg-btn--ghost cg-btn--sm" data-cg-reset data-cg-reset-scope="students">
+            Clear
+        </button>
+        <span class="cg-toolbar__spacer"></span>
+        <span class="cg-text-sm cg-muted" data-cg-count data-cg-count-scope="students"></span>
+    </div>
 
-        @* Clears the filters, keeps the name search (as before). *@
-        <a class="cg-btn cg-btn--ghost cg-btn--sm" data-cg-reset data-cg-reset-scope="students" data-cg-list-link
-           href="@(new StudentListQuery { Search = search }.Url())">Clear</a>
-    </form>
-
-    @* Announces the new count after a list change. Outside the region on purpose: a live region that is
-       replaced already filled is announced unreliably, so cg-ajax.js copies the count into this one. *@
-    <span class="cg-sr-only" data-cg-list-status role="status" aria-live="polite"></span>
-    <div data-cg-region="list">
-        @if (ViewBag.LoadError is string loadError)
-        {
-            <div class="cg-card__body">
-                <div class="cg-alert cg-alert--danger" role="alert">
-                    <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "alert-circle")</span>
-                    <div class="cg-alert__body">
-                        <div>@loadError</div>
-                        <a href="@q.Url(page: q.CurrentPage)" data-cg-list-link>Try again</a>
-                    </div>
-                </div>
-            </div>
-        }
-        else if (Model.PastTheEnd)
-        {
-            <div class="cg-empty" data-cg-page-missing>
-                <div class="cg-empty__art">@await Html.PartialAsync("_Icon", "filter")</div>
-                <div class="cg-empty__title">There is no page @Model.Page</div>
-                <p class="cg-empty__text">This list has @Model.PageCount page@(Model.PageCount == 1 ? "" : "s") of results now.</p>
-                <a class="cg-btn cg-btn--secondary cg-btn--sm" href="@q.Url(page: Model.PageCount)" data-cg-list-link>Go to page @Model.PageCount</a>
-            </div>
-        }
-        else if (Model.Total == 0 && !q.HasFilters)
-        {
-            @await Html.PartialAsync("_EmptyState", ("students", "No students yet",
-                "Add your first student, then assign an RFID card and link a guardian.",
-                (string?)"Add student", (string?)"/Students/Create"))
-        }
-        else
-        {
-            <div class="cg-row cg-row--between" style="padding:0 16px">
-                <span class="cg-text-sm cg-muted" data-cg-count data-cg-count-scope="students">@Model.Total @(Model.Total == 1 ? "record" : "records")</span>
-            </div>
-            <div class="cg-table-wrap">
-                <table class="cg-table">
-                    <thead>
-                        <tr>
-                            @await Html.PartialAsync("_SortHeader", new SortHeaderModel("name", "Student", q.SortKey, q.Descending, q.Url))
-                            @await Html.PartialAsync("_SortHeader", new SortHeaderModel("grade", "Grade", q.SortKey, q.Descending, q.Url))
-                            <th>RFID</th>
-                            <th>Guardian</th>
-                            <th>Today</th>
-                            @await Html.PartialAsync("_SortHeader", new SortHeaderModel("activity", "Last activity", q.SortKey, q.Descending, q.Url))
-                            <th>Safety status</th>
-                            <th class="cg-table__actions">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                @foreach (var s in Model.Items)
+    @if (!Model.Any())
+    {
+        @await Html.PartialAsync("_EmptyState", ("students",
+            string.IsNullOrWhiteSpace(search) ? "No students yet" : $"No students match “{search}”",
+            string.IsNullOrWhiteSpace(search)
+                ? "Add your first student, then assign an RFID card and link a guardian."
+                : "Try a different name, or clear the search to see everyone on roll.",
+            string.IsNullOrWhiteSpace(search) ? "Add student" : null,
+            string.IsNullOrWhiteSpace(search) ? "/Students/Create" : null))
+    }
+    else
+    {
+        <div class="cg-table-wrap">
+            <table class="cg-table" data-cg-table="students" data-cg-page-size="25">
+                <thead>
+                    <tr>
+                        <th><span class="cg-th-sort" data-cg-sort="name">Student @await Html.PartialAsync("_Icon", "arrow-down")</span></th>
+                        <th><span class="cg-th-sort" data-cg-sort="grade">Grade @await Html.PartialAsync("_Icon", "arrow-down")</span></th>
+                        <th>RFID</th>
+                        <th>Guardian</th>
+                        <th>Today</th>
+                        <th><span class="cg-th-sort" data-cg-sort="activity">Last activity @await Html.PartialAsync("_Icon", "arrow-down")</span></th>
+                        <th>Safety status</th>
+                        <th class="cg-table__actions">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var s in Model)
                 {
                     var photoUrl = s.HasPhoto ? Url.Action("Photo", "Students", new { id = s.StudentId }) : null;
-                    <tr data-row>
-
+                    <tr data-row
+                        data-search="@s.FullName @s.Grade @s.PrimaryGuardianName"
+                        data-grade="@(s.Grade ?? "")"
+                        data-attendance="@(s.PresentToday ? "present" : "absent")"
+                        data-rfid="@(s.MaskedRfid is null ? "none" : "assigned")"
+                        data-guardian="@(s.GuardianCount == 0 ? "none" : "linked")"
+                        data-status="@(s.ArchivedAt is not null ? "Archived" : s.Status.ToString())"
+                        data-sort-name="@s.FullName"
+                        data-sort-grade="@(s.Grade ?? "")"
+                        data-sort-activity="@(s.LastEventAt?.Ticks ?? 0)">
                         <td>
                             <a class="cg-identity" href="/Students/Details/@s.StudentId" style="color:inherit">
                                 @await Html.PartialAsync("_Avatar", new AvatarModel(photoUrl, s.FullName, "sm", false, false,
@@ -239,21 +226,19 @@
                         </td>
                     </tr>
                 }
+                </tbody>
+            </table>
+        </div>
 
-                    </tbody>
-                </table>
-            </div>
+        <div class="cg-empty" data-cg-noresults data-cg-noresults-scope="students" hidden>
+            <div class="cg-empty__art">@await Html.PartialAsync("_Icon", "filter")</div>
+            <div class="cg-empty__title">No students match these filters</div>
+            <p class="cg-empty__text">Clear one or more filters to widen the list.</p>
+        </div>
 
-            @if (Model.Total == 0)
-            {
-                <div class="cg-empty" data-cg-noresults data-cg-noresults-scope="students">
-                    <div class="cg-empty__art">@await Html.PartialAsync("_Icon", "filter")</div>
-                    <div class="cg-empty__title">No students match these filters</div>
-                    <p class="cg-empty__text">Clear one or more filters, or try a different name.</p>
-                </div>
-            }
-
-            @await Html.PartialAsync("_Pager", new PagerModel("students", Model.Page, Model.PageCount, Model.FirstRow, Model.LastRow, Model.Total, "students", p => q.Url(page: p)))
-        }
-    </div>
+        <div class="cg-pagination">
+            <span class="cg-text-sm">Showing up to 25 students per page</span>
+            <div class="cg-pagination__pages" data-cg-pager data-cg-pager-scope="students"></div>
+        </div>
+    }
 </section>

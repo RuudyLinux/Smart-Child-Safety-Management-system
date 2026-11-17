@@ -12,7 +12,6 @@ using Microsoft.IdentityModel.Tokens;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
-HostPort.Apply(builder);
 
 // ---- Logging ----
 builder.Host.UseSerilog((ctx, cfg) =>
@@ -138,8 +137,7 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AdminWebAndApp", policy =>
     {
         var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
-        policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod()
-            .WithExposedHeaders(ChildGuard.Api.Common.PagingHeaders.TotalCount); // paged lists: total row count
+        policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod();
 
         // `flutter run` picks a random localhost port unless --web-port is given, so
         // in development any loopback origin is accepted as well. Loopback only —

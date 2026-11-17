@@ -104,7 +104,7 @@ test.describe('Students', () => {
     await expect(rows).toHaveCount(0);
     await expect(page.locator('[data-cg-noresults][data-cg-noresults-scope="students"]')).toBeVisible();
 
-    await page.getByRole('link', { name: 'Clear' }).click();
+    await page.getByRole('button', { name: 'Clear' }).click();
     await expect(rows).toHaveCount(2);
     await expect(page.locator('[data-cg-filter="rfid"]')).toHaveValue('__all');
 
@@ -119,13 +119,12 @@ test.describe('Students', () => {
     await page.goto(`/Students?search=${tag}`);
     const names = () => page.locator('tr[data-row]:visible .cg-identity__name').allInnerTexts();
     const header = page.locator('[data-cg-sort="name"]');
-    // The server sorts and re-renders the list: wait for the header's new state before reading rows.
     await header.click();
-    await expect(header).toHaveClass(/is-asc/);
     expect(await names()).toEqual([`${tag} alpha`, `${tag} Bravo`, `${tag} Charlie`]);
+    await expect(header).toHaveClass(/is-asc/);
     await header.click();
-    await expect(header).toHaveClass(/is-desc/);
     expect(await names()).toEqual([`${tag} Charlie`, `${tag} Bravo`, `${tag} alpha`]);
+    await expect(header).toHaveClass(/is-desc/);
   });
 
   test('pagination shows 25 rows per page and moves between pages', async ({ page, data }) => {
@@ -133,8 +132,7 @@ test.describe('Students', () => {
     for (let i = 0; i < 27; i++) await data.student({ fullName: `${tag} ${String(i).padStart(2, '0')}` });
     await page.goto(`/Students?search=${tag}`);
     await expect(page.locator('tr[data-row]:visible')).toHaveCount(25);
-    // Server-side pages are links (they work without JavaScript too).
-    const pager = page.locator('[data-cg-pager][data-cg-pager-scope="students"] a');
+    const pager = page.locator('[data-cg-pager][data-cg-pager-scope="students"] button');
     await expect(pager).toHaveCount(2);
     await pager.nth(1).click();
     await expect(page.locator('tr[data-row]:visible')).toHaveCount(2);

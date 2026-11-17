@@ -59,7 +59,7 @@ public class FaceServiceHealthProbe : IFaceServiceHealthProbe
         timeout.CancelAfter(Timeout);
         try
         {
-            using var response = await _http.GetAsync("health", timeout.Token);
+            using var response = await _http.GetAsync("/health", timeout.Token);
             var ms = (int)watch.ElapsedMilliseconds;
             if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
                 return new FaceServiceHealth(true, null, ms, "The face service rejected the API's key (FaceService:ApiKey does not match FACE_SERVICE_KEY).");

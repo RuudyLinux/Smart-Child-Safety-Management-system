@@ -46,24 +46,18 @@ test.describe('Addresses and audit log', () => {
     await shot(page, '02-student-audit-history');
   });
 
-  test.describe('refused input', () => {
-    // The refusal is an HTTP 400 answer to the form's request, which the browser logs.
-    test.use({ allowErrors: [/status of 400/] });
-
-    test('an invalid postal code is refused and nothing changes', async ({ page, data }) => {
-      const s = await data.student();
-      await page.goto(`/Students/Edit/${s.id}`);
-      const form = page.locator('form[data-address-form]');
-      // Bypass the field's pattern so the server-side check is what refuses it.
-      await form.locator('[name="PostalCode"]').evaluate((el: HTMLInputElement) => el.removeAttribute('pattern'));
-      await fillAddress(page, { Line1: '1 Test Road', PostalCode: '<56>' });
-      await form.getByRole('button', { name: 'Save address' }).click();
-      // The refusal is shown in place (AJAX), so the page stays on the edit form.
-      expect(await toast(page, 'ostal code')).toMatch(/postal code/i);
-      await expect(page).toHaveURL(new RegExp(`/Students/Edit/${s.id}(#address)?$`));
-      await page.goto(`/Students/Details/${s.id}`);
-      await expect(page.locator('body')).not.toContainText('1 Test Road');
-    });
+  test('an invalid postal code is refused and nothing changes', async ({ page, data }) => {
+    const s = await data.student();
+    await page.goto(`/Students/Edit/${s.id}`);
+    const form = page.locator('form[data-address-form]');
+    // Bypass the field's pattern so the server-side check is what refuses it.
+    await form.locator('[name="PostalCode"]').evaluate((el: HTMLInputElement) => el.removeAttribute('pattern'));
+    await fillAddress(page, { Line1: '1 Test Road', PostalCode: '<56>' });
+    await form.getByRole('button', { name: 'Save address' }).click();
+    await expect(page).toHaveURL(new RegExp(`/Students/Edit/${s.id}#address$`));
+    expect(await toast(page)).toMatch(/postal code/i);
+    await page.goto(`/Students/Details/${s.id}`);
+    await expect(page.locator('body')).not.toContainText('1 Test Road');
   });
 
   test('edit a guardian address', async ({ page, data }) => {

@@ -6,8 +6,6 @@ namespace ChildGuard.Application.Interfaces;
 public interface IStudentService
 {
     Task<List<StudentListItemDto>> GetAllAsync(string? search, CancellationToken ct = default);
-    Task<Paged<StudentListItemDto>> GetPageAsync(StudentListFilter filter, PageRequest page, CancellationToken ct = default);
-    Task<List<string>> GetGradesAsync(CancellationToken ct = default);
     Task<Result<StudentDetailDto>> GetByIdAsync(int id, CancellationToken ct = default);
     Task<Result<StudentDetailDto>> CreateAsync(CreateStudentRequest request, CancellationToken ct = default);
     Task<Result<StudentDetailDto>> UpdateAsync(int id, UpdateStudentRequest request, CancellationToken ct = default);

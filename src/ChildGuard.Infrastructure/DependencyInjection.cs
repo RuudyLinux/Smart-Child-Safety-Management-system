@@ -134,12 +134,7 @@ public static class DependencyInjection
         services.AddScoped<ChildGuard.Application.Import.ImportHandler, ChildGuard.Application.Import.BusImportHandler>();
         services.AddScoped<IBulkImportService, BulkImportService>();
 
-        // Any host, port or path prefix (e.g. a tunnel at https://pc.example.ts.net/face). The trailing "/"
-        // keeps the prefix: the client's calls use relative paths ("identify", not "/identify").
-        var faceServiceBaseUrl = config["FaceService:BaseUrl"] is { Length: > 0 } configuredFaceUrl
-            ? configuredFaceUrl.Trim()
-            : "http://localhost:8001";
-        if (!faceServiceBaseUrl.EndsWith('/')) faceServiceBaseUrl += "/";
+        var faceServiceBaseUrl = config["FaceService:BaseUrl"] ?? "http://localhost:8001";
         var faceServiceApiKey = config["FaceService:ApiKey"];
         void ConfigureFaceClient(HttpClient client)
         {
