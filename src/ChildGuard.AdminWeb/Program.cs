@@ -5,7 +5,11 @@ using Microsoft.AspNetCore.DataProtection;
 var builder = WebApplication.CreateBuilder(args);
 HostPort.Apply(builder);
 
-builder.Services.AddControllersWithViews(options => options.Filters.Add<ApiSessionExpiredFilter>())
+builder.Services.AddControllersWithViews(options =>
+    {
+        options.Filters.Add<ApiSessionExpiredFilter>();
+        options.Filters.Add<AjaxAntiforgeryFilter>();
+    })
     .AddJsonOptions(options =>
         options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
 builder.Services.AddHttpContextAccessor();
