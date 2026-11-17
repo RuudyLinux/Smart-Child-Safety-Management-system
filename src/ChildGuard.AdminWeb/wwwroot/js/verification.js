@@ -18,6 +18,7 @@
   var FRAME_QUALITY = 0.8;
 
   var state = {
+    autoCheckpoint: null,  // checkpoint chosen by the system for the current card (Automatic mode)
     studentId: null,
     studentName: null,
     sessionId: null,
@@ -102,10 +103,30 @@
       '</div></div>';
   }
 
-  function isPickupCheckpoint() {
+  /** Automatic mode: the system picks the checkpoint from today's school schedule and the student's journey. */
+  function isAutoMode() {
     var select = $('checkpointSelect');
-    return !!select && PICKUP_CHECKPOINTS.indexOf(select.value) !== -1;
+    return !!select && select.value === 'Auto';
   }
+
+  /** The checkpoint this scan uses: the admin's choice, or the one the system resolved for the card. */
+  function currentCheckpoint() {
+    var select = $('checkpointSelect');
+    if (!select) return null;
+    return isAutoMode() ? state.autoCheckpoint : select.value;
+  }
+
+  function isPickupCheckpoint() {
+    var cp = currentCheckpoint();
+    return !!cp && PICKUP_CHECKPOINTS.indexOf(cp) !== -1;
+  }
+
+  var CHECKPOINT_NAMES = {
+    BusBoarding: 'Bus boarding',
+    SchoolArrival: 'School arrival',
+    SchoolDeparture: 'School departure',
+    BusDropoff: 'Bus drop-off'
+  };
 
   function updateFlowMode() {
     var pickup = isPickupCheckpoint();
@@ -113,7 +134,9 @@
     if (panel) panel.hidden = !pickup;
 
     var hint = $('checkpointHint');
-    if (hint) {
+    if (hint && isAutoMode() && !state.autoCheckpoint) {
+      hint.textContent = 'Automatic: after the card is read, the system picks Bus boarding, School arrival, School departure or Bus drop-off from today\'s school timings and where the student is in their journey. Choose a checkpoint above only for an exception.';
+    } else if (hint) {
       hint.textContent = pickup
         ? 'Pickup checkpoint: the scan identifies the student, then the collecting guardian must pass identity, authorisation and a live-person check before the handover can be approved.'
         : 'Drop-off checkpoint: the scan identifies the student and records the event. No guardian verification is needed.';
@@ -252,16 +275,61 @@
       return;
     }
 
+    state.autoCheckpoint = null;
     resetForNewScan(true);
     setBusy(true, 'Reading…');
     setStep('step-student', 'active', 'Reading card…');
+
+    // Automatic mode: ask the server which checkpoint applies to this card now, then continue
+    // exactly as if the admin had chosen it (a school departure still needs guardian verification).
+    var autoDecision = null;
+    if (isAutoMode()) {
+      try {
+        var r = await fetch('/Verification/NextCheckpoint', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken() },
+          body: JSON.stringify({ cardUid: cardUid, rfidDeviceId: parseInt($('deviceSelect').value, 10) })
+        });
+        autoDecision = await r.json();
+        if (!r.ok) throw new Error((autoDecision && autoDecision.message) || 'refused');
+      } catch (e) {
+        setBusy(false);
+        setStep('step-student', 'failed', 'Could not decide');
+        $('studentCard').hidden = false;
+        $('studentMessage').innerHTML = banner('danger', 'Could not choose a checkpoint automatically',
+          'The scan was not recorded.', 'Try again, or choose the checkpoint manually.');
+        return;
+      }
+      if (!autoDecision.studentIdentified || !autoDecision.checkpoint) {
+        setBusy(false);
+        setStep('step-student', autoDecision.studentIdentified ? 'done' : 'failed',
+          autoDecision.studentName || 'Not recognised');
+        $('studentCard').hidden = false;
+        if (autoDecision.studentName) $('studentName').textContent = autoDecision.studentName;
+        $('studentRfid').textContent = autoDecision.maskedCardUid || '';
+        $('studentMessage').innerHTML = banner('warning',
+          autoDecision.studentIdentified ? 'No checkpoint to record' : 'Card not recognised',
+          autoDecision.reason || '', 'Choose a checkpoint manually if this is an exception.');
+        if (input) input.value = '';
+        return;
+      }
+      state.autoCheckpoint = autoDecision.checkpoint;
+      updateFlowMode();
+      var autoHint = $('checkpointHint');
+      if (autoHint) {
+        autoHint.innerHTML = '<strong>Automatic → ' + escapeHtml(CHECKPOINT_NAMES[autoDecision.checkpoint] || autoDecision.checkpoint) +
+          '</strong>. ' + escapeHtml(autoDecision.reason || '') +
+          (autoDecision.offSchedule ? ' <span class="cg-badge cg-badge--warning">Off-schedule</span>' : '');
+      }
+      setStep('step-student', 'active', 'Reading card…');
+    }
 
     // At a pickup checkpoint the card only identifies the student: the departure is
     // recorded by the handover approval, after the guardian is verified (BUG-001).
     var pickup = isPickupCheckpoint();
     var payload = pickup
       ? { cardUid: cardUid, rfidDeviceId: parseInt($('deviceSelect').value, 10) }
-      : { cardUid: cardUid, rfidDeviceId: parseInt($('deviceSelect').value, 10), checkpoint: $('checkpointSelect').value };
+      : { cardUid: cardUid, rfidDeviceId: parseInt($('deviceSelect').value, 10), checkpoint: currentCheckpoint() };
 
     var data;
     try {
@@ -811,6 +879,7 @@
     var checkpoint = $('checkpointSelect');
     if (checkpoint) {
       checkpoint.addEventListener('change', function () {
+        state.autoCheckpoint = null;
         updateFlowMode();
         resetForNewScan(false);
       });

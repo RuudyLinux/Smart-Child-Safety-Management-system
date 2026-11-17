@@ -30,6 +30,12 @@ public interface IRfidService
     /// <summary>Looks up the active student on a card. Records no journey event or attendance.</summary>
     Task<RfidIdentifyResultDto> IdentifyAsync(RfidIdentifyRequest request, CancellationToken ct = default);
 
+    /// <summary>
+    /// The checkpoint the system would record for this card now, from today's school schedule and the student's
+    /// journey so far. Records nothing.
+    /// </summary>
+    Task<NextCheckpointDto> ResolveCheckpointAsync(RfidIdentifyRequest request, CancellationToken ct = default);
+
     /// <summary>Issues (or rotates) this scanner's own API key. The plaintext is returned once and never stored.</summary>
     Task<Result<DeviceCredentialDto>> IssueDeviceKeyAsync(int deviceId, CancellationToken ct = default);
 
