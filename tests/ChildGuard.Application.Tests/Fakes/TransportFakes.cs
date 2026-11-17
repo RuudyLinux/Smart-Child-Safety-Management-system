@@ -63,6 +63,8 @@ internal sealed class FakeTransportationRepository : ITransportationRepository
     public Task<Bus?> GetBusByIdAsync(int id, CancellationToken ct = default) => Task.FromResult(Buses.FirstOrDefault(b => b.BusId == id));
     public Task AddBusAsync(Bus bus, CancellationToken ct = default) { bus.BusId = ++_id; Buses.Add(bus); return Task.CompletedTask; }
 
+    public Task<(List<StudentBusAssignment> Items, int Total)> GetAssignmentsPageAsync(ChildGuard.Application.DTOs.AssignmentListFilter filter, ChildGuard.Application.Common.PageRequest page, CancellationToken ct = default) => throw new NotSupportedException("Not used by these tests.");
+
     public Task<List<StudentBusAssignment>> GetAssignmentsAsync(CancellationToken ct = default)
     {
         foreach (var a in Assignments)

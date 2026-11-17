@@ -1,3 +1,4 @@
+using ChildGuard.Api.Common;
 using ChildGuard.Application.Common;
 using ChildGuard.Application.DTOs;
 using ChildGuard.Application.Interfaces;
@@ -74,7 +75,26 @@ public class TransportationController : ControllerBase
     }
 
     [HttpGet("assignments")]
-    public async Task<IActionResult> GetAssignments(CancellationToken ct) => Ok(await _service.GetAssignmentsAsync(ct));
+    public async Task<IActionResult> GetAssignments(
+        [FromQuery] string? search, [FromQuery] string? status, [FromQuery] int? busId,
+        [FromQuery] int? page, [FromQuery] int? pageSize, [FromQuery] string? sort, [FromQuery] string? dir,
+        CancellationToken ct)
+    {
+        var paging = PageRequest.From(page, pageSize, sort, dir, ListSorts.Assignments);
+        if (!paging.Succeeded) return BadRequest(new { message = paging.Error });
+        if (paging.Value is null) return Ok(await _service.GetAssignmentsAsync(ct));   // without page: the whole list, as before
+
+        AssignmentStatusFilter? statusFilter = null;
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            if (!Enum.TryParse<AssignmentStatusFilter>(status.Trim(), ignoreCase: true, out var parsed) || !Enum.IsDefined(parsed))
+                return BadRequest(new { message = "status must be Active or Ended." });
+            statusFilter = parsed;
+        }
+        var result = await _service.GetAssignmentsPageAsync(new AssignmentListFilter(search, statusFilter, busId), paging.Value, ct);
+        PagingHeaders.SetTotal(Response, result.Total);
+        return Ok(result.Items);
+    }
 
     [HttpPost("assignments")]
     public async Task<IActionResult> AddAssignment(CreateStudentBusAssignmentRequest request, CancellationToken ct)

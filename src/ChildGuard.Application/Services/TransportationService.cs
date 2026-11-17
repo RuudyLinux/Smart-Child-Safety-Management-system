@@ -594,9 +594,17 @@ public class TransportationService : ITransportationService
     // ------------------------------------------------------------------ assignments
 
     public async Task<List<StudentBusAssignmentDto>> GetAssignmentsAsync(CancellationToken ct = default) =>
-        (await _repo.GetAssignmentsAsync(ct)).Select(a => new StudentBusAssignmentDto(
-            a.Id, a.StudentId, a.Student.FullName, a.Bus.BusNumber, a.Route?.RouteName, a.Status, a.AssignedAt,
-            a.BusId, a.RouteId, a.EndedAt, a.PickupStopId, a.PickupStop?.Name, a.DropStopId, a.DropStop?.Name)).ToList();
+        (await _repo.GetAssignmentsAsync(ct)).Select(ToAssignmentDto).ToList();
+
+    public async Task<Paged<StudentBusAssignmentDto>> GetAssignmentsPageAsync(AssignmentListFilter filter, PageRequest page, CancellationToken ct = default)
+    {
+        var (items, total) = await _repo.GetAssignmentsPageAsync(filter, page, ct);
+        return new Paged<StudentBusAssignmentDto>(items.Select(ToAssignmentDto).ToList(), total);
+    }
+
+    private static StudentBusAssignmentDto ToAssignmentDto(StudentBusAssignment a) => new(
+        a.Id, a.StudentId, a.Student.FullName, a.Bus.BusNumber, a.Route?.RouteName, a.Status, a.AssignedAt,
+        a.BusId, a.RouteId, a.EndedAt, a.PickupStopId, a.PickupStop?.Name, a.DropStopId, a.DropStop?.Name);
 
     /// <summary>
     /// One active assignment per student. Under row locks on the student and the target bus,

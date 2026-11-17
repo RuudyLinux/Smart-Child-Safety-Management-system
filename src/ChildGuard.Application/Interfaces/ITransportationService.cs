@@ -23,6 +23,7 @@ public interface ITransportationService
     Task<Result<BusDto>> AddBusAsync(CreateBusRequest request, CancellationToken ct = default, int? actorAdminId = null);
 
     Task<List<StudentBusAssignmentDto>> GetAssignmentsAsync(CancellationToken ct = default);
+    Task<Paged<StudentBusAssignmentDto>> GetAssignmentsPageAsync(AssignmentListFilter filter, PageRequest page, CancellationToken ct = default);
 
     /// <summary>Assigns (or moves) a student to a bus: ends any current assignment and creates the new one atomically.</summary>
     Task<Result> AddAssignmentAsync(CreateStudentBusAssignmentRequest request, CancellationToken ct = default, int? actorAdminId = null);

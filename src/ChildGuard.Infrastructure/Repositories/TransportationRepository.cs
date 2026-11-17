@@ -1,5 +1,6 @@
 using System.Data;
 using ChildGuard.Application.Common;
+using ChildGuard.Application.DTOs;
 using ChildGuard.Application.Interfaces;
 using ChildGuard.Domain.Enums;
 using ChildGuard.Domain.Entities;
@@ -43,6 +44,58 @@ public class TransportationRepository : ITransportationRepository
             .Include(a => a.DropStop)
             .OrderByDescending(a => a.AssignedAt)
             .ToListAsync(ct);
+
+    public async Task<(List<StudentBusAssignment> Items, int Total)> GetAssignmentsPageAsync(
+        AssignmentListFilter filter, PageRequest page, CancellationToken ct = default)
+    {
+        var query = _db.StudentBusAssignments.AsNoTracking();
+        if (filter.BusId is int busId) query = query.Where(a => a.BusId == busId);
+        query = filter.Status switch
+        {
+            AssignmentStatusFilter.Active => query.Where(a => a.Status == RecordStatus.Active),
+            AssignmentStatusFilter.Ended => query.Where(a => a.Status != RecordStatus.Active),
+            _ => query
+        };
+        if (!string.IsNullOrWhiteSpace(filter.Search))
+        {
+            var text = filter.Search.Trim();
+            // Student, bus number, or the route shown (the assignment's own, else the bus's); case-insensitive on both engines.
+            if (_db.Database.IsNpgsql())
+            {
+                var pattern = "%" + text.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_") + "%";
+                query = query.Where(a => EF.Functions.ILike(a.Student.FullName, pattern, "\\")
+                    || EF.Functions.ILike(a.Bus.BusNumber, pattern, "\\")
+                    || (a.Route != null && EF.Functions.ILike(a.Route.RouteName, pattern, "\\"))
+                    || (a.Route == null && a.Bus.Route != null && EF.Functions.ILike(a.Bus.Route.RouteName, pattern, "\\")));
+            }
+            else
+                query = query.Where(a => a.Student.FullName.Contains(text) || a.Bus.BusNumber.Contains(text)
+                    || (a.Route != null && a.Route.RouteName.Contains(text))
+                    || (a.Route == null && a.Bus.Route != null && a.Bus.Route.RouteName.Contains(text)));
+        }
+
+        var total = await query.CountAsync(ct);
+
+        var desc = page.Descending;
+        IOrderedQueryable<StudentBusAssignment> ordered = page.Sort switch
+        {
+            // Lower-cased: MySQL compares names case-insensitively, PostgreSQL does not.
+            "student" => desc ? query.OrderByDescending(a => a.Student.FullName.ToLower()) : query.OrderBy(a => a.Student.FullName.ToLower()),
+            "bus" => (desc ? query.OrderByDescending(a => a.Bus.BusNumber.ToLower()) : query.OrderBy(a => a.Bus.BusNumber.ToLower()))
+                .ThenByDescending(a => a.AssignedAt),
+            "assigned" => desc ? query.OrderByDescending(a => a.AssignedAt) : query.OrderBy(a => a.AssignedAt),
+            "status" => (desc ? query.OrderByDescending(a => (int)a.Status) : query.OrderBy(a => (int)a.Status))
+                .ThenByDescending(a => a.AssignedAt),
+            // No sort given: the newest assignments first, as the unpaged list is.
+            _ => query.OrderByDescending(a => a.AssignedAt)
+        };
+        var items = await ordered.ThenByDescending(a => a.Id)
+            .Skip(page.Skip).Take(page.PageSize)
+            .Include(a => a.Student).Include(a => a.Bus).Include(a => a.Route)
+            .Include(a => a.PickupStop).Include(a => a.DropStop)
+            .ToListAsync(ct);
+        return (items, total);
+    }
 
     public Task<Student?> GetStudentAsync(int studentId, CancellationToken ct = default) =>
         _db.Students.FirstOrDefaultAsync(s => s.StudentId == studentId, ct);

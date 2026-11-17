@@ -1,3 +1,4 @@
+using ChildGuard.Application.DTOs;
 using ChildGuard.Application.Common;
 using ChildGuard.Domain.Entities;
 
@@ -16,6 +17,9 @@ public interface ITransportationRepository
     Task AddBusAsync(Bus bus, CancellationToken ct = default);
 
     Task<List<StudentBusAssignment>> GetAssignmentsAsync(CancellationToken ct = default);
+
+    /// <summary>One page of assignments (newest first unless sorted), filtered in the database.</summary>
+    Task<(List<StudentBusAssignment> Items, int Total)> GetAssignmentsPageAsync(AssignmentListFilter filter, PageRequest page, CancellationToken ct = default);
     Task<Student?> GetStudentAsync(int studentId, CancellationToken ct = default);
     Task AddAssignmentAsync(StudentBusAssignment assignment, CancellationToken ct = default);
 

@@ -21,9 +21,21 @@ public sealed record GuardianListFilter(
     string? Search, ListStatusFilter? Status, bool? FaceReady = null, bool? HasStudents = null,
     bool? HasPhoto = null, bool? AwaitingFirstSignIn = null);
 
+/// <summary>Whether an assignment is current or has ended (its history is kept).</summary>
+public enum AssignmentStatusFilter
+{
+    Active,
+    Ended
+}
+
+/// <summary>Server-side filters for the paged bus assignment list (GET /api/transportation/assignments?page=…).</summary>
+/// <param name="Search">Student, bus number, or route (the assignment's own, else the bus's).</param>
+public sealed record AssignmentListFilter(string? Search, AssignmentStatusFilter? Status, int? BusId);
+
 /// <summary>Sort keys each paged list accepts (lower case).</summary>
 public static class ListSorts
 {
     public static readonly IReadOnlySet<string> Students = new HashSet<string> { "name", "grade", "activity", "status" };
+    public static readonly IReadOnlySet<string> Assignments = new HashSet<string> { "student", "bus", "assigned", "status" };
     public static readonly IReadOnlySet<string> Guardians = new HashSet<string> { "name", "email", "students", "status", "activity" };
 }
