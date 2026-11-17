@@ -12,25 +12,31 @@ public class StudentsController : BaseAdminController
 
     public StudentsController(ApiClient api) : base(api) { }
 
-    public async Task<IActionResult> Index(string? search, CancellationToken ct)
+    /// <summary>
+    /// The student list, paged, filtered and sorted by the API. The URL holds the whole view, so links, Back
+    /// and Refresh restore it; cg-ajax.js swaps only the "list" region when the admin changes it.
+    /// </summary>
+    public async Task<IActionResult> Index([FromQuery] StudentListQuery query, CancellationToken ct)
     {
         SetPage("Students", "People");
-        var url = string.IsNullOrWhiteSpace(search) ? "/api/students" : $"/api/students?search={Uri.EscapeDataString(search)}";
-        var result = await Api.GetAsync<List<StudentListItemDto>>(url, ct);
-        if (!result.Succeeded) ViewBag.LoadError = result.Error;
+        // Rows, then the grade options and the school-wide figures in the header (counts only: pageSize=1).
+        var rowsTask = Api.GetPagedAsync<StudentListItemDto>("/api/students?" + query.ToApiQuery(), ct);
+        var gradesTask = Api.GetAsync<List<string>>("/api/students/grades", ct);
+        var onRollTask = Api.GetPagedAsync<StudentListItemDto>("/api/students?page=1&pageSize=1", ct);
+        var presentTask = Api.GetPagedAsync<StudentListItemDto>("/api/students?page=1&pageSize=1&presentToday=true", ct);
+        var carriedTask = Api.GetPagedAsync<StudentListItemDto>("/api/students?page=1&pageSize=1&hasRfid=true", ct);
+        var unlinkedTask = Api.GetPagedAsync<StudentListItemDto>("/api/students?page=1&pageSize=1&hasGuardian=false", ct);
+        await Task.WhenAll(rowsTask, gradesTask, onRollTask, presentTask, carriedTask, unlinkedTask);
 
-        var students = result.Value ?? new();
-        ViewData["Search"] = search;
-        // Grade options come from the delivered rows, so the filter can never offer
-        // a grade that no student is actually in.
-        ViewBag.Grades = students
-            .Select(s => s.Grade)
-            .Where(g => !string.IsNullOrWhiteSpace(g))
-            .Select(g => g!)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(g => g, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        return View(students);
+        var rows = rowsTask.Result;
+        if (!rows.Succeeded) ViewBag.LoadError = rows.Error;
+        ViewBag.Grades = gradesTask.Result.Value ?? new List<string>();
+        ViewBag.Figures = new StudentListFigures(
+            onRollTask.Result.Value?.Total, presentTask.Result.Value?.Total,
+            carriedTask.Result.Value?.Total, unlinkedTask.Result.Value?.Total);
+        ViewData["Query"] = query;
+        var page = rows.Value ?? new ChildGuard.Application.Common.Paged<StudentListItemDto>(Array.Empty<StudentListItemDto>(), 0);
+        return View(new ListPageViewModel<StudentListItemDto>(page.Items, page.Total, query.CurrentPage, StudentListQuery.PageSize));
     }
 
     public IActionResult Create()

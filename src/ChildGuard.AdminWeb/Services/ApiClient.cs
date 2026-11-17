@@ -27,6 +27,22 @@ public class ApiClient
         return await ReadResultAsync<T>(response, ct);
     }
 
+    /// <summary>
+    /// A paged API list (<c>?page=…</c>): rows from the body, the total from X-Total-Count. A response without
+    /// the total is an error, never a guess, so a page count can always be trusted.
+    /// </summary>
+    public async Task<ApiResult<ChildGuard.Application.Common.Paged<T>>> GetPagedAsync<T>(string url, CancellationToken ct = default)
+    {
+        var response = await _http.GetAsync(url, ct);
+        var rows = await ReadResultAsync<List<T>>(response, ct);
+        if (!rows.Succeeded)
+            return ApiResult<ChildGuard.Application.Common.Paged<T>>.Fail(rows.Error!, rows.StatusCode, rows.FieldErrors);
+        if (!response.Headers.TryGetValues("X-Total-Count", out var values)
+            || !int.TryParse(values.FirstOrDefault(), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var total))
+            return ApiResult<ChildGuard.Application.Common.Paged<T>>.Fail("The server did not report how many records match.", 502);
+        return ApiResult<ChildGuard.Application.Common.Paged<T>>.Ok(new(rows.Value ?? new List<T>(), total));
+    }
+
     public async Task<ApiResult<T>> PostAsync<T>(string url, object body, CancellationToken ct = default)
     {
         var response = await _http.PostAsJsonAsync(url, body, JsonOptions, ct);

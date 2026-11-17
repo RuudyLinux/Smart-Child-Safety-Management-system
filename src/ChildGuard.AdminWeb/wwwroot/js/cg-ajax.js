@@ -127,9 +127,10 @@
    * Re-renders the named [data-cg-region] parts of this page from a fresh copy of it. The server names
    * every part a change affects; a page refreshes the ones it shows, and reloads if it shows none.
    */
-  function refresh(names) {
+  function refresh(names, url) {
     names = splitNames(names).filter(function (n) { return document.querySelector('[data-cg-region="' + n + '"]'); });
     if (!names.length) { location.reload(); return Promise.resolve(); }
+    url = url || location.href;
 
     var current = names.map(function (n) { return document.querySelector('[data-cg-region="' + n + '"]'); });
 
@@ -137,7 +138,7 @@
     refreshController = new AbortController();
     current.forEach(function (el) { el.classList.add('cg-region--loading'); el.setAttribute('aria-busy', 'true'); });
 
-    return request(location.href, { accept: 'text/html', headers: { 'X-CG-Regions': names.join(',') }, signal: refreshController.signal })
+    return request(url, { accept: 'text/html', headers: { 'X-CG-Regions': names.join(',') }, signal: refreshController.signal })
       .then(function (result) {
         current.forEach(function (el) { el.classList.remove('cg-region--loading'); el.removeAttribute('aria-busy'); });
         if (result.aborted) return;
@@ -304,6 +305,115 @@
         delete btn.dataset.cgInflight;
         if (document.contains(btn)) busy(btn, false);
       });
+  });
+
+  // --------------------------------------------------------------- Lists
+  // <form method="get" data-cg-list="region"> holds a server-paged list's search and filters; links marked
+  // data-cg-list-link (sort headers, pager, Clear) change sort or page. The URL is the list's state: every
+  // change is written to it, so Back/Forward, Refresh and bookmarks show the same view.
+  var LIST_DEBOUNCE_MS = 300;
+  var listTimer = null;
+
+  function listForm() { return document.querySelector('form[data-cg-list]'); }
+
+  /** The form's choices as a query string: empty values and "__all" (= any) are left out. */
+  function formQuery(form) {
+    var params = new URLSearchParams();
+    new FormData(form).forEach(function (value, key) {
+      var v = String(value).trim();
+      if (v && v !== '__all') params.append(key, v);
+    });
+    return params.toString();
+  }
+
+  /** Puts the URL's values back into the form (after Back/Forward or a Clear link). */
+  function syncForm(form, url) {
+    var params = new URL(url, location.href).searchParams;
+    Array.prototype.forEach.call(form.elements, function (el) {
+      if (!el.name || el.type === 'submit' || el.type === 'button') return;
+      if (el.type === 'hidden') return;   // sort/dir: the server renders them for the current view
+      var v = params.get(el.name);
+      if (el.tagName === 'SELECT') el.value = v !== null && Array.prototype.some.call(el.options, function (o) { return o.value === v; }) ? v : (el.options[0] ? el.options[0].value : '');
+      else if (el !== document.activeElement) el.value = v || '';
+    });
+  }
+
+  /** Loads a list URL into the form's region; history: 'push', 'replace' or null (already there). */
+  var listSeq = 0;
+
+  function loadList(form, url, history) {
+    var region = form.getAttribute('data-cg-list') || 'list';
+    var target = new URL(url, location.href);
+    var seq = ++listSeq;
+    if (history === 'push' && target.href !== location.href) window.history.pushState({ cgList: true }, '', target.href);
+    else if (history === 'replace') window.history.replaceState({ cgList: true }, '', target.href);
+    return refresh(region, target.href).then(function () {
+      if (seq !== listSeq) return;   // a newer load replaced this one (it was aborted)
+      // Hidden sort/dir inputs live outside the region; keep them in step with the URL for the next filter change.
+      var params = target.searchParams;
+      ['sort', 'dir'].forEach(function (name) {
+        var input = form.querySelector('input[type="hidden"][name="' + name + '"]');
+        var value = params.get(name);
+        if (value && !input) {
+          input = document.createElement('input');
+          input.type = 'hidden'; input.name = name;
+          form.appendChild(input);
+        }
+        if (input) { if (value) input.value = value; else input.remove(); }
+      });
+      syncForm(form, target.href);
+    });
+  }
+
+  function filterUrl(form) {
+    var action = form.getAttribute('action') || location.pathname;
+    var query = formQuery(form);
+    return action + (query ? '?' + query : '');   // a new filter starts again at page 1
+  }
+
+  document.addEventListener('submit', function (e) {
+    var form = e.target;
+    if (!(form instanceof HTMLFormElement) || !form.hasAttribute('data-cg-list')) return;
+    e.preventDefault();
+    clearTimeout(listTimer);
+    loadList(form, filterUrl(form), 'push');
+  });
+
+  document.addEventListener('change', function (e) {
+    var form = e.target.form;
+    if (!form || !form.hasAttribute('data-cg-list') || e.target.tagName !== 'SELECT') return;
+    clearTimeout(listTimer);
+    loadList(form, filterUrl(form), 'push');
+  });
+
+  document.addEventListener('input', function (e) {
+    var form = e.target.form;
+    if (!form || !form.hasAttribute('data-cg-list') || e.target.tagName !== 'INPUT' || e.target.type === 'hidden') return;
+    clearTimeout(listTimer);
+    // Typing replaces the history entry instead of adding one per keystroke.
+    listTimer = setTimeout(function () { loadList(form, filterUrl(form), 'replace'); }, LIST_DEBOUNCE_MS);
+  });
+
+  document.addEventListener('click', function (e) {
+    var link = e.target.closest && e.target.closest('a[data-cg-list-link]');
+    if (!link || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    var form = listForm();
+    if (!form) return;
+    e.preventDefault();
+    clearTimeout(listTimer);
+    if (link.hasAttribute('data-cg-reset') && form.contains(link)) {
+      // Clear resets the filters but keeps the search typed so far. The link's own href was rendered with
+      // the page and may predate that search, so the URL is built from the form instead.
+      Array.prototype.forEach.call(form.querySelectorAll('select'), function (s) { s.selectedIndex = 0; });
+      loadList(form, filterUrl(form), 'push');
+      return;
+    }
+    loadList(form, link.href, 'push');
+  });
+
+  window.addEventListener('popstate', function () {
+    var form = listForm();
+    if (form) loadList(form, location.href, null);
   });
 
   cg.request = request;
