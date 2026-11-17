@@ -87,7 +87,8 @@ public class StudentRepository : IStudentRepository
         switch (page.Sort)
         {
             case "grade":
-                ordered = desc ? query.OrderByDescending(s => s.Grade ?? "") : query.OrderBy(s => s.Grade ?? "");
+                // Lower-cased: MySQL compares grades case-insensitively, PostgreSQL text does not.
+                ordered = desc ? query.OrderByDescending(s => (s.Grade ?? "").ToLower()) : query.OrderBy(s => (s.Grade ?? "").ToLower());
                 ordered = ordered.ThenBy(s => s.FullName);
                 break;
             case "status":
@@ -114,13 +115,23 @@ public class StudentRepository : IStudentRepository
         return ordered.ThenBy(s => s.StudentId);
     }
 
-    public Task<List<string>> GetGradesAsync(CancellationToken ct = default) =>
-        _db.Students.AsNoTracking()
+    /// <summary>
+    /// One entry per grade, case-insensitively (as the grade filter matches), spelled the way most students
+    /// have it. Grouped here rather than in SQL so MySQL and PostgreSQL give the same list.
+    /// </summary>
+    public async Task<List<string>> GetGradesAsync(CancellationToken ct = default)
+    {
+        var spellings = await _db.Students.AsNoTracking()
             .Where(s => s.Grade != null && s.Grade != "")
-            .Select(s => s.Grade!)
-            .Distinct()
-            .OrderBy(g => g)
+            .GroupBy(s => s.Grade!)
+            .Select(g => new { Grade = g.Key, Count = g.Count() })
             .ToListAsync(ct);
+        return spellings
+            .GroupBy(x => x.Grade, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.OrderByDescending(x => x.Count).ThenBy(x => x.Grade, StringComparer.Ordinal).First().Grade)
+            .OrderBy(g => g, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
 
     public Task<Student?> GetByIdAsync(int id, CancellationToken ct = default) =>
         _db.Students.Include(s => s.RfidCard).FirstOrDefaultAsync(s => s.StudentId == id, ct);

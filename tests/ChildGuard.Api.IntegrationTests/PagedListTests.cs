@@ -188,6 +188,57 @@ public class PagedListTests : IClassFixture<ApiFactory>
         Assert.Equal(new[] { "Z-grade-1", "Z-grade-2" }, mine);
     }
 
+    [Fact]
+    public async Task Grades_DifferingOnlyInCase_AreListedOnce()
+    {
+        // MySQL compares grades case-insensitively; PostgreSQL text does not. The list must behave the same on both.
+        var admin = await _api.AdminClientAsync();
+        await CreateStudentAsync(admin, "Case One", "Q-case");
+        await CreateStudentAsync(admin, "Case Two", "q-CASE");
+        await CreateStudentAsync(admin, "Case Three", "Q-case");
+        var grades = await admin.GetFromJsonAsync<List<string>>("/api/students/grades", Json.Options);
+        // One entry, spelled as most students have it.
+        Assert.Equal("Q-case", Assert.Single(grades!, g => string.Equals(g, "q-case", StringComparison.OrdinalIgnoreCase)));
+    }
+
+    [Fact]
+    public async Task GradeFilter_MatchesEveryCaseVariant()
+    {
+        var admin = await _api.AdminClientAsync();
+        await CreateStudentAsync(admin, "Variant Upper", "W-VAR");
+        await CreateStudentAsync(admin, "Variant Lower", "w-var");
+        var (items, total) = await GetAsync(admin, "grade=W-Var&page=1&sort=name");
+        Assert.Equal(2, total);
+        Assert.Equal(new[] { "Variant Lower", "Variant Upper" }, items.Select(s => s.FullName));
+    }
+
+    [Fact]
+    public async Task SortByGrade_IgnoresCase_AndPutsNoGradeFirst()
+    {
+        var admin = await _api.AdminClientAsync();
+        await CreateStudentAsync(admin, "Gsort Bravo", "B-gsort");
+        await CreateStudentAsync(admin, "Gsort Alpha", "a-gsort");
+        await CreateStudentAsync(admin, "Gsort Charlie", "C-gsort");
+        await CreateStudentAsync(admin, "Gsort None", null!);
+        var (asc, _) = await GetAsync(admin, "search=Gsort&page=1&sort=grade");
+        Assert.Equal(new[] { "Gsort None", "Gsort Alpha", "Gsort Bravo", "Gsort Charlie" }, asc.Select(s => s.FullName));
+        var (desc, _) = await GetAsync(admin, "search=Gsort&page=1&sort=grade&dir=desc");
+        Assert.Equal(new[] { "Gsort Charlie", "Gsort Bravo", "Gsort Alpha", "Gsort None" }, desc.Select(s => s.FullName));
+    }
+
+    [Fact]
+    public async Task SortByStatus_ActiveInactiveArchived()
+    {
+        var admin = await _api.AdminClientAsync();
+        var archived = await CreateStudentAsync(admin, "Ssort Archived", "G-ssort");
+        var inactive = await CreateStudentAsync(admin, "Ssort Inactive", "G-ssort");
+        var active = await CreateStudentAsync(admin, "Ssort Active", "G-ssort");
+        Assert.True((await admin.PostAsJsonAsync($"/api/students/{archived}/archive", new ArchiveRecordRequest("Left the school this term"), Json.Options)).IsSuccessStatusCode);
+        Assert.True((await admin.PatchAsJsonAsync($"/api/students/{inactive}/status", new UpdateStudentStatusRequest(RecordStatus.Inactive), Json.Options)).IsSuccessStatusCode);
+        var (items, _) = await GetAsync(admin, "grade=G-ssort&page=1&sort=status");
+        Assert.Equal(new[] { active, inactive, archived }, items.Select(s => s.StudentId));
+    }
+
     // ------------------------------------------------------------- Guardians
 
     [Fact]
