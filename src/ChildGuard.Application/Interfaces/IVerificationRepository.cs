@@ -1,3 +1,5 @@
+using ChildGuard.Application.DTOs;
+using ChildGuard.Application.Common;
 using ChildGuard.Domain.Entities;
 
 namespace ChildGuard.Application.Interfaces;
@@ -22,6 +24,13 @@ public interface IVerificationRepository
     Task AddVerificationAsync(GuardianVerification verification, CancellationToken ct = default);
     Task<GuardianVerification?> GetVerificationByIdAsync(int id, CancellationToken ct = default);
     Task<List<GuardianVerification>> GetHistoryAsync(int? studentId, DateTime? fromUtc = null, DateTime? toUtcExclusive = null, CancellationToken ct = default);
+
+    /// <summary>One page of the log (newest first unless sorted), filtered in the database; the UTC bounds are the school days in <paramref name="filter"/>.</summary>
+    Task<(List<GuardianVerification> Items, int Total)> GetHistoryPageAsync(
+        VerificationHistoryFilter filter, DateTime? fromUtc, DateTime? toUtcExclusive, PageRequest page, CancellationToken ct = default);
+
+    /// <summary>Counts over the student and date range only (search and result filters do not narrow them).</summary>
+    Task<VerificationHistorySummaryDto> GetHistorySummaryAsync(int? studentId, DateTime? fromUtc, DateTime? toUtcExclusive, CancellationToken ct = default);
 
     /// <summary>Most recent verification attempts made by one guardian, newest first.</summary>
     Task<List<GuardianVerification>> GetHistoryForGuardianAsync(int guardianId, int take, CancellationToken ct = default);

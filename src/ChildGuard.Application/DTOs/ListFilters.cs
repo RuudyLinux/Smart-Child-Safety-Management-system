@@ -38,11 +38,20 @@ public sealed record AssignmentListFilter(string? Search, AssignmentStatusFilter
 /// <param name="Assigned">Issued to a student (true) or a spare (false).</param>
 public sealed record RfidCardListFilter(string? Search, RfidCardStatus? Status, bool? Assigned);
 
+/// <summary>Server-side filters for the paged verification log (GET /api/reports/verification?page=…).</summary>
+/// <param name="From">First school day included (SchoolClock).</param>
+/// <param name="To">Last school day included.</param>
+/// <param name="Search">Student or guardian name.</param>
+/// <param name="Approved">The handover was approved (true) or not (false).</param>
+public sealed record VerificationHistoryFilter(
+    int? StudentId, DateOnly? From, DateOnly? To, string? Search, VerificationResult? Result, bool? Approved);
+
 /// <summary>Sort keys each paged list accepts (lower case).</summary>
 public static class ListSorts
 {
     public static readonly IReadOnlySet<string> Students = new HashSet<string> { "name", "grade", "activity", "status" };
     public static readonly IReadOnlySet<string> Assignments = new HashSet<string> { "student", "bus", "assigned", "status" };
     public static readonly IReadOnlySet<string> RfidCards = new HashSet<string> { "student", "status", "assigned" };
+    public static readonly IReadOnlySet<string> VerificationHistory = new HashSet<string> { "when", "score", "student", "guardian" };
     public static readonly IReadOnlySet<string> Guardians = new HashSet<string> { "name", "email", "students", "status", "activity" };
 }

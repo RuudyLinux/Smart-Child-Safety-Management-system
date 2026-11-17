@@ -206,6 +206,8 @@ internal sealed class FakeVerificationRepository : IVerificationRepository
     public Task<GuardianVerification?> GetVerificationByIdAsync(int id, CancellationToken ct = default) =>
         Task.FromResult(Verifications.FirstOrDefault(v => v.Id == id));
 
+    public Task<(List<GuardianVerification> Items, int Total)> GetHistoryPageAsync(ChildGuard.Application.DTOs.VerificationHistoryFilter filter, DateTime? fromUtc, DateTime? toUtcExclusive, ChildGuard.Application.Common.PageRequest page, CancellationToken ct = default) => throw new NotSupportedException("Not used by these tests.");
+    public Task<ChildGuard.Application.DTOs.VerificationHistorySummaryDto> GetHistorySummaryAsync(int? studentId, DateTime? fromUtc, DateTime? toUtcExclusive, CancellationToken ct = default) => throw new NotSupportedException("Not used by these tests.");
     public Task<List<GuardianVerification>> GetHistoryAsync(int? studentId, DateTime? fromUtc = null, DateTime? toUtcExclusive = null, CancellationToken ct = default) =>
         Task.FromResult(Verifications
             .Where(v => studentId is null || v.StudentId == studentId)

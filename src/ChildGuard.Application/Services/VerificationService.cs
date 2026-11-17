@@ -335,18 +335,33 @@ public class VerificationService : IVerificationService
 
     public async Task<List<GuardianVerificationHistoryDto>> GetHistoryAsync(int? studentId, DateOnly? from = null, DateOnly? to = null, CancellationToken ct = default)
     {
-        DateTime? fromUtc = from is null ? null : _clock.StartOfDayUtc(from.Value);
-        DateTime? toUtcExclusive = to is null ? null : _clock.StartOfDayUtc(to.Value.AddDays(1));
-        var now = _clock.UtcNow;
-        return (await _verifications.GetHistoryAsync(studentId, fromUtc, toUtcExclusive, ct))
-            .Select(v => new GuardianVerificationHistoryDto(
-                v.Id, v.StudentId, v.Student.FullName, v.GuardianId, v.Guardian.FullName,
-                v.AttemptedAt, v.MatchScore, v.Result, v.PickupApproved,
-                v.GetState(now, _options.PendingExpiry),
-                v.Result == VerificationResult.Match ? v.AttemptedAt + _options.PendingExpiry : null,
-                FaceLayersDto.From(v)))
-            .ToList();
+        var (fromUtc, toUtcExclusive) = SchoolDayBounds(from, to);
+        return (await _verifications.GetHistoryAsync(studentId, fromUtc, toUtcExclusive, ct)).Select(ToHistoryDto).ToList();
     }
+
+    public async Task<Paged<GuardianVerificationHistoryDto>> GetHistoryPageAsync(VerificationHistoryFilter filter, PageRequest page, CancellationToken ct = default)
+    {
+        var (fromUtc, toUtcExclusive) = SchoolDayBounds(filter.From, filter.To);
+        var (items, total) = await _verifications.GetHistoryPageAsync(filter, fromUtc, toUtcExclusive, page, ct);
+        return new Paged<GuardianVerificationHistoryDto>(items.Select(ToHistoryDto).ToList(), total);
+    }
+
+    public Task<VerificationHistorySummaryDto> GetHistorySummaryAsync(int? studentId, DateOnly? from, DateOnly? to, CancellationToken ct = default)
+    {
+        var (fromUtc, toUtcExclusive) = SchoolDayBounds(from, to);
+        return _verifications.GetHistorySummaryAsync(studentId, fromUtc, toUtcExclusive, ct);
+    }
+
+    /// <summary>School days to UTC instants (SchoolClock): the first day's start, and the start of the day after the last.</summary>
+    private (DateTime? FromUtc, DateTime? ToUtcExclusive) SchoolDayBounds(DateOnly? from, DateOnly? to) =>
+        (from is null ? null : _clock.StartOfDayUtc(from.Value), to is null ? null : _clock.StartOfDayUtc(to.Value.AddDays(1)));
+
+    private GuardianVerificationHistoryDto ToHistoryDto(GuardianVerification v) => new(
+        v.Id, v.StudentId, v.Student.FullName, v.GuardianId, v.Guardian.FullName,
+        v.AttemptedAt, v.MatchScore, v.Result, v.PickupApproved,
+        v.GetState(_clock.UtcNow, _options.PendingExpiry),
+        v.Result == VerificationResult.Match ? v.AttemptedAt + _options.PendingExpiry : null,
+        FaceLayersDto.From(v));
 
     private static string? ApprovalBlockedReason(PickupVerificationState state) => state switch
     {

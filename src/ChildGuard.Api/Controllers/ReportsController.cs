@@ -1,3 +1,7 @@
+using ChildGuard.Domain.Enums;
+using ChildGuard.Application.DTOs;
+using ChildGuard.Application.Common;
+using ChildGuard.Api.Common;
 using ChildGuard.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -45,6 +49,29 @@ public class ReportsController : ControllerBase
 
     [HttpGet("verification")]
     public async Task<IActionResult> VerificationReport(
-        [FromQuery] int? studentId, [FromQuery] DateOnly? from, [FromQuery] DateOnly? to, CancellationToken ct) =>
-        Ok(await _verification.GetHistoryAsync(studentId, from, to, ct));
+        [FromQuery] int? studentId, [FromQuery] DateOnly? from, [FromQuery] DateOnly? to,
+        [FromQuery] string? search, [FromQuery] string? result, [FromQuery] bool? approved,
+        [FromQuery] int? page, [FromQuery] int? pageSize, [FromQuery] string? sort, [FromQuery] string? dir,
+        CancellationToken ct)
+    {
+        var paging = PageRequest.From(page, pageSize, sort, dir, ListSorts.VerificationHistory);
+        if (!paging.Succeeded) return BadRequest(new { message = paging.Error });
+        if (paging.Value is null) return Ok(await _verification.GetHistoryAsync(studentId, from, to, ct));   // without page: as before
+
+        VerificationResult? resultFilter = null;
+        if (!string.IsNullOrWhiteSpace(result))
+        {
+            if (!Enum.TryParse<VerificationResult>(result.Trim(), ignoreCase: true, out var parsed) || !Enum.IsDefined(parsed))
+                return BadRequest(new { message = "result must be Match or NoMatch." });
+            resultFilter = parsed;
+        }
+        var list = await _verification.GetHistoryPageAsync(new VerificationHistoryFilter(studentId, from, to, search, resultFilter, approved), paging.Value, ct);
+        PagingHeaders.SetTotal(Response, list.Total);
+        return Ok(list.Items);
+    }
+
+    /// <summary>Figures for the verification log header, over the student and date range.</summary>
+    [HttpGet("verification/summary")]
+    public async Task<IActionResult> VerificationSummary([FromQuery] int? studentId, [FromQuery] DateOnly? from, [FromQuery] DateOnly? to, CancellationToken ct) =>
+        Ok(await _verification.GetHistorySummaryAsync(studentId, from, to, ct));
 }

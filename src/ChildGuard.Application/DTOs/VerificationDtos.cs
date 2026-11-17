@@ -23,3 +23,6 @@ public record GuardianVerificationHistoryDto(
     DateTime AttemptedAt, double MatchScore, VerificationResult Result, bool PickupApproved,
     PickupVerificationState State = PickupVerificationState.Pending, DateTime? ExpiresAt = null,
     FaceLayersDto? Layers = null);
+
+/// <summary>Figures for the verification log header (over the student and date range, not the search or filters).</summary>
+public record VerificationHistorySummaryDto(int Total, int Matched, int NoMatch, int Approved);

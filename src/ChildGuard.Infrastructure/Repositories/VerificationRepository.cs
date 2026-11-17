@@ -1,3 +1,4 @@
+using ChildGuard.Application.DTOs;
 using ChildGuard.Application.Common;
 using ChildGuard.Application.Interfaces;
 using ChildGuard.Domain.Entities;
@@ -74,6 +75,61 @@ public class VerificationRepository : IVerificationRepository
         if (fromUtc is not null) query = query.Where(v => v.AttemptedAt >= fromUtc);
         if (toUtcExclusive is not null) query = query.Where(v => v.AttemptedAt < toUtcExclusive);
         return query.OrderByDescending(v => v.AttemptedAt).ToListAsync(ct);
+    }
+
+    public async Task<(List<GuardianVerification> Items, int Total)> GetHistoryPageAsync(
+        VerificationHistoryFilter filter, DateTime? fromUtc, DateTime? toUtcExclusive, PageRequest page, CancellationToken ct = default)
+    {
+        var query = _db.GuardianVerifications.AsNoTracking().AsQueryable();
+        if (filter.StudentId is int studentId) query = query.Where(v => v.StudentId == studentId);
+        if (fromUtc is not null) query = query.Where(v => v.AttemptedAt >= fromUtc);
+        if (toUtcExclusive is not null) query = query.Where(v => v.AttemptedAt < toUtcExclusive);
+        if (filter.Result is VerificationResult result) query = query.Where(v => v.Result == result);
+        if (filter.Approved is bool approved) query = query.Where(v => v.PickupApproved == approved);
+        if (!string.IsNullOrWhiteSpace(filter.Search))
+        {
+            var text = filter.Search.Trim();
+            // Student or guardian name; case-insensitive on both engines.
+            if (_db.Database.IsNpgsql())
+            {
+                var pattern = "%" + text.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_") + "%";
+                query = query.Where(v => EF.Functions.ILike(v.Student.FullName, pattern, "\\") || EF.Functions.ILike(v.Guardian.FullName, pattern, "\\"));
+            }
+            else
+                query = query.Where(v => v.Student.FullName.Contains(text) || v.Guardian.FullName.Contains(text));
+        }
+
+        var total = await query.CountAsync(ct);
+
+        var desc = page.Descending;
+        IOrderedQueryable<GuardianVerification> ordered = page.Sort switch
+        {
+            "score" => desc ? query.OrderByDescending(v => v.MatchScore) : query.OrderBy(v => v.MatchScore),
+            // Lower-cased: MySQL compares names case-insensitively, PostgreSQL does not.
+            "student" => desc ? query.OrderByDescending(v => v.Student.FullName.ToLower()) : query.OrderBy(v => v.Student.FullName.ToLower()),
+            "guardian" => desc ? query.OrderByDescending(v => v.Guardian.FullName.ToLower()) : query.OrderBy(v => v.Guardian.FullName.ToLower()),
+            "when" => desc ? query.OrderByDescending(v => v.AttemptedAt) : query.OrderBy(v => v.AttemptedAt),
+            // No sort given: newest first, as the unpaged log is.
+            _ => query.OrderByDescending(v => v.AttemptedAt)
+        };
+        var items = await ordered.ThenByDescending(v => v.Id)
+            .Skip(page.Skip).Take(page.PageSize)
+            .Include(v => v.Student).Include(v => v.Guardian)
+            .ToListAsync(ct);
+        return (items, total);
+    }
+
+    public async Task<VerificationHistorySummaryDto> GetHistorySummaryAsync(int? studentId, DateTime? fromUtc, DateTime? toUtcExclusive, CancellationToken ct = default)
+    {
+        var query = _db.GuardianVerifications.AsNoTracking().AsQueryable();
+        if (studentId is not null) query = query.Where(v => v.StudentId == studentId);
+        if (fromUtc is not null) query = query.Where(v => v.AttemptedAt >= fromUtc);
+        if (toUtcExclusive is not null) query = query.Where(v => v.AttemptedAt < toUtcExclusive);
+        return new VerificationHistorySummaryDto(
+            Total: await query.CountAsync(ct),
+            Matched: await query.CountAsync(v => v.Result == VerificationResult.Match, ct),
+            NoMatch: await query.CountAsync(v => v.Result == VerificationResult.NoMatch, ct),
+            Approved: await query.CountAsync(v => v.PickupApproved, ct));
     }
 
     public Task<List<GuardianVerification>> GetHistoryForGuardianAsync(int guardianId, int take, CancellationToken ct = default) =>
