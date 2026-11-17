@@ -24,12 +24,18 @@ public class ApiSessionExpiredFilter : IAsyncAlwaysRunResultFilter
             await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
             context.Result = WantsHtml(http.Request)
                 ? new RedirectResult(LoginUrl)
-                : new JsonResult(new { message = "Your session has expired. Sign in again." }) { StatusCode = StatusCodes.Status401Unauthorized };
+                : new JsonResult(new AjaxEnvelope(false, ExpiredMessage, LoginUrl, null, null)) { StatusCode = StatusCodes.Status401Unauthorized };
         }
         await next();
     }
 
-    /// <summary>A page navigation (Accept: text/html) rather than a fetch() call.</summary>
+    public const string ExpiredMessage = "Your session has expired. Sign in again.";
+
+    /// <summary>
+    /// A page navigation rather than a fetch() call. cg-ajax.js region refreshes ask for HTML too, so its
+    /// marker header wins over Accept: those must get the 401 envelope, never a sign-in page to splice in.
+    /// </summary>
     public static bool WantsHtml(HttpRequest request) =>
+        !AjaxRequest.IsAjax(request) &&
         request.Headers.Accept.ToString().Contains("text/html", StringComparison.OrdinalIgnoreCase);
 }

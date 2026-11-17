@@ -76,9 +76,16 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         // 401 so the page script sends the browser to sign-in instead.
         options.Events.OnRedirectToLogin = context =>
         {
-            if (ApiSessionExpiredFilter.WantsHtml(context.Request)) context.Response.Redirect(context.RedirectUri);
-            else context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-            return Task.CompletedTask;
+            if (ApiSessionExpiredFilter.WantsHtml(context.Request))
+            {
+                context.Response.Redirect(context.RedirectUri);
+                return Task.CompletedTask;
+            }
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            // cg-ajax.js reads the envelope and sends the browser to sign-in.
+            return AjaxRequest.IsAjax(context.Request)
+                ? context.Response.WriteAsJsonAsync(new AjaxEnvelope(false, "Sign in to continue.", options.LoginPath.Value, null, null))
+                : Task.CompletedTask;
         };
     });
 
@@ -115,3 +122,6 @@ app.MapControllerRoute(
     pattern: "{controller=Dashboard}/{action=Index}/{id?}");
 
 app.Run();
+
+/// <summary>Visible to tests/ChildGuard.AdminWeb.Tests (WebApplicationFactory).</summary>
+public partial class Program { }
