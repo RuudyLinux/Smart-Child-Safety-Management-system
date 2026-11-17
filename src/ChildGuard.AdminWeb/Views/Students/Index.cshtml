@@ -95,7 +95,7 @@
            href="@(new StudentListQuery { Search = search }.Url())">Clear</a>
     </form>
 
-    <div data-cg-region="list" aria-live="polite">
+    <div data-cg-region="list">
         @if (ViewBag.LoadError is string loadError)
         {
             <div class="cg-card__body">
@@ -126,7 +126,7 @@
         else
         {
             <div class="cg-row cg-row--between" style="padding:0 16px">
-                <span class="cg-text-sm cg-muted" data-cg-count data-cg-count-scope="students">@Model.Total @(Model.Total == 1 ? "record" : "records")</span>
+                <span class="cg-text-sm cg-muted" data-cg-count data-cg-count-scope="students" role="status" aria-live="polite">@Model.Total @(Model.Total == 1 ? "record" : "records")</span>
             </div>
             <div class="cg-table-wrap">
                 <table class="cg-table">

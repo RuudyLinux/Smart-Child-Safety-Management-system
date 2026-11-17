@@ -73,6 +73,16 @@ public class StudentsListRequestTests : IClassFixture<AdminWebFactory>
     }
 
     [Fact]
+    public async Task OnlyTheCountIsAnnounced_NotTheWholeTable()
+    {
+        var client = await _factory.SignedInClientAsync(SixtyButEmptyPage);
+        var html = await (await client.SendAsync(AdminWebFactory.Get("/Students?page=1", ajax: false))).Content.ReadAsStringAsync();
+        var region = System.Text.RegularExpressions.Regex.Match(html, "<div[^>]*data-cg-region=\"list\"[^>]*>").Value;
+        Assert.DoesNotContain("aria-live", region);
+        Assert.Matches("<span[^>]*data-cg-count[^>]*aria-live=\"polite\"|<span[^>]*aria-live=\"polite\"[^>]*data-cg-count", html);
+    }
+
+    [Fact]
     public async Task OtherRegionRefresh_StillGetsTheWholePage()
     {
         // Only a request for exactly the list region may skip the rest of the page.

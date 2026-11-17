@@ -512,6 +512,17 @@
   // ------------------------------------------------------- Photo dropzones
   // Uploads post as a normal multipart form. The browser-side checks here are a
   // courtesy that saves a round trip; the API validates the bytes regardless.
+  // Cameras opened by any photo dropzone. One page-wide pagehide handler stops them all, so refreshing a
+  // photo section never adds another window listener (or keeps a replaced section alive through one).
+  var openCameraStreams = new Set();
+
+  function initDropzonesGlobal() {
+    on(window, 'pagehide', function () {
+      openCameraStreams.forEach(function (s) { s.getTracks().forEach(function (t) { t.stop(); }); });
+      openCameraStreams.clear();
+    });
+  }
+
   function initDropzones(root) {
     each(root, '[data-cg-dropzone]', 'Dropzone', function (zone) {
       var input = zone.querySelector('input[type="file"]');
@@ -540,7 +551,7 @@
       var stream = null;
 
       function stopCamera() {
-        if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; }
+        if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); openCameraStreams.delete(stream); stream = null; }
         if (camPanel) camPanel.hidden = true;
         if (camBox) camBox.innerHTML = '';
         if (camCaptureBtn) camCaptureBtn.disabled = true;
@@ -565,6 +576,7 @@
           .then(function (s) {
             if (camPanel.hidden) { s.getTracks().forEach(function (t) { t.stop(); }); return; } // closed while asking
             stream = s;
+            openCameraStreams.add(s);
             var video = document.createElement('video');
             video.autoplay = true; video.playsInline = true; video.muted = true;
             // Capture is enabled only once a frame exists; before that the video has no size
@@ -697,7 +709,6 @@
       on(camCaptureBtn, 'click', capture);
       on(camCloseBtn, 'click', reset);
       on(form, 'submit', stopCamera);
-      on(window, 'pagehide', stopCamera);
 
       ['dragenter', 'dragover'].forEach(function (ev) {
         on(zone, ev, function (e) { e.preventDefault(); zone.classList.add('is-dragover'); });
@@ -1026,6 +1037,7 @@
     initDropdownsGlobal();
     initModalsGlobal();
     initSubmitStatesGlobal();
+    initDropzonesGlobal();
     initGlobalSearch();
     initWidgets(document);
   });

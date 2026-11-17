@@ -1,7 +1,7 @@
 // Shared AJAX layer (wwwroot/js/cg-ajax.js): forms save without a page load, regions refresh in place,
 // widgets inside refreshed regions keep working, and double submits / network loss are handled.
 // Exercised through the Students Details guardian forms, the pilot pages for the layer.
-import { test, expect, toast } from '../support/fixtures';
+import { test, expect, toast, PNG_1PX } from '../support/fixtures';
 import { countNavigations } from '../support/ajax';
 
 test.describe('AJAX layer', () => {
@@ -53,6 +53,63 @@ test.describe('AJAX layer', () => {
     await page.locator('[data-cg-modal-open="linkGuardianModal"]').click();
     await expect(page.locator('#linkGuardianModal')).toBeVisible();
     expect(navs.count).toBe(0);
+  });
+
+  test('two quick saves both show their result (a refresh never cancels another)', async ({ page, data }) => {
+    const s = await data.student();
+    const g = await data.guardian();
+    await data.link(s.id, g.id, 'Mother', true);
+    await page.goto(`/Students/Details/${s.id}#guardians`);
+
+    // Hold the first region refresh back so the second save happens while it is still loading.
+    let held = false;
+    await page.route(`**/Students/Details/${s.id}`, async route => {
+      if (route.request().headers()['x-cg-regions'] && !held) {
+        held = true;
+        await new Promise(r => setTimeout(r, 1500));
+      }
+      await route.continue();
+    });
+
+    const guardians = page.locator('[data-cg-region="guardians"]');
+    await guardians.locator('input[name="relationship"]').fill('Aunt');
+    await guardians.getByRole('button', { name: 'Save' }).click();
+    await expect.poll(() => held).toBe(true);
+
+    // A second, independent refresh (another part of the page) starts while the first is still loading.
+    // A region being refreshed cannot be clicked, so this is the shared call any page script makes.
+    await page.evaluate(() => (window as unknown as { cg: { refresh(n: string): Promise<void> } }).cg.refresh('lifecycle'));
+
+    // The first save's parts were refreshed too, not cancelled by the second refresh.
+    await expect(guardians.locator('.cg-personcard__meta')).toHaveText('Aunt');
+    await expect(page.locator('[data-cg-region="guardian-count"]')).toHaveText('1');
+  });
+
+  test('refreshing the photo section again and again adds no listeners', async ({ page, data }) => {
+    await page.addInitScript(() => {
+      const w = window as unknown as { __pagehide: number };
+      w.__pagehide = 0;
+      const original = window.addEventListener;
+      window.addEventListener = function (type: string, ...rest: unknown[]) {
+        if (type === 'pagehide') w.__pagehide++;
+        return (original as (...a: unknown[]) => void).call(this, type, ...rest);
+      } as typeof window.addEventListener;
+    });
+    const s = await data.student();
+    await page.goto(`/Students/Details/${s.id}#photo`);
+    const count = () => page.evaluate(() => (window as unknown as { __pagehide: number }).__pagehide);
+    const before = await count();
+
+    const region = page.locator('[data-cg-region="photo"]');
+    for (let i = 0; i < 3; i++) {
+      await region.locator('input[type="file"]').setInputFiles({ name: `p${i}.png`, mimeType: 'image/png', buffer: PNG_1PX });
+      await region.locator('[data-cg-upload-submit]').click();
+      await expect(page.locator('.cg-toast', { hasText: 'Student photo saved.' }).first()).toBeVisible();
+      // Wait for the refresh to finish (the button is also disabled while busy, so that alone is not enough).
+      await expect(page.locator('[data-cg-region="photo"].cg-region--loading')).toHaveCount(0);
+      await expect(region.locator('[data-cg-upload-submit]:not(.is-loading)')).toBeDisabled();   // the refreshed, empty form
+    }
+    expect(await count()).toBe(before);
   });
 
   test('double submit sends one request', async ({ page, data }) => {

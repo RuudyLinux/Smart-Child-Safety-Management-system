@@ -115,7 +115,12 @@
   }
 
   // ------------------------------------------------------------- Regions
-  var refreshController = null;
+  // Region refreshes after saves run one at a time and are merged, never cancelled: if another starts while
+  // one is loading, its regions wait and are fetched together right after, from a page that already reflects
+  // both saves. List loads are different: only the newest list view matters, so a new one aborts the last.
+  var regionRunning = null;   // promise of the refresh in flight
+  var regionPending = null;   // { names: [], promise, resolve } waiting for it
+  var listController = null;
 
   function splitNames(value) {
     if (!value) return [];
@@ -130,15 +135,43 @@
   function refresh(names, url) {
     names = splitNames(names).filter(function (n) { return document.querySelector('[data-cg-region="' + n + '"]'); });
     if (!names.length) { location.reload(); return Promise.resolve(); }
-    url = url || location.href;
 
+    if (url) {
+      if (listController) listController.abort();
+      listController = new AbortController();
+      return swapRegions(names, url, listController.signal);
+    }
+
+    if (!regionRunning) {
+      regionRunning = swapRegions(names, location.href, null).then(nextRegionRefresh, nextRegionRefresh);
+      return regionRunning;
+    }
+    if (!regionPending) {
+      var resolve;
+      regionPending = { names: [], promise: new Promise(function (r) { resolve = r; }) };
+      regionPending.resolve = resolve;
+    }
+    names.forEach(function (n) { if (regionPending.names.indexOf(n) === -1) regionPending.names.push(n); });
+    return regionPending.promise;
+  }
+
+  function nextRegionRefresh() {
+    regionRunning = null;
+    if (!regionPending) return;
+    var waiting = regionPending;
+    regionPending = null;
+    regionRunning = swapRegions(waiting.names, location.href, null).then(nextRegionRefresh, nextRegionRefresh);
+    regionRunning.then(waiting.resolve, waiting.resolve);
+  }
+
+  /** Fetches url and swaps the named regions in place (scroll, focus, tabs and open details kept). */
+  function swapRegions(names, url, signal) {
+    names = names.filter(function (n) { return document.querySelector('[data-cg-region="' + n + '"]'); });
+    if (!names.length) return Promise.resolve();
     var current = names.map(function (n) { return document.querySelector('[data-cg-region="' + n + '"]'); });
-
-    if (refreshController) refreshController.abort();
-    refreshController = new AbortController();
     current.forEach(function (el) { el.classList.add('cg-region--loading'); el.setAttribute('aria-busy', 'true'); });
 
-    return request(url, { accept: 'text/html', headers: { 'X-CG-Regions': names.join(',') }, signal: refreshController.signal })
+    return request(url, { accept: 'text/html', headers: { 'X-CG-Regions': names.join(',') }, signal: signal || undefined })
       .then(function (result) {
         current.forEach(function (el) { el.classList.remove('cg-region--loading'); el.removeAttribute('aria-busy'); });
         if (result.aborted) return;
@@ -408,7 +441,13 @@
       loadList(form, filterUrl(form), 'push');
       return;
     }
-    loadList(form, link.href, 'push');
+    var paging = !!link.closest('[data-cg-pager]');
+    loadList(form, link.href, 'push').then(function () {
+      if (!paging) return;
+      // Another page starts at its first row: bring the start of the table into view, not the pager.
+      var region = document.querySelector('[data-cg-region="' + (form.getAttribute('data-cg-list') || 'list') + '"]');
+      if (region && region.getBoundingClientRect().top < 0) region.scrollIntoView({ block: 'start' });
+    });
   });
 
   window.addEventListener('popstate', function () {

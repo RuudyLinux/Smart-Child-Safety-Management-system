@@ -49,6 +49,24 @@ test.describe('Students list (server paging)', () => {
     await expect(rows(page)).toHaveCount(2);
   });
 
+  test('going to another page brings the start of the table into view', async ({ page, data }) => {
+    const tag = uid('Scroll').replace(/\s/g, '');
+    // Page 2 is full (25 rows), so the page does not simply get shorter and clamp the scroll.
+    for (let i = 0; i < 50; i++) await data.student({ fullName: `${tag} ${String(i).padStart(2, '0')}` });
+    await page.setViewportSize({ width: 1280, height: 700 });
+    await page.goto(`/Students?search=${tag}`);
+    const pagerLink = page.locator('[data-cg-pager] a', { hasText: '2' });
+    await pagerLink.scrollIntoViewIfNeeded();
+    expect((await page.locator('[data-cg-region="list"]').boundingBox())!.y).toBeLessThan(0);   // table top scrolled away
+
+    await pagerLink.click();
+    await expect(page).toHaveURL(/page=2/);
+    await expect(rows(page).first()).toContainText(` 25`);
+    const top = (await page.locator('[data-cg-region="list"]').boundingBox())!.y;
+    expect(top).toBeGreaterThanOrEqual(-1);
+    expect(top).toBeLessThan(700);
+  });
+
   test('filters keep each other and the search; changing a filter starts at page 1', async ({ page, data }) => {
     const tag = uid('Combo').replace(/\s/g, '');
     const carded = await data.student({ fullName: `${tag} Carded` });
