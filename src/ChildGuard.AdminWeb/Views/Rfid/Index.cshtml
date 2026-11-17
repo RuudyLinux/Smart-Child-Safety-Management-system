@@ -1,19 +1,19 @@
-@model List<RfidCardListItemDto>
+@model ListPageViewModel<RfidCardListItemDto>
 @{
     ViewData["Title"] = "RFID Cards";
+    var q = (ListQuery)ViewData["Query"]!;
+    var summary = ViewBag.Summary as RfidCardSummaryDto;
     var unassignedStudents = (List<StudentListItemDto>)ViewBag.UnassignedStudents;
     var devices = ViewBag.Devices as List<RfidDeviceDto> ?? new();
-    var active = Model.Count(c => c.Status == RfidCardStatus.Active);
-    var lost = Model.Count(c => c.Status is RfidCardStatus.Lost or RfidCardStatus.Damaged);
-    var available = Model.Count(c => c.Status == RfidCardStatus.Active && c.StudentId is null);
-    var unlinked = Model.Count(c => c.StudentId is null);
+    string Figure(int? n) => n?.ToString() ?? "–";
 }
 
+<div data-cg-region="rfid-console">
 <div class="cg-page-head">
     <div class="cg-page-head__text">
         <h1 class="cg-page-head__title">RFID Cards</h1>
         <p class="cg-page-head__sub">
-            @Model.Count card@(Model.Count == 1 ? "" : "s") registered · @active active ·
+            @Figure(summary?.Total) card@(summary?.Total == 1 ? "" : "s") registered · @Figure(summary?.Active) active ·
             @unassignedStudents.Count student@(unassignedStudents.Count == 1 ? "" : "s") still without one
         </p>
     </div>
@@ -30,38 +30,30 @@
     </div>
 </div>
 
-@if (ViewBag.LoadError is string loadError)
-{
-    <div class="cg-alert cg-alert--danger" role="alert">
-        <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "alert-circle")</span>
-        <div class="cg-alert__body">@loadError</div>
-    </div>
-}
-
 <div class="cg-grid cg-grid--4">
     <article class="cg-kpi">
         <div class="cg-kpi__top">
             <div class="cg-kpi__label">Active cards</div>
             <span class="cg-kpi__icon cg-kpi__icon--success">@await Html.PartialAsync("_Icon", "rfid")</span>
         </div>
-        <div class="cg-kpi__value cg-kpi__value--sm">@active</div>
+        <div class="cg-kpi__value cg-kpi__value--sm">@Figure(summary?.Active)</div>
     </article>
     <article class="cg-kpi">
         <div class="cg-kpi__top">
             <div class="cg-kpi__label">Available cards</div>
             <span class="cg-kpi__icon cg-kpi__icon--neutral">@await Html.PartialAsync("_Icon", "id-card")</span>
         </div>
-        <div class="cg-kpi__value cg-kpi__value--sm">@available</div>
-        <div class="cg-kpi__note">Active and not linked to a student (@unlinked unassigned in total)</div>
+        <div class="cg-kpi__value cg-kpi__value--sm">@Figure(summary?.AvailableSpare)</div>
+        <div class="cg-kpi__note">Active and not linked to a student (@Figure(summary?.Unassigned) unassigned in total)</div>
     </article>
     <article class="cg-kpi">
         <div class="cg-kpi__top">
             <div class="cg-kpi__label">Lost or damaged</div>
-            <span class="cg-kpi__icon @(lost > 0 ? "cg-kpi__icon--danger" : "cg-kpi__icon--neutral")">
+            <span class="cg-kpi__icon @(summary?.LostOrDamaged > 0 ? "cg-kpi__icon--danger" : "cg-kpi__icon--neutral")">
                 @await Html.PartialAsync("_Icon", "alert-triangle")
             </span>
         </div>
-        <div class="cg-kpi__value cg-kpi__value--sm">@lost</div>
+        <div class="cg-kpi__value cg-kpi__value--sm">@Figure(summary?.LostOrDamaged)</div>
         <div class="cg-kpi__note">Blocked from recording checkpoints</div>
     </article>
     <article class="cg-kpi">
@@ -77,7 +69,7 @@
     </article>
 </div>
 
-@if (!unassignedStudents.Any() && Model.Any())
+@if (!unassignedStudents.Any() && summary?.Total > 0)
 {
     <div class="cg-alert cg-alert--success">
         <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "check-circle")</span>
@@ -88,61 +80,99 @@
     </div>
 }
 
+
 <section class="cg-card">
-    <div class="cg-toolbar">
-        <div class="cg-input-group cg-toolbar__grow" style="max-width:280px">
-            <span class="cg-input-group__icon">@await Html.PartialAsync("_Icon", "search")</span>
-            <input class="cg-input" placeholder="Search card or student"
-                   data-cg-search data-cg-search-scope="rfid" aria-label="Search RFID cards" />
+    @* Search, filters and sort run on the server; with JavaScript only the list region below is re-rendered
+       and the URL keeps the view, so Back, Refresh and bookmarks restore it. *@
+    <form method="get" action="/Rfid" class="cg-toolbar" data-cg-list="list" role="search">
+        <div class="cg-row cg-toolbar__grow" style="max-width:380px">
+            <div class="cg-input-group" style="flex:1">
+                <span class="cg-input-group__icon">@await Html.PartialAsync("_Icon", "search")</span>
+                <input class="cg-input" name="search" value="@q.Search" placeholder="Search card or student"
+                       aria-label="Search RFID cards" autocomplete="off" />
+            </div>
+            <button class="cg-btn cg-btn--secondary" type="submit">Search</button>
         </div>
-        <select class="cg-select" style="max-width:150px" data-cg-filter="state" data-cg-filter-scope="rfid"
+        <select class="cg-select" style="max-width:150px" name="state" data-cg-filter="state" data-cg-filter-scope="rfid"
                 aria-label="Filter by card status">
             <option value="__all">Any status</option>
-            <option value="Active">Active</option>
-            <option value="Inactive">Inactive</option>
-            <option value="Lost">Lost</option>
-            <option value="Damaged">Damaged</option>
-            <option value="Retired">Retired</option>
+            @foreach (var s in new[] { "Active", "Inactive", "Lost", "Damaged", "Retired" })
+            {
+                <option value="@s" selected="@(q.Value("state") == s)">@s</option>
+            }
         </select>
-        <select class="cg-select" style="max-width:170px" data-cg-filter="assigned" data-cg-filter-scope="rfid"
+        <select class="cg-select" style="max-width:170px" name="assigned" data-cg-filter="assigned" data-cg-filter-scope="rfid"
                 aria-label="Filter by assignment">
             <option value="__all">Any assignment</option>
-            <option value="yes">Assigned to a student</option>
-            <option value="no">Unassigned</option>
+            <option value="yes" selected="@(q.Value("assigned") == "yes")">Assigned to a student</option>
+            <option value="no" selected="@(q.Value("assigned") == "no")">Unassigned</option>
         </select>
-        <button type="button" class="cg-btn cg-btn--ghost cg-btn--sm" data-cg-reset data-cg-reset-scope="rfid">Clear</button>
-        <span class="cg-toolbar__spacer"></span>
-        <span class="cg-text-sm cg-muted" data-cg-count data-cg-count-scope="rfid"></span>
-    </div>
-
-    @if (!Model.Any())
-    {
-        @await Html.PartialAsync("_EmptyState", ("rfid", "No RFID cards registered",
-            "Scan a card at any reader to capture its UID, then assign it to a student.",
-            (string?)null, (string?)null))
-        @if (unassignedStudents.Any())
+        @if (q.SortKey is not null)
         {
-            <div style="text-align:center;margin-top:-12px">
-                <button type="button" class="cg-btn cg-btn--primary" data-cg-modal-open="assignCardModal">Assign the first card</button>
+            <input type="hidden" name="sort" value="@q.SortKey" />
+            <input type="hidden" name="dir" value="@(q.Descending ? "desc" : "asc")" />
+        }
+        <a class="cg-btn cg-btn--ghost cg-btn--sm" data-cg-reset data-cg-reset-scope="rfid" data-cg-list-link
+           href="@q.ClearedFilters().Url()">Clear</a>
+        <span class="cg-toolbar__spacer"></span>
+    </form>
+
+    @* The announcer sits outside the region: a live region replaced already filled is announced unreliably,
+       so cg-ajax.js copies the new count into it. *@
+    <span class="cg-sr-only" data-cg-list-status role="status" aria-live="polite"></span>
+    <div data-cg-region="list">
+        @if (ViewBag.LoadError is string listError)
+        {
+            <div class="cg-card__body">
+                <div class="cg-alert cg-alert--danger" role="alert">
+                    <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "alert-circle")</span>
+                    <div class="cg-alert__body">
+                        <div>@listError</div>
+                        <a href="@q.Url(page: q.CurrentPage)" data-cg-list-link>Try again</a>
+                    </div>
+                </div>
             </div>
         }
-    }
-    else
-    {
-        <div class="cg-table-wrap">
-            <table class="cg-table" data-cg-table="rfid" data-cg-page-size="25">
-                <thead>
-                    <tr>
-                        <th>Card</th>
-                        <th>Assigned student</th>
-                        <th>Status</th>
-                        <th><span class="cg-th-sort" data-cg-sort="assigned">Assigned on @await Html.PartialAsync("_Icon", "arrow-down")</span></th>
-                        <th>Change status</th>
-                        <th class="cg-table__actions">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                @foreach (var c in Model)
+        else if (Model.PastTheEnd)
+        {
+            <div class="cg-empty" data-cg-page-missing>
+                <div class="cg-empty__art">@await Html.PartialAsync("_Icon", "filter")</div>
+                <div class="cg-empty__title">There is no page @Model.Page</div>
+                <p class="cg-empty__text">This list has @Model.PageCount page@(Model.PageCount == 1 ? "" : "s") of results now.</p>
+                <a class="cg-btn cg-btn--secondary cg-btn--sm" href="@q.Url(page: Model.PageCount)" data-cg-list-link>Go to page @Model.PageCount</a>
+            </div>
+        }
+        else if (Model.Total == 0 && !q.HasFilters)
+        {
+            @await Html.PartialAsync("_EmptyState", ("rfid", "No RFID cards registered",
+                "Scan a card at any reader to capture its UID, then assign it to a student.",
+                (string?)null, (string?)null))
+            @if (unassignedStudents.Any())
+            {
+                <div style="text-align:center;margin-top:-12px">
+                    <button type="button" class="cg-btn cg-btn--primary" data-cg-modal-open="assignCardModal">Assign the first card</button>
+                </div>
+            }
+        }
+        else
+        {
+            <div class="cg-row cg-row--between" style="padding:0 16px">
+                <span class="cg-text-sm cg-muted" data-cg-count data-cg-count-scope="rfid">@Model.Total @(Model.Total == 1 ? "record" : "records")</span>
+            </div>
+            <div class="cg-table-wrap">
+                <table class="cg-table">
+                    <thead>
+                        <tr>
+                            <th>Card</th>
+                            @await Html.PartialAsync("_SortHeader", new SortHeaderModel("student", "Assigned student", q.SortKey, q.Descending, q.Url))
+                            @await Html.PartialAsync("_SortHeader", new SortHeaderModel("status", "Status", q.SortKey, q.Descending, q.Url))
+                            @await Html.PartialAsync("_SortHeader", new SortHeaderModel("assigned", "Assigned on", q.SortKey, q.Descending, q.Url))
+                            <th>Change status</th>
+                            <th class="cg-table__actions">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                @foreach (var c in Model.Items)
                 {
                     var badge = c.Status switch
                     {
@@ -150,11 +180,8 @@
                         RfidCardStatus.Lost or RfidCardStatus.Damaged => "cg-badge--danger",
                         _ => "cg-badge--neutral"
                     };
-                    <tr data-row
-                        data-search="@c.MaskedCardUid @c.StudentName"
-                        data-state="@c.Status"
-                        data-assigned="@(c.StudentId is null ? "no" : "yes")"
-                        data-sort-assigned="@(c.AssignedAt?.Ticks ?? 0)">
+                    <tr data-row>
+
                         <td>
                             <span class="cg-row">
                                 @await Html.PartialAsync("_Icon", "id-card")
@@ -176,7 +203,7 @@
                             @(c.AssignedAt?.ToSchoolTime().ToString("d MMM yyyy") ?? "—")
                         </td>
                         <td>
-                            <form asp-action="UpdateStatus" asp-route-id="@c.RfidCardId" method="post" class="cg-row">
+                            <form data-cg-ajax asp-action="UpdateStatus" asp-route-id="@c.RfidCardId" method="post" class="cg-row">
                                 @Html.AntiForgeryToken()
                                 <select class="cg-select" name="status" style="max-width:120px"
                                         aria-label="Status for card @c.MaskedCardUid">
@@ -199,23 +226,24 @@
                         </td>
                     </tr>
                 }
-                </tbody>
-            </table>
-        </div>
+                    </tbody>
+                </table>
+            </div>
 
-        <div class="cg-empty" data-cg-noresults data-cg-noresults-scope="rfid" hidden>
-            <div class="cg-empty__art">@await Html.PartialAsync("_Icon", "filter")</div>
-            <div class="cg-empty__title">No cards match these filters</div>
-            <p class="cg-empty__text">Clear one or more filters to widen the list.</p>
-        </div>
+            @if (Model.Total == 0)
+            {
+                <div class="cg-empty" data-cg-noresults data-cg-noresults-scope="rfid">
+                    <div class="cg-empty__art">@await Html.PartialAsync("_Icon", "filter")</div>
+                    <div class="cg-empty__title">No cards match these filters</div>
+                    <p class="cg-empty__text">Clear one or more filters, or try a different search.</p>
+                </div>
+            }
 
-        <div class="cg-pagination">
-            <span class="cg-text-sm">Only the last four characters of a card UID are ever shown.</span>
-            <div class="cg-pagination__pages" data-cg-pager data-cg-pager-scope="rfid"></div>
-        </div>
-    }
+            <div class="cg-text-sm cg-muted" style="padding:0 16px">Only the last four characters of a card UID are ever shown.</div>
+            @await Html.PartialAsync("_Pager", new PagerModel("rfid", Model.Page, Model.PageCount, Model.FirstRow, Model.LastRow, Model.Total, "cards", p => q.Url(page: p)))
+        }
+    </div>
 </section>
-
 <div class="cg-modal" id="assignCardModal" hidden role="dialog" aria-modal="true" aria-labelledby="assignCardTitle">
     <div class="cg-modal__panel">
         <div class="cg-modal__head">
@@ -228,7 +256,7 @@
             </button>
         </div>
 
-        <form asp-action="Assign" method="post" data-cg-busy>
+        <form data-cg-ajax asp-action="Assign" method="post" data-cg-busy>
             @Html.AntiForgeryToken()
             <div class="cg-modal__body">
                 <div class="cg-form">
@@ -272,7 +300,7 @@
             </div>
             <button type="button" class="cg-iconbtn" data-cg-modal-close aria-label="Close">@await Html.PartialAsync("_Icon", "x")</button>
         </div>
-        <form asp-action="Register" method="post" data-cg-busy>
+        <form data-cg-ajax asp-action="Register" method="post" data-cg-busy>
             @Html.AntiForgeryToken()
             <div class="cg-modal__body">
                 <div class="cg-field">
@@ -290,4 +318,5 @@
             </div>
         </form>
     </div>
+</div>
 </div>

@@ -11,6 +11,16 @@ public static class ListDefinitions
         {
             ListFilter.Choice("status", "status", ("Active", "Active"), ("Ended", "Ended")),
         });
+    public static readonly ListDefinition RfidCards = new(
+        BasePath: "/Rfid",
+        ApiPath: "/api/rfid/cards",
+        Sorts: new HashSet<string> { "student", "status", "assigned" },
+        Filters: new[]
+        {
+            ListFilter.Choice("state", "status", ("Active", "Active"), ("Inactive", "Inactive"), ("Lost", "Lost"), ("Damaged", "Damaged"), ("Retired", "Retired")),
+            ListFilter.Choice("assigned", "assigned", ("yes", "true"), ("no", "false")),
+        });
+
     public static readonly ListDefinition Guardians = new(
         BasePath: "/Guardians",
         ApiPath: "/api/guardians",

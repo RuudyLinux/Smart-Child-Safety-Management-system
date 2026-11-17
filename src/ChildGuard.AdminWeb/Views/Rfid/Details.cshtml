@@ -13,8 +13,11 @@
     var assigned = Model.StudentId is not null;
     var usable = Model.Status == RfidCardStatus.Active;
     var conditions = new[] { RfidCardStatus.Active, RfidCardStatus.Inactive, RfidCardStatus.Lost, RfidCardStatus.Damaged, RfidCardStatus.Retired };
+    // Shared partials render their forms as AJAX forms on this page.
+    ViewData["AjaxForms"] = true;
 }
 
+<div data-cg-region="rfid-card-page">
 <div class="cg-page-head">
     <div class="cg-page-head__text">
         <nav class="cg-breadcrumb" style="margin-bottom:6px">
@@ -100,7 +103,7 @@
         }
         @if (Model.Status != RfidCardStatus.Retired)
         {
-            <form asp-action="UpdateStatus" asp-route-id="@Model.RfidCardId" method="post" class="cg-row" style="gap:6px">
+            <form data-cg-ajax asp-action="UpdateStatus" asp-route-id="@Model.RfidCardId" method="post" class="cg-row" style="gap:6px">
                 @Html.AntiForgeryToken()
                 <select class="cg-select" name="status" style="max-width:140px" aria-label="Card condition">
                     @foreach (var s in conditions)
@@ -166,7 +169,7 @@
                     </div>
                     <button type="button" class="cg-iconbtn" data-cg-modal-close aria-label="Close">@await Html.PartialAsync("_Icon", "x")</button>
                 </div>
-                <form action="/Rfid/@action/@Model.RfidCardId" method="post" data-cg-busy>
+                <form data-cg-ajax action="/Rfid/@action/@Model.RfidCardId" method="post" data-cg-busy>
                     @Html.AntiForgeryToken()
                     <div class="cg-modal__body cg-form">@body(null)</div>
                     <div class="cg-modal__foot">
@@ -286,6 +289,7 @@
         }
     </div>
 </section>
+</div>
 
 @section Scripts {
     <script>
