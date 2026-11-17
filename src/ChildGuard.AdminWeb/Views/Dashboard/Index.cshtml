@@ -11,6 +11,11 @@
     var adminFirstName = (User.Identity?.Name ?? "Admin").Split(' ')[0];
 }
 
+<div class="cg-dash-live" data-cg-live-bar hidden>
+    <span class="cg-muted cg-text-sm" data-cg-live-status role="status" aria-live="polite"></span>
+    <button type="button" class="cg-btn cg-btn--ghost cg-btn--sm" data-cg-live-refresh>Refresh</button>
+</div>
+<div data-cg-region="dash-live">
 @if (Model is null)
 {
     <div class="cg-alert cg-alert--danger" role="alert">
@@ -20,6 +25,7 @@
             <div>@(ViewBag.LoadError as string ?? "The ChildGuard API did not respond.") <a href="/Diagnostics">Run diagnostics</a>.</div>
         </div>
     </div>
+    @:</div>
     return;
 }
 
@@ -708,3 +714,8 @@
         </section>
     </div>
 </div>
+</div>
+
+@section Scripts {
+    <script src="~/js/dashboard-live.js" asp-append-version="true"></script>
+}
