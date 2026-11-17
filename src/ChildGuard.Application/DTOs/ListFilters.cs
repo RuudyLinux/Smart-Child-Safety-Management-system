@@ -1,3 +1,4 @@
+using ChildGuard.Domain.Enums;
 namespace ChildGuard.Application.DTOs;
 
 /// <summary>Record status as the admin lists show it: archived records are a status of their own.</summary>
@@ -32,10 +33,16 @@ public enum AssignmentStatusFilter
 /// <param name="Search">Student, bus number, or route (the assignment's own, else the bus's).</param>
 public sealed record AssignmentListFilter(string? Search, AssignmentStatusFilter? Status, int? BusId);
 
+/// <summary>Server-side filters for the paged RFID card list (GET /api/rfid/cards?page=…).</summary>
+/// <param name="Search">The student's name, or the card UID as typed.</param>
+/// <param name="Assigned">Issued to a student (true) or a spare (false).</param>
+public sealed record RfidCardListFilter(string? Search, RfidCardStatus? Status, bool? Assigned);
+
 /// <summary>Sort keys each paged list accepts (lower case).</summary>
 public static class ListSorts
 {
     public static readonly IReadOnlySet<string> Students = new HashSet<string> { "name", "grade", "activity", "status" };
     public static readonly IReadOnlySet<string> Assignments = new HashSet<string> { "student", "bus", "assigned", "status" };
+    public static readonly IReadOnlySet<string> RfidCards = new HashSet<string> { "student", "status", "assigned" };
     public static readonly IReadOnlySet<string> Guardians = new HashSet<string> { "name", "email", "students", "status", "activity" };
 }

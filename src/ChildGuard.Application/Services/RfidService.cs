@@ -43,13 +43,19 @@ public class RfidService : IRfidService
         _validation = validation;
     }
 
-    public async Task<List<RfidCardListItemDto>> GetAllAsync(CancellationToken ct = default)
+    public async Task<List<RfidCardListItemDto>> GetAllAsync(CancellationToken ct = default) =>
+        (await _rfid.GetAllAsync(ct)).Select(ToListItem).ToList();
+
+    public async Task<Paged<RfidCardListItemDto>> GetPageAsync(RfidCardListFilter filter, PageRequest page, CancellationToken ct = default)
     {
-        var cards = await _rfid.GetAllAsync(ct);
-        return cards.Select(c => new RfidCardListItemDto(
-            c.RfidCardId, RfidMasking.Mask(c.CardUid), c.Status,
-            c.StudentId, c.Student?.FullName, c.AssignedAt)).ToList();
+        var (cards, total) = await _rfid.GetPageAsync(filter, page, ct);
+        return new Paged<RfidCardListItemDto>(cards.Select(ToListItem).ToList(), total);
     }
+
+    public Task<RfidCardSummaryDto> GetSummaryAsync(CancellationToken ct = default) => _rfid.GetSummaryAsync(ct);
+
+    private static RfidCardListItemDto ToListItem(RfidCard c) => new(
+        c.RfidCardId, RfidMasking.Mask(c.CardUid), c.Status, c.StudentId, c.Student?.FullName, c.AssignedAt);
 
     public async Task<Result<RfidCardDetailDto>> GetByIdAsync(int cardId, CancellationToken ct = default)
     {

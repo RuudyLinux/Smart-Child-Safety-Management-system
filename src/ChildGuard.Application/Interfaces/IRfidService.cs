@@ -6,6 +6,8 @@ namespace ChildGuard.Application.Interfaces;
 public interface IRfidService
 {
     Task<List<RfidCardListItemDto>> GetAllAsync(CancellationToken ct = default);
+    Task<Paged<RfidCardListItemDto>> GetPageAsync(RfidCardListFilter filter, PageRequest page, CancellationToken ct = default);
+    Task<RfidCardSummaryDto> GetSummaryAsync(CancellationToken ct = default);
     Task<Result<RfidCardDetailDto>> GetByIdAsync(int cardId, CancellationToken ct = default);
     Task<Result> AssignAsync(AssignRfidRequest request, CancellationToken ct = default);
     // ---- inventory: every operation runs under a row lock on the cards involved and is audited

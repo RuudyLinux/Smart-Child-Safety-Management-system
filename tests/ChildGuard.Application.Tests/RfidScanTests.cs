@@ -16,6 +16,8 @@ public class RfidScanTests
         public List<RfidCard> Cards { get; } = new();
         public List<RfidDevice> Devices { get; } = new();
 
+        public Task<(List<RfidCard> Items, int Total)> GetPageAsync(ChildGuard.Application.DTOs.RfidCardListFilter filter, ChildGuard.Application.Common.PageRequest page, CancellationToken ct = default) => throw new NotSupportedException("Not used by these tests.");
+        public Task<ChildGuard.Application.DTOs.RfidCardSummaryDto> GetSummaryAsync(CancellationToken ct = default) => throw new NotSupportedException("Not used by these tests.");
         public Task<List<RfidCard>> GetAllAsync(CancellationToken ct = default) => Task.FromResult(Cards.ToList());
         public Task<RfidCard?> GetByIdAsync(int id, CancellationToken ct = default) => Task.FromResult(Cards.FirstOrDefault(c => c.RfidCardId == id));
         public Task<RfidCard?> GetByCardUidAsync(string cardUid, CancellationToken ct = default) => Task.FromResult(Cards.FirstOrDefault(c => c.CardUid == cardUid));

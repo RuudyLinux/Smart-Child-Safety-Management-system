@@ -1,3 +1,6 @@
+using ChildGuard.Domain.Enums;
+using ChildGuard.Application.Common;
+using ChildGuard.Api.Common;
 using ChildGuard.Api.Security;
 using ChildGuard.Application.DTOs;
 using ChildGuard.Application.Interfaces;
@@ -34,7 +37,31 @@ public class RfidController : ControllerBase
 
     [HttpGet("cards")]
     [Authorize(Policy = "AdminOnly")]
-    public async Task<IActionResult> GetCards(CancellationToken ct) => Ok(await _rfidService.GetAllAsync(ct));
+    public async Task<IActionResult> GetCards(
+        [FromQuery] string? search, [FromQuery] string? status, [FromQuery] bool? assigned,
+        [FromQuery] int? page, [FromQuery] int? pageSize, [FromQuery] string? sort, [FromQuery] string? dir,
+        CancellationToken ct)
+    {
+        var paging = PageRequest.From(page, pageSize, sort, dir, ListSorts.RfidCards);
+        if (!paging.Succeeded) return BadRequest(new { message = paging.Error });
+        if (paging.Value is null) return Ok(await _rfidService.GetAllAsync(ct));   // without page: the whole list, as before
+
+        RfidCardStatus? statusFilter = null;
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            if (!Enum.TryParse<RfidCardStatus>(status.Trim(), ignoreCase: true, out var parsed) || !Enum.IsDefined(parsed))
+                return BadRequest(new { message = "status must be Active, Inactive, Lost, Damaged or Retired." });
+            statusFilter = parsed;
+        }
+        var result = await _rfidService.GetPageAsync(new RfidCardListFilter(search, statusFilter, assigned), paging.Value, ct);
+        PagingHeaders.SetTotal(Response, result.Total);
+        return Ok(result.Items);
+    }
+
+    /// <summary>School-wide card figures for the list header, in one call.</summary>
+    [HttpGet("cards/summary")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> GetCardSummary(CancellationToken ct) => Ok(await _rfidService.GetSummaryAsync(ct));
 
     [HttpGet("cards/{id:int}")]
     [Authorize(Policy = "AdminOnly")]

@@ -89,3 +89,6 @@ public record UpdateRfidDeviceRequest(string DeviceLabel);
 public record NextCheckpointDto(
     bool StudentIdentified, int? StudentId, string? StudentName, string? MaskedCardUid,
     JourneyEventType? Checkpoint, string? CheckpointLabel, string Reason, bool OffSchedule);
+
+/// <summary>School-wide card figures for the RFID page header, in one call (same meaning as the list filters).</summary>
+public record RfidCardSummaryDto(int Total, int Active, int LostOrDamaged, int AvailableSpare, int Unassigned);

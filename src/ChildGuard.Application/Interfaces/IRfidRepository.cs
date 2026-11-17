@@ -7,6 +7,12 @@ namespace ChildGuard.Application.Interfaces;
 public interface IRfidRepository
 {
     Task<List<RfidCard>> GetAllAsync(CancellationToken ct = default);
+
+    /// <summary>One page of cards (newest first unless sorted), filtered in the database.</summary>
+    Task<(List<RfidCard> Items, int Total)> GetPageAsync(RfidCardListFilter filter, PageRequest page, CancellationToken ct = default);
+
+    /// <summary>School-wide counts for the list header (each equals the matching list filter's total).</summary>
+    Task<RfidCardSummaryDto> GetSummaryAsync(CancellationToken ct = default);
     Task<RfidCard?> GetByIdAsync(int id, CancellationToken ct = default);
     Task<RfidCard?> GetByCardUidAsync(string cardUid, CancellationToken ct = default);
     Task AddAsync(RfidCard card, CancellationToken ct = default);

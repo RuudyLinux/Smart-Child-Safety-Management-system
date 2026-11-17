@@ -2,6 +2,7 @@ using ChildGuard.Application.Common;
 using ChildGuard.Application.DTOs;
 using ChildGuard.Application.Interfaces;
 using ChildGuard.Domain.Entities;
+using ChildGuard.Domain.Enums;
 using ChildGuard.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -14,6 +15,57 @@ public class RfidRepository : IRfidRepository
 
     public Task<List<RfidCard>> GetAllAsync(CancellationToken ct = default) =>
         _db.RfidCards.Include(c => c.Student).OrderByDescending(c => c.CreatedAt).ToListAsync(ct);
+
+    public async Task<(List<RfidCard> Items, int Total)> GetPageAsync(RfidCardListFilter filter, PageRequest page, CancellationToken ct = default)
+    {
+        var query = _db.RfidCards.AsNoTracking();
+        if (filter.Status is RfidCardStatus status) query = query.Where(c => c.Status == status);
+        if (filter.Assigned is bool assigned) query = query.Where(c => (c.StudentId != null) == assigned);
+        if (!string.IsNullOrWhiteSpace(filter.Search))
+        {
+            var text = filter.Search.Trim();
+            // The student's name, or the card UID as typed; case-insensitive on both engines.
+            if (_db.Database.IsNpgsql())
+            {
+                var pattern = "%" + text.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_") + "%";
+                query = query.Where(c => EF.Functions.ILike(c.CardUid, pattern, "\\")
+                    || (c.Student != null && EF.Functions.ILike(c.Student.FullName, pattern, "\\")));
+            }
+            else
+                query = query.Where(c => c.CardUid.Contains(text) || (c.Student != null && c.Student.FullName.Contains(text)));
+        }
+
+        var total = await query.CountAsync(ct);
+
+        var desc = page.Descending;
+        IOrderedQueryable<RfidCard> ordered = page.Sort switch
+        {
+            // Spares (no student) sort first when ascending; names compare case-insensitively on both engines.
+            "student" => desc ? query.OrderByDescending(c => c.Student != null ? c.Student.FullName.ToLower() : "")
+                              : query.OrderBy(c => c.Student != null ? c.Student.FullName.ToLower() : ""),
+            "status" => (desc ? query.OrderByDescending(c => (int)c.Status) : query.OrderBy(c => (int)c.Status))
+                .ThenByDescending(c => c.CreatedAt),
+            "assigned" => desc ? query.OrderByDescending(c => c.AssignedAt ?? DateTime.MinValue) : query.OrderBy(c => c.AssignedAt ?? DateTime.MinValue),
+            // No sort given: the newest cards first, as the unpaged list is.
+            _ => query.OrderByDescending(c => c.CreatedAt)
+        };
+        var items = await ordered.ThenByDescending(c => c.RfidCardId)
+            .Skip(page.Skip).Take(page.PageSize)
+            .Include(c => c.Student)
+            .ToListAsync(ct);
+        return (items, total);
+    }
+
+    public async Task<RfidCardSummaryDto> GetSummaryAsync(CancellationToken ct = default)
+    {
+        var cards = _db.RfidCards.AsNoTracking();
+        return new RfidCardSummaryDto(
+            Total: await cards.CountAsync(ct),
+            Active: await cards.CountAsync(c => c.Status == RfidCardStatus.Active, ct),
+            LostOrDamaged: await cards.CountAsync(c => c.Status == RfidCardStatus.Lost || c.Status == RfidCardStatus.Damaged, ct),
+            AvailableSpare: await cards.CountAsync(c => c.Status == RfidCardStatus.Active && c.StudentId == null, ct),
+            Unassigned: await cards.CountAsync(c => c.StudentId == null, ct));
+    }
 
     public Task<RfidCard?> GetByIdAsync(int id, CancellationToken ct = default) =>
         _db.RfidCards.Include(c => c.Student).FirstOrDefaultAsync(c => c.RfidCardId == id, ct);
