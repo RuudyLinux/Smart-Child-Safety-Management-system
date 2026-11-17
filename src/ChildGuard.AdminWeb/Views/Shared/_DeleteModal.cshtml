@@ -1,4 +1,5 @@
 @model (string ModalId, string Name, string Noun, string Action, DeletionCheckDto Check)
+@{ /* "on" when the page's controller answers AJAX envelopes (cg-ajax.js). An explicit value, not null: tag-helper forms render a null attribute as present. */ var cgAjax = ViewData["AjaxForms"] is true ? "on" : "off"; }
 @{ var check = Model.Check; }
 <div class="cg-modal" id="@Model.ModalId" hidden role="dialog" aria-modal="true" aria-labelledby="@(Model.ModalId)Title">
     <div class="cg-modal__panel">
@@ -27,7 +28,7 @@
         }
         else
         {
-            <form action="@Model.Action" method="post" data-cg-busy>
+            <form action="@Model.Action" method="post" data-cg-busy data-cg-ajax="@cgAjax">
                 @Html.AntiForgeryToken()
                 <div class="cg-modal__body cg-form">
                     <div class="cg-field">

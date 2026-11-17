@@ -3,8 +3,11 @@
     var d = Model.Driver;
     ViewData["Title"] = d.FullName;
     var a = Model.Address;
+    // Shared partials (photo, delete modal) render their forms as AJAX forms on this page.
+    ViewData["AjaxForms"] = true;
 }
 
+<div data-cg-region="driver-page">
 <div class="cg-page-head">
     <div class="cg-page-head__text">
         <nav class="cg-breadcrumb" style="margin-bottom:6px">
@@ -121,7 +124,7 @@
             <h2 class="cg-modal__title" id="driverProfileTitle">Edit driver profile</h2>
             <button type="button" class="cg-iconbtn" data-cg-modal-close aria-label="Close">@await Html.PartialAsync("_Icon", "x")</button>
         </div>
-        <form action="/Transportation/EditDriverProfile/@d.DriverId" method="post" data-cg-busy>
+        <form data-cg-ajax action="/Transportation/EditDriverProfile/@d.DriverId" method="post" data-cg-busy>
             @Html.AntiForgeryToken()
             <div class="cg-modal__body cg-form">
                 <div class="cg-form-row">
@@ -166,3 +169,4 @@
 </div>
 
 @await Html.PartialAsync("_DeleteModal", ("driverDelete", d.FullName, "driver", $"/Transportation/DeleteDriver/{d.DriverId}", Model.Deletion))
+</div>

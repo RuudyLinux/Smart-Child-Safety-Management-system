@@ -3,8 +3,11 @@
     var b = Model.Bus;
     ViewData["Title"] = $"Bus {b.BusNumber}";
     var statuses = new[] { BusStatus.Active, BusStatus.UnderMaintenance, BusStatus.OutOfService, BusStatus.Inactive };
+    // Shared partials (photo, delete modal) render their forms as AJAX forms on this page.
+    ViewData["AjaxForms"] = true;
 }
 
+<div data-cg-region="bus-page">
 <div class="cg-page-head">
     <div class="cg-page-head__text">
         <nav class="cg-breadcrumb" style="margin-bottom:6px">
@@ -72,7 +75,7 @@
     <section class="cg-card">
         <div class="cg-card__head"><h2 class="cg-card__title">Bus status</h2></div>
         <div class="cg-card__body">
-            <form action="/Transportation/SetBusOperationalStatus/@b.BusId" method="post" class="cg-form" data-cg-busy>
+            <form data-cg-ajax action="/Transportation/SetBusOperationalStatus/@b.BusId" method="post" class="cg-form" data-cg-busy>
                 @Html.AntiForgeryToken()
                 <div class="cg-form-row">
                     <div class="cg-field">
@@ -132,7 +135,7 @@
             <h2 class="cg-modal__title" id="busDetailsTitle">Edit vehicle details</h2>
             <button type="button" class="cg-iconbtn" data-cg-modal-close aria-label="Close">@await Html.PartialAsync("_Icon", "x")</button>
         </div>
-        <form action="/Transportation/EditBusDetails/@b.BusId" method="post" data-cg-busy>
+        <form data-cg-ajax action="/Transportation/EditBusDetails/@b.BusId" method="post" data-cg-busy>
             @Html.AntiForgeryToken()
             <div class="cg-modal__body cg-form">
                 <div class="cg-field"><label class="cg-label" for="bdReg">Registration number</label><input class="cg-input cg-mono" id="bdReg" name="RegistrationNumber" value="@b.RegistrationNumber" maxlength="20" placeholder="e.g. KA 01 AB 1234" /></div>
@@ -151,3 +154,4 @@
 </div>
 
 @await Html.PartialAsync("_DeleteModal", ("busDelete", $"bus {b.BusNumber}", "bus", $"/Transportation/DeleteBus/{b.BusId}", Model.Deletion))
+</div>

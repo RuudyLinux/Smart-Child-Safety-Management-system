@@ -5,8 +5,11 @@
     var active = Model.Stops.Where(s => s.Status == RecordStatus.Active).OrderBy(s => s.Sequence).ToList();
     var retired = Model.Stops.Where(s => s.Status != RecordStatus.Active).OrderBy(s => s.Name).ToList();
     static string Time(TimeOnly? t) => t?.ToString("HH:mm") ?? "—";
+    // Shared partials (photo, delete modal) render their forms as AJAX forms on this page.
+    ViewData["AjaxForms"] = true;
 }
 
+<div data-cg-region="route-page">
 <div class="cg-page-head">
     <div class="cg-page-head__text">
         <nav class="cg-breadcrumb" style="margin-bottom:6px">
@@ -74,16 +77,16 @@
                         <td>@s.StudentsUsing</td>
                         <td class="cg-table__actions">
                             <div class="cg-row" style="gap:4px;justify-content:flex-end">
-                                <form class="cg-inline-form" action="/Transportation/MoveStop/@r.RouteId?stopId=@s.RouteStopId&direction=up" method="post">
+                                <form data-cg-ajax class="cg-inline-form" action="/Transportation/MoveStop/@r.RouteId?stopId=@s.RouteStopId&direction=up" method="post">
                                     @Html.AntiForgeryToken()
                                     <button class="cg-btn cg-btn--ghost cg-btn--sm" type="submit" disabled="@(i == 0)" aria-label="Move @s.Name up">↑</button>
                                 </form>
-                                <form class="cg-inline-form" action="/Transportation/MoveStop/@r.RouteId?stopId=@s.RouteStopId&direction=down" method="post">
+                                <form data-cg-ajax class="cg-inline-form" action="/Transportation/MoveStop/@r.RouteId?stopId=@s.RouteStopId&direction=down" method="post">
                                     @Html.AntiForgeryToken()
                                     <button class="cg-btn cg-btn--ghost cg-btn--sm" type="submit" disabled="@(i == active.Count - 1)" aria-label="Move @s.Name down">↓</button>
                                 </form>
                                 <button type="button" class="cg-btn cg-btn--ghost cg-btn--sm" data-cg-modal-open="stopEdit@(s.RouteStopId)">Edit</button>
-                                <form class="cg-inline-form" action="/Transportation/RemoveStop/@r.RouteId?stopId=@s.RouteStopId" method="post" data-cg-busy
+                                <form data-cg-ajax class="cg-inline-form" action="/Transportation/RemoveStop/@r.RouteId?stopId=@s.RouteStopId" method="post" data-cg-busy
                                       data-cg-confirm="Remove stop @s.Name? A stop that students have used stays on record as not in use.">
                                     @Html.AntiForgeryToken()
                                     <button class="cg-btn cg-btn--ghost cg-btn--sm" type="submit" disabled="@(s.StudentsUsing > 0)"
@@ -106,7 +109,7 @@
                 {
                     <li class="cg-row" style="gap:8px">
                         <span>@s.Name</span>
-                        <form class="cg-inline-form" action="/Transportation/ReactivateStop/@r.RouteId?stopId=@s.RouteStopId" method="post" data-cg-busy>
+                        <form data-cg-ajax class="cg-inline-form" action="/Transportation/ReactivateStop/@r.RouteId?stopId=@s.RouteStopId" method="post" data-cg-busy>
                             @Html.AntiForgeryToken()
                             <button class="cg-btn cg-btn--ghost cg-btn--sm" type="submit">Use again</button>
                         </form>
@@ -180,7 +183,7 @@
                             </select>
                         </td>
                         <td class="cg-table__actions">
-                            <form id="@formId" action="/Transportation/SetAssignmentStops/@r.RouteId?assignmentId=@s.AssignmentId" method="post" data-cg-busy>
+                            <form data-cg-ajax id="@formId" action="/Transportation/SetAssignmentStops/@r.RouteId?assignmentId=@s.AssignmentId" method="post" data-cg-busy>
                                 @Html.AntiForgeryToken()
                                 <button class="cg-btn cg-btn--secondary cg-btn--sm" type="submit">Save</button>
                             </form>
@@ -207,7 +210,7 @@
                 <h2 class="cg-modal__title" id="@(id)Title">@title</h2>
                 <button type="button" class="cg-iconbtn" data-cg-modal-close aria-label="Close">@await Html.PartialAsync("_Icon", "x")</button>
             </div>
-            <form action="@action" method="post" data-cg-busy>
+            <form data-cg-ajax action="@action" method="post" data-cg-busy>
                 @Html.AntiForgeryToken()
                 <div class="cg-modal__body cg-form">
                     <div class="cg-field"><label class="cg-label" for="@(id)Name">Stop name <span class="cg-label__req">*</span></label><input class="cg-input" id="@(id)Name" name="Name" value="@s.Name" maxlength="100" required /></div>
@@ -233,7 +236,7 @@
             <h2 class="cg-modal__title" id="routeDetailsTitle">Start and destination</h2>
             <button type="button" class="cg-iconbtn" data-cg-modal-close aria-label="Close">@await Html.PartialAsync("_Icon", "x")</button>
         </div>
-        <form action="/Transportation/EditRouteDetails/@r.RouteId" method="post" data-cg-busy>
+        <form data-cg-ajax action="/Transportation/EditRouteDetails/@r.RouteId" method="post" data-cg-busy>
             @Html.AntiForgeryToken()
             <div class="cg-modal__body cg-form">
                 <div class="cg-field"><label class="cg-label" for="rdStart">Start point</label><input class="cg-input" id="rdStart" name="StartPoint" value="@r.StartPoint" maxlength="150" placeholder="e.g. Bus depot" /></div>
@@ -249,3 +252,4 @@
 </div>
 
 @await Html.PartialAsync("_DeleteModal", ("routeDelete", $"route {r.RouteName}", "route", $"/Transportation/DeleteRoute/{r.RouteId}", Model.Deletion))
+</div>

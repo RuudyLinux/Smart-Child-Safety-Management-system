@@ -148,7 +148,9 @@ test.describe('Transportation', () => {
     const bus2 = await data.bus();
     expect((await api.post('/api/transportation/assignments', { data: { studentId: s.id, busId: bus1.id } })).ok()).toBeTruthy();
     await page.goto('/Transportation');
-    await page.locator('[data-cg-search-scope="assignments"]').fill(s.fullName);
+    // The search runs on the server and its value stays in the URL, so it survives every save on this page.
+    await page.locator('input[name="search"]').fill(s.fullName);
+    await expect(page).toHaveURL(/search=/);
 
     const active = () => page.locator('tr[data-row]', { hasText: s.fullName }).filter({ hasText: 'Active' });
     await active().getByRole('button', { name: 'Change bus' }).click();
@@ -157,14 +159,12 @@ test.describe('Transportation', () => {
     await modal.locator('select[name="busId"]').selectOption(String(bus2.id));
     await modal.getByRole('button', { name: 'Change bus' }).click();
     await expect(page.locator('.cg-toast', { hasText: 'Student assigned to bus' })).toBeVisible();
-    await page.locator('[data-cg-search-scope="assignments"]').fill(s.fullName);
     await expect(active()).toContainText(bus2.busNumber);
     await expect(page.locator('tr[data-row]', { hasText: s.fullName }).filter({ hasText: 'Ended' })).toContainText(bus1.busNumber);
 
     page.once('dialog', dlg => dlg.accept());
     await active().getByRole('button', { name: 'End' }).click();
     await expect(page.locator('.cg-toast', { hasText: 'Bus assignment ended' })).toBeVisible();
-    await page.locator('[data-cg-search-scope="assignments"]').fill(s.fullName);
     await expect(active()).toHaveCount(0);
     await expect(page.locator('tr[data-row]', { hasText: s.fullName })).toHaveCount(2); // both kept as history
     // With no active bus the student can be assigned again.

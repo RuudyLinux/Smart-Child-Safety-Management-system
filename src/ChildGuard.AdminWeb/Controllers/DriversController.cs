@@ -14,7 +14,7 @@ public class DriversController : BaseAdminController
 
     public DriversController(ApiClient api) : base(api) { }
 
-    private IActionResult BackToProfile(int id) => Redirect($"/Transportation/Driver/{id}#photo");
+    private static string ProfileUrl(int id) => $"/Transportation/Driver/{id}#photo";   // the driver page is one region: driver-page
 
     [HttpGet]
     [ResponseCache(Duration = 30, Location = ResponseCacheLocation.Client, NoStore = false)]
@@ -31,14 +31,10 @@ public class DriversController : BaseAdminController
     public async Task<IActionResult> UploadPhoto(int id, IFormFile? file, CancellationToken ct)
     {
         if (file is null || file.Length == 0)
-        {
-            TempData["Error"] = "Select an image to upload.";
-            return BackToProfile(id);
-        }
+            return Failed("Select an image to upload.", 400, ProfileUrl(id));
         await using var stream = file.OpenReadStream();
         var result = await Api.PostFileAsync<PhotoStateDto>($"/api/transportation/drivers/{id}/photo", stream, file.FileName, file.ContentType, ct);
-        TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded ? "Driver photo saved." : result.Error;
-        return BackToProfile(id);
+        return FromApi(result, "Driver photo saved.", ProfileUrl(id), "driver-page");
     }
 
     [HttpPost]
@@ -46,7 +42,6 @@ public class DriversController : BaseAdminController
     public async Task<IActionResult> DeletePhoto(int id, CancellationToken ct)
     {
         var result = await Api.DeleteAsync<object?>($"/api/transportation/drivers/{id}/photo", ct);
-        TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded ? "Driver photo removed." : result.Error;
-        return BackToProfile(id);
+        return FromApi(result, "Driver photo removed.", ProfileUrl(id), "driver-page");
     }
 }

@@ -3,17 +3,21 @@
     ViewData["Title"] = "Transportation";
     var routes = (List<RouteDto>)ViewBag.Routes;
     var drivers = (List<DriverDto>)ViewBag.Drivers;
-    var assignments = (List<StudentBusAssignmentDto>)ViewBag.Assignments;
+    var assignments = (ListPageViewModel<StudentBusAssignmentDto>)ViewBag.Assignments;
+    var q = (ListQuery)ViewData["Query"]!;
+    // Shared partials (delete modal, photo) render their forms as AJAX forms on this page.
+    ViewData["AjaxForms"] = true;
     var students = (List<StudentListItemDto>)ViewBag.Students;
 
     var activeBuses = Model.Count(b => b.Status == BusStatus.Active);
     var withoutDriver = Model.Count(b => string.IsNullOrEmpty(b.DriverName));
-    var activeAssignments = assignments.Where(a => a.Status == RecordStatus.Active).ToList();
-    var assignedStudentIds = activeAssignments.Select(a => a.StudentId).Distinct().ToHashSet();
+    var activeAssignments = assignments.Items.Where(a => a.Status == RecordStatus.Active).ToList();   // this page of the list: its change-bus modals
+    // A student's current bus comes with the student list, so "on a bus" does not need every assignment.
+    var assignedStudentCount = students.Count(s => s.BusNumber is not null);
     var inServiceBuses = Model.Where(b => b.Status == BusStatus.Active).ToList();
     // Pickers offer active drivers and routes, plus whatever a bus already has.
     bool Offer(RecordStatus status, bool current) => status == RecordStatus.Active || current;
-    var unassignedStudents = students.Where(s => !assignedStudentIds.Contains(s.StudentId)).ToList();
+    var unassignedStudents = students.Where(s => s.BusNumber is null).ToList();
     var settings = ViewBag.Settings as TransportSettingsDto ?? new TransportSettingsDto(false);
     var audit = ViewBag.Audit as List<TransportAuditDto> ?? new();
     var driverNames = drivers.ToDictionary(d => d.DriverId, d => d.FullName);
@@ -25,6 +29,7 @@
     var hasFreeSeat = inServiceBuses.Any(b => !IsFull(b));
 }
 
+<div data-cg-region="fleet-console">
 <div class="cg-page-head">
     <div class="cg-page-head__text">
         <h1 class="cg-page-head__title">Transportation</h1>
@@ -79,7 +84,7 @@
             <div class="cg-kpi__label">Students on transport</div>
             <span class="cg-kpi__icon">@await Html.PartialAsync("_Icon", "students")</span>
         </div>
-        <div class="cg-kpi__value cg-kpi__value--sm">@assignedStudentIds.Count</div>
+        <div class="cg-kpi__value cg-kpi__value--sm">@assignedStudentCount</div>
         <div class="cg-kpi__note">@unassignedStudents.Count not assigned to a bus</div>
     </article>
     <article class="cg-kpi">
@@ -158,7 +163,7 @@
                                 <button type="button" class="cg-btn cg-btn--secondary cg-btn--sm" data-cg-modal-open="editBus-@b.BusId">
                                     @await Html.PartialAsync("_Icon", "edit") Edit
                                 </button>
-                                <form asp-action="BusStatus" asp-route-id="@b.BusId" method="post" class="cg-inline-form"
+                                <form data-cg-ajax asp-action="BusStatus" asp-route-id="@b.BusId" method="post" class="cg-inline-form"
                                       data-cg-confirm="@(b.Status == BusStatus.Active ? $"Take {b.BusNumber} out of service? Students stay assigned to it until you change their bus." : $"Return {b.BusNumber} to service?")">
                                     @Html.AntiForgeryToken()
                                     <input type="hidden" name="status" value="@(b.Status == BusStatus.Active ? "OutOfService" : "Active")" />
@@ -219,7 +224,7 @@
                                     <span class="cg-row" style="gap:4px;justify-content:flex-end">
                                         <button type="button" class="cg-btn cg-btn--ghost cg-btn--sm cg-btn--icon" data-cg-modal-open="editDriver-@d.DriverId"
                                                 aria-label="Edit @d.FullName" title="Edit">@await Html.PartialAsync("_Icon", "edit")</button>
-                                        <form asp-action="DriverStatus" asp-route-id="@d.DriverId" method="post" class="cg-inline-form"
+                                        <form data-cg-ajax asp-action="DriverStatus" asp-route-id="@d.DriverId" method="post" class="cg-inline-form"
                                               data-cg-confirm="@(d.Status == RecordStatus.Active ? $"Deactivate {d.FullName}? They stay on record and on any bus they drive." : $"Reactivate {d.FullName}?")">
                                             @Html.AntiForgeryToken()
                                             <input type="hidden" name="status" value="@(d.Status == RecordStatus.Active ? "Inactive" : "Active")" />
@@ -270,7 +275,7 @@
                                     <span class="cg-row" style="gap:4px;justify-content:flex-end">
                                         <button type="button" class="cg-btn cg-btn--ghost cg-btn--sm cg-btn--icon" data-cg-modal-open="editRoute-@r.RouteId"
                                                 aria-label="Edit @r.RouteName" title="Edit">@await Html.PartialAsync("_Icon", "edit")</button>
-                                        <form asp-action="RouteStatus" asp-route-id="@r.RouteId" method="post" class="cg-inline-form"
+                                        <form data-cg-ajax asp-action="RouteStatus" asp-route-id="@r.RouteId" method="post" class="cg-inline-form"
                                               data-cg-confirm="@(r.Status == RecordStatus.Active ? $"Deactivate {r.RouteName}? Buses keep it until you edit them." : $"Reactivate {r.RouteName}?")">
                                             @Html.AntiForgeryToken()
                                             <input type="hidden" name="status" value="@(r.Status == RecordStatus.Active ? "Inactive" : "Active")" />
@@ -306,44 +311,89 @@
         }
     </div>
 
-    @if (!assignments.Any())
-    {
-        @await Html.PartialAsync("_EmptyState", ("students", "No students assigned to a bus",
-            "Assign students to a bus so their boarding and drop-off checkpoints are attributed to a route.",
-            (string?)null, (string?)null))
-    }
-    else
-    {
-        <div class="cg-toolbar">
-            <div class="cg-input-group cg-toolbar__grow" style="max-width:280px">
+    @* Search, the status filter and sort run on the server; with JavaScript only the list region below is
+       re-rendered and the URL keeps the view, so Back, Refresh and bookmarks restore it. *@
+    <form method="get" action="/Transportation" class="cg-toolbar" data-cg-list="list" role="search">
+        <div class="cg-row cg-toolbar__grow" style="max-width:380px">
+            <div class="cg-input-group" style="flex:1">
                 <span class="cg-input-group__icon">@await Html.PartialAsync("_Icon", "search")</span>
-                <input class="cg-input" placeholder="Search student, bus or route"
-                       data-cg-search data-cg-search-scope="assignments" aria-label="Search assignments" />
+                <input class="cg-input" name="search" value="@q.Search" placeholder="Search student, bus or route"
+                       aria-label="Search assignments" autocomplete="off" />
             </div>
-            <span class="cg-toolbar__spacer"></span>
-            <span class="cg-text-sm cg-muted" data-cg-count data-cg-count-scope="assignments"></span>
+            <button class="cg-btn cg-btn--secondary" type="submit">Search</button>
         </div>
+        <select class="cg-select" style="max-width:150px" name="status" data-cg-filter="status" data-cg-filter-scope="assignments"
+                aria-label="Filter by assignment status">
+            <option value="__all">Any status</option>
+            <option value="Active" selected="@(q.Value("status") == "Active")">Active</option>
+            <option value="Ended" selected="@(q.Value("status") == "Ended")">Ended</option>
+        </select>
+        @if (q.SortKey is not null)
+        {
+            <input type="hidden" name="sort" value="@q.SortKey" />
+            <input type="hidden" name="dir" value="@(q.Descending ? "desc" : "asc")" />
+        }
+        <a class="cg-btn cg-btn--ghost cg-btn--sm" data-cg-reset data-cg-reset-scope="assignments" data-cg-list-link
+           href="@q.ClearedFilters().Url()">Clear</a>
+        <span class="cg-toolbar__spacer"></span>
+    </form>
 
-        <div class="cg-table-wrap">
-            <table class="cg-table" data-cg-table="assignments" data-cg-page-size="25">
-                <thead>
-                    <tr>
-                        <th><span class="cg-th-sort" data-cg-sort="student">Student @await Html.PartialAsync("_Icon", "arrow-down")</span></th>
-                        <th>Bus</th>
-                        <th>Route</th>
-                        <th>Assigned</th>
-                        <th>Ended</th>
-                        <th>Status</th>
-                        <th class="cg-table__actions">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                @foreach (var a in assignments)
+    @* The announcer sits outside the region: a live region replaced already filled is announced unreliably,
+       so cg-ajax.js copies the new count into it. *@
+    <span class="cg-sr-only" data-cg-list-status role="status" aria-live="polite"></span>
+    <div data-cg-region="list">
+        @if (ViewBag.ListError is string listError)
+        {
+            <div class="cg-card__body">
+                <div class="cg-alert cg-alert--danger" role="alert">
+                    <span class="cg-alert__icon">@await Html.PartialAsync("_Icon", "alert-circle")</span>
+                    <div class="cg-alert__body">
+                        <div>@listError</div>
+                        <a href="@q.Url(page: q.CurrentPage)" data-cg-list-link>Try again</a>
+                    </div>
+                </div>
+            </div>
+        }
+        else if (assignments.PastTheEnd)
+        {
+            <div class="cg-empty" data-cg-page-missing>
+                <div class="cg-empty__art">@await Html.PartialAsync("_Icon", "filter")</div>
+                <div class="cg-empty__title">There is no page @assignments.Page</div>
+                <p class="cg-empty__text">This list has @assignments.PageCount page@(assignments.PageCount == 1 ? "" : "s") of results now.</p>
+                <a class="cg-btn cg-btn--secondary cg-btn--sm" href="@q.Url(page: assignments.PageCount)" data-cg-list-link>Go to page @assignments.PageCount</a>
+            </div>
+        }
+        else if (assignments.Total == 0 && !q.HasFilters)
+        {
+            @await Html.PartialAsync("_EmptyState", ("students", "No students assigned to a bus",
+                "Assign students to a bus so their boarding and drop-off checkpoints are attributed to a route.",
+                (string?)null, (string?)null))
+        }
+        else
+        {
+            <div class="cg-row cg-row--between" style="padding:0 16px">
+                <span class="cg-text-sm cg-muted" data-cg-count data-cg-count-scope="assignments">@assignments.Total @(assignments.Total == 1 ? "record" : "records")</span>
+            </div>
+            <div class="cg-table-wrap">
+                <table class="cg-table">
+                    <thead>
+                        <tr>
+                            @await Html.PartialAsync("_SortHeader", new SortHeaderModel("student", "Student", q.SortKey, q.Descending, q.Url))
+                            @await Html.PartialAsync("_SortHeader", new SortHeaderModel("bus", "Bus", q.SortKey, q.Descending, q.Url))
+                            <th>Route</th>
+                            @await Html.PartialAsync("_SortHeader", new SortHeaderModel("assigned", "Assigned", q.SortKey, q.Descending, q.Url))
+                            <th>Ended</th>
+                            @await Html.PartialAsync("_SortHeader", new SortHeaderModel("status", "Status", q.SortKey, q.Descending, q.Url))
+                            <th class="cg-table__actions">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                @foreach (var a in assignments.Items)
                 {
                     // No route on the assignment means the student rides the bus's own route.
                     var busRoute = a.RouteName is null ? Model.FirstOrDefault(b => b.BusNumber == a.BusNumber)?.RouteName : null;
                     var routeShown = a.RouteName ?? busRoute;
-                    <tr data-row data-search="@a.StudentName @a.BusNumber @routeShown" data-sort-student="@a.StudentName">
+                    <tr data-row>
                         <td><a href="/Students/Details/@a.StudentId">@a.StudentName</a></td>
                         <td><span class="cg-tag">@await Html.PartialAsync("_Icon", "bus") @a.BusNumber</span></td>
                         <td>
@@ -376,7 +426,7 @@
                             {
                                 <span class="cg-row" style="gap:4px;justify-content:flex-end">
                                     <button type="button" class="cg-btn cg-btn--ghost cg-btn--sm" data-cg-modal-open="changeBus-@a.Id">Change bus</button>
-                                    <form asp-action="EndAssignment" asp-route-id="@a.Id" method="post" class="cg-inline-form"
+                                    <form data-cg-ajax asp-action="EndAssignment" asp-route-id="@a.Id" method="post" class="cg-inline-form"
                                           data-cg-confirm="End @a.StudentName's assignment to @a.BusNumber? It stays in the history.">
                                         @Html.AntiForgeryToken()
                                         <button type="submit" class="cg-btn cg-btn--ghost cg-btn--sm">End</button>
@@ -386,23 +436,77 @@
                         </td>
                     </tr>
                 }
-                </tbody>
-            </table>
-        </div>
+                    </tbody>
+                </table>
+            </div>
 
-        <div class="cg-empty" data-cg-noresults data-cg-noresults-scope="assignments" hidden>
-            <div class="cg-empty__art">@await Html.PartialAsync("_Icon", "filter")</div>
-            <div class="cg-empty__title">No assignments match</div>
-            <p class="cg-empty__text">Clear the search to see every assignment.</p>
-        </div>
+            @if (assignments.Total == 0)
+            {
+                <div class="cg-empty" data-cg-noresults data-cg-noresults-scope="assignments">
+                    <div class="cg-empty__art">@await Html.PartialAsync("_Icon", "filter")</div>
+                    <div class="cg-empty__title">No assignments match</div>
+                    <p class="cg-empty__text">Clear the search or filter to see every assignment.</p>
+                </div>
+            }
 
-        <div class="cg-pagination">
-            <span class="cg-text-sm">Showing up to 25 assignments per page</span>
-            <div class="cg-pagination__pages" data-cg-pager data-cg-pager-scope="assignments"></div>
+            @await Html.PartialAsync("_Pager", new PagerModel("assignments", assignments.Page, assignments.PageCount, assignments.FirstRow, assignments.LastRow, assignments.Total, "assignments", p => q.Url(page: p)))
+
+@foreach (var a in activeAssignments)
+{
+    <div class="cg-modal" id="changeBus-@a.Id" hidden role="dialog" aria-modal="true" aria-labelledby="changeBusTitle-@a.Id">
+        <div class="cg-modal__panel">
+            <div class="cg-modal__head">
+                <div>
+                    <h2 class="cg-modal__title" id="changeBusTitle-@a.Id">Change bus for @a.StudentName</h2>
+                    <div class="cg-modal__sub">Currently on @a.BusNumber. The old assignment is kept in the history.</div>
+                </div>
+                <button type="button" class="cg-iconbtn" data-cg-modal-close aria-label="Close">@await Html.PartialAsync("_Icon", "x")</button>
+            </div>
+            <form data-cg-ajax asp-action="AddAssignment" method="post" data-cg-busy>
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="studentId" value="@a.StudentId" />
+                <div class="cg-modal__body">
+                    <div class="cg-form">
+                        <div class="cg-field">
+                            <label class="cg-label" for="changeBusBus-@a.Id">New bus <span class="cg-label__req">*</span></label>
+                            <select class="cg-select" id="changeBusBus-@a.Id" name="busId" required>
+                                @foreach (var b in inServiceBuses)
+                                {
+                                    var current = b.BusId == a.BusId || b.BusNumber == a.BusNumber;
+                                    <option value="@b.BusId" selected="@current" disabled="@(IsFull(b) && !current)">@BusOption(b)</option>
+                                }
+                            </select>
+                        </div>
+                        @if (settings.AllowRouteOverride)
+                        {
+                            <div class="cg-field">
+                                <label class="cg-label" for="changeBusRoute-@a.Id">Route</label>
+                                <select class="cg-select" id="changeBusRoute-@a.Id" name="routeId">
+                                    <option value="">Use the bus's own route</option>
+                                    @foreach (var r in routes.Where(r => r.Status == RecordStatus.Active))
+                                    {
+                                        <option value="@r.RouteId" selected="@(r.RouteName == a.RouteName)">@r.RouteName</option>
+                                    }
+                                </select>
+                            </div>
+                        }
+                        else
+                        {
+                            <p class="cg-hint">The student travels on the new bus's route. Moving ends the current assignment and starts a new one in one step.</p>
+                        }
+                    </div>
+                </div>
+                <div class="cg-modal__foot">
+                    <button type="button" class="cg-btn cg-btn--secondary" data-cg-modal-close>Cancel</button>
+                    <button type="submit" class="cg-btn cg-btn--primary"><span class="cg-btn__label">Change bus</span></button>
+                </div>
+            </form>
         </div>
-    }
+    </div>
+}
+        }
+    </div>
 </section>
-
 @* ------------------------------------------------------------------ Modals *@
 <section class="cg-card" aria-labelledby="transportAuditTitle">
     <div class="cg-card__head">
@@ -445,7 +549,7 @@
                 @await Html.PartialAsync("_Icon", "x")
             </button>
         </div>
-        <form asp-action="AddDriver" method="post" data-cg-busy>
+        <form data-cg-ajax asp-action="AddDriver" method="post" data-cg-busy>
             @Html.AntiForgeryToken()
             <div class="cg-modal__body">
                 <div class="cg-form">
@@ -481,7 +585,7 @@
                 @await Html.PartialAsync("_Icon", "x")
             </button>
         </div>
-        <form asp-action="AddRoute" method="post" data-cg-busy>
+        <form data-cg-ajax asp-action="AddRoute" method="post" data-cg-busy>
             @Html.AntiForgeryToken()
             <div class="cg-modal__body">
                 <div class="cg-form">
@@ -513,7 +617,7 @@
                 @await Html.PartialAsync("_Icon", "x")
             </button>
         </div>
-        <form asp-action="AddBus" method="post" data-cg-busy>
+        <form data-cg-ajax asp-action="AddBus" method="post" data-cg-busy>
             @Html.AntiForgeryToken()
             <div class="cg-modal__body">
                 <div class="cg-form">
@@ -570,7 +674,7 @@
                 @await Html.PartialAsync("_Icon", "x")
             </button>
         </div>
-        <form asp-action="AddAssignment" method="post" data-cg-busy>
+        <form data-cg-ajax asp-action="AddAssignment" method="post" data-cg-busy>
             @Html.AntiForgeryToken()
             <div class="cg-modal__body">
                 <div class="cg-form">
@@ -629,7 +733,7 @@
                 <h2 class="cg-modal__title" id="editDriverTitle-@d.DriverId">Edit driver</h2>
                 <button type="button" class="cg-iconbtn" data-cg-modal-close aria-label="Close">@await Html.PartialAsync("_Icon", "x")</button>
             </div>
-            <form asp-action="EditDriver" asp-route-id="@d.DriverId" method="post" data-cg-busy>
+            <form data-cg-ajax asp-action="EditDriver" asp-route-id="@d.DriverId" method="post" data-cg-busy>
                 @Html.AntiForgeryToken()
                 <div class="cg-modal__body">
                     <div class="cg-form">
@@ -666,7 +770,7 @@
                 <h2 class="cg-modal__title" id="editRouteTitle-@r.RouteId">Edit route</h2>
                 <button type="button" class="cg-iconbtn" data-cg-modal-close aria-label="Close">@await Html.PartialAsync("_Icon", "x")</button>
             </div>
-            <form asp-action="EditRoute" asp-route-id="@r.RouteId" method="post" data-cg-busy>
+            <form data-cg-ajax asp-action="EditRoute" asp-route-id="@r.RouteId" method="post" data-cg-busy>
                 @Html.AntiForgeryToken()
                 <div class="cg-modal__body">
                     <div class="cg-form">
@@ -697,7 +801,7 @@
                 <h2 class="cg-modal__title" id="editBusTitle-@b.BusId">Edit @b.BusNumber</h2>
                 <button type="button" class="cg-iconbtn" data-cg-modal-close aria-label="Close">@await Html.PartialAsync("_Icon", "x")</button>
             </div>
-            <form asp-action="EditBus" asp-route-id="@b.BusId" method="post" data-cg-busy>
+            <form data-cg-ajax asp-action="EditBus" asp-route-id="@b.BusId" method="post" data-cg-busy>
                 @Html.AntiForgeryToken()
                 <div class="cg-modal__body">
                     <div class="cg-form">
@@ -745,56 +849,4 @@
     </div>
 }
 
-@foreach (var a in activeAssignments)
-{
-    <div class="cg-modal" id="changeBus-@a.Id" hidden role="dialog" aria-modal="true" aria-labelledby="changeBusTitle-@a.Id">
-        <div class="cg-modal__panel">
-            <div class="cg-modal__head">
-                <div>
-                    <h2 class="cg-modal__title" id="changeBusTitle-@a.Id">Change bus for @a.StudentName</h2>
-                    <div class="cg-modal__sub">Currently on @a.BusNumber. The old assignment is kept in the history.</div>
-                </div>
-                <button type="button" class="cg-iconbtn" data-cg-modal-close aria-label="Close">@await Html.PartialAsync("_Icon", "x")</button>
-            </div>
-            <form asp-action="AddAssignment" method="post" data-cg-busy>
-                @Html.AntiForgeryToken()
-                <input type="hidden" name="studentId" value="@a.StudentId" />
-                <div class="cg-modal__body">
-                    <div class="cg-form">
-                        <div class="cg-field">
-                            <label class="cg-label" for="changeBusBus-@a.Id">New bus <span class="cg-label__req">*</span></label>
-                            <select class="cg-select" id="changeBusBus-@a.Id" name="busId" required>
-                                @foreach (var b in inServiceBuses)
-                                {
-                                    var current = b.BusId == a.BusId || b.BusNumber == a.BusNumber;
-                                    <option value="@b.BusId" selected="@current" disabled="@(IsFull(b) && !current)">@BusOption(b)</option>
-                                }
-                            </select>
-                        </div>
-                        @if (settings.AllowRouteOverride)
-                        {
-                            <div class="cg-field">
-                                <label class="cg-label" for="changeBusRoute-@a.Id">Route</label>
-                                <select class="cg-select" id="changeBusRoute-@a.Id" name="routeId">
-                                    <option value="">Use the bus's own route</option>
-                                    @foreach (var r in routes.Where(r => r.Status == RecordStatus.Active))
-                                    {
-                                        <option value="@r.RouteId" selected="@(r.RouteName == a.RouteName)">@r.RouteName</option>
-                                    }
-                                </select>
-                            </div>
-                        }
-                        else
-                        {
-                            <p class="cg-hint">The student travels on the new bus's route. Moving ends the current assignment and starts a new one in one step.</p>
-                        }
-                    </div>
-                </div>
-                <div class="cg-modal__foot">
-                    <button type="button" class="cg-btn cg-btn--secondary" data-cg-modal-close>Cancel</button>
-                    <button type="submit" class="cg-btn cg-btn--primary"><span class="cg-btn__label">Change bus</span></button>
-                </div>
-            </form>
-        </div>
-    </div>
-}
+</div>
