@@ -32,6 +32,10 @@
         field('late').value = d.stLate || '';
         field('dismissal').value = d.stDismissal || '';
         title.textContent = editing ? 'Edit calendar day' : 'Add calendar day';
+        var sub = document.querySelector('[data-st-modal-sub]');
+        if (sub) sub.textContent = editing ? 'Change this entry, or remove it from the Coming up list.' : 'Mark a holiday, or change one date\'s timings.';
+        var submit = form.querySelector('[data-st-submit]');
+        if (submit) submit.textContent = editing ? 'Save changes' : 'Add day';
         syncType();
     });
 

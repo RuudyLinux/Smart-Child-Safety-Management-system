@@ -8,6 +8,7 @@
     var weekOrder = new[] { DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday, DayOfWeek.Saturday, DayOfWeek.Sunday };
     var todayInfo = cal?.Days.FirstOrDefault(d => d.Date == Model.Today);
     string T(TimeOnly? t) => t?.ToString("HH:mm") ?? "";
+
     string KindClass(SchoolDayKind k) => k switch
     {
         SchoolDayKind.Holiday => "cg-cal__day--holiday",
@@ -17,13 +18,37 @@
         SchoolDayKind.WorkingDay => "cg-cal__day--extra",
         _ => ""
     };
+    string TypeBadge(SchoolDayType t) => t switch
+    {
+        SchoolDayType.Holiday => "cg-badge--danger",
+        SchoolDayType.HalfDay => "cg-badge--warning",
+        SchoolDayType.SpecialTiming => "cg-badge--primary",
+        _ => "cg-badge--success"
+    };
+    // A date's entry type, for pre-filling the editor when the date is clicked.
+    string EntryType(SchoolDayKind k) => k switch
+    {
+        SchoolDayKind.HalfDay => "HalfDay",
+        SchoolDayKind.SpecialTiming => "SpecialTiming",
+        SchoolDayKind.WorkingDay or SchoolDayKind.NonWorkingDay => "WorkingDay",
+        _ => "Holiday"
+    };
+    string Timings(SchoolCalendarDayDto u)
+    {
+        if (u.DayType == SchoolDayType.Holiday) return "School closed";
+        var parts = new List<string>();
+        if (u.StartTime is not null) parts.Add($"Starts {T(u.StartTime)}");
+        if (u.LateArrivalAfter is not null) parts.Add($"late after {T(u.LateArrivalAfter)}");
+        if (u.DismissalTime is not null) parts.Add($"ends {T(u.DismissalTime)}");
+        return parts.Count == 0 ? "Regular timings" : string.Join(" · ", parts);
+    }
 }
 
 <div class="cg-page-head">
     <div class="cg-page-head__text">
         <h1 class="cg-page-head__title">School time</h1>
         <p class="cg-page-head__sub">
-            School days, timings and the holiday calendar. Late arrivals, absences, missing check-in and pickup alerts all follow these.
+            School days, timings and holidays. Late arrivals, absences and pickup alerts follow this calendar.
         </p>
     </div>
     <div class="cg-page-head__actions">
@@ -40,218 +65,245 @@
     return;
 }
 
+@* ---------- Today at a glance ---------- *@
+<div class="cg-grid cg-grid--kpi cg-st-kpis">
+    <article class="cg-kpi">
+        <div class="cg-kpi__top">
+            <div class="cg-kpi__label">Today · @Model.Today.ToString("ddd d MMM")</div>
+            <span class="cg-kpi__icon @(todayInfo?.IsSchoolDay == true ? "cg-kpi__icon--success" : "cg-kpi__icon--neutral")">@await Html.PartialAsync("_Icon", "calendar")</span>
+        </div>
+        <div class="cg-kpi__value cg-st-kpi-text">@(todayInfo is null ? "—" : todayInfo.IsSchoolDay ? "Open" : "Closed")</div>
+        <div class="cg-kpi__foot">
+            @if (todayInfo is not null)
+            {
+                <span class="cg-badge @(todayInfo.IsSchoolDay ? "cg-badge--success" : "cg-badge--neutral")">
+                    <span class="cg-badge__dot"></span>@(todayInfo.Title ?? SchoolTimeController.Describe(todayInfo.Kind))
+                </span>
+            }
+        </div>
+    </article>
+    <article class="cg-kpi">
+        <div class="cg-kpi__top">
+            <div class="cg-kpi__label">School starts</div>
+            <span class="cg-kpi__icon cg-kpi__icon--info">@await Html.PartialAsync("_Icon", "clock")</span>
+        </div>
+        <div class="cg-kpi__value">@(todayInfo?.IsSchoolDay == true ? T(todayInfo.StartTime) : "—")</div>
+        <div class="cg-kpi__note">Regular @T(s.StartTime)</div>
+    </article>
+    <article class="cg-kpi">
+        <div class="cg-kpi__top">
+            <div class="cg-kpi__label">Late after</div>
+            <span class="cg-kpi__icon cg-kpi__icon--warning">@await Html.PartialAsync("_Icon", "alert-circle")</span>
+        </div>
+        <div class="cg-kpi__value">@(todayInfo?.IsSchoolDay == true ? T(todayInfo.LateArrivalAfter) : "—")</div>
+        <div class="cg-kpi__note">Missing check-in after @(todayInfo?.IsSchoolDay == true ? T(todayInfo.MissingCheckInAfter) : T(s.MissingCheckInAfter))</div>
+    </article>
+    <article class="cg-kpi">
+        <div class="cg-kpi__top">
+            <div class="cg-kpi__label">Dismissal</div>
+            <span class="cg-kpi__icon">@await Html.PartialAsync("_Icon", "home")</span>
+        </div>
+        <div class="cg-kpi__value">@(todayInfo?.IsSchoolDay == true ? T(todayInfo.DismissalTime) : "—")</div>
+        <div class="cg-kpi__note">Pickup alert after @s.PickupGraceMinutes min</div>
+    </article>
+</div>
+
 <div class="cg-grid cg-grid--sidebar">
+    @* ---------- Month calendar ---------- *@
     <section class="cg-card">
         <div class="cg-card__head">
             <div>
                 <h2 class="cg-card__title">@Model.Month.ToString("MMMM yyyy")</h2>
-                <div class="cg-card__sub">@cal.SchoolDays school days this month · times in @s.TimeZone</div>
+                <div class="cg-card__sub">@cal.SchoolDays school days · times in @s.TimeZone</div>
             </div>
-            <div class="cg-page-head__actions">
-                <a class="cg-btn cg-btn--secondary" href="/SchoolTime?year=@prev.Year&month=@prev.Month" aria-label="Previous month">@await Html.PartialAsync("_Icon", "chevron-left")</a>
-                <a class="cg-btn cg-btn--secondary" href="/SchoolTime">Today</a>
-                <a class="cg-btn cg-btn--secondary" href="/SchoolTime?year=@next.Year&month=@next.Month" aria-label="Next month">@await Html.PartialAsync("_Icon", "chevron-right")</a>
+            <div class="cg-st-monthnav">
+                <a class="cg-btn cg-btn--secondary cg-btn--sm cg-btn--icon" href="/SchoolTime?year=@prev.Year&month=@prev.Month" aria-label="Previous month" title="Previous month">@await Html.PartialAsync("_Icon", "chevron-left")</a>
+                <a class="cg-btn cg-btn--secondary cg-btn--sm" href="/SchoolTime">Today</a>
+                <a class="cg-btn cg-btn--secondary cg-btn--sm cg-btn--icon" href="/SchoolTime?year=@next.Year&month=@next.Month" aria-label="Next month" title="Next month">@await Html.PartialAsync("_Icon", "chevron-right")</a>
             </div>
         </div>
-
-        <div class="cg-cal" role="grid" aria-label="School calendar for @Model.Month.ToString("MMMM yyyy")">
-            @foreach (var d in weekOrder)
-            {
-                <div class="cg-cal__head" role="columnheader">@d.ToString()[..3]</div>
-            }
-            @for (var i = 0; i < ((int)Model.Month.DayOfWeek + 6) % 7; i++)
-            {
-                <div class="cg-cal__pad" aria-hidden="true"></div>
-            }
-            @foreach (var day in cal.Days)
-            {
-                var isToday = day.Date == Model.Today;
-                <button type="button" role="gridcell"
-                        class="cg-cal__day @KindClass(day.Kind) @(isToday ? "is-today" : "")"
-                        data-cg-modal-open="dayModal"
-                        data-st-id="@(day.CalendarDayId?.ToString() ?? "")"
-                        data-st-date="@day.Date.ToString("yyyy-MM-dd")"
-                        data-st-type="@(day.Kind switch { SchoolDayKind.HalfDay => "HalfDay", SchoolDayKind.SpecialTiming => "SpecialTiming", SchoolDayKind.WorkingDay or SchoolDayKind.NonWorkingDay => "WorkingDay", _ => "Holiday" })"
-                        data-st-title="@(day.Title ?? "")"
-                        data-st-start="@(day.CalendarDayId is null ? "" : T(day.StartTime))"
-                        data-st-late="@(day.CalendarDayId is null ? "" : T(day.LateArrivalAfter))"
-                        data-st-dismissal="@(day.CalendarDayId is null ? "" : T(day.DismissalTime))"
-                        aria-label="@day.Date.ToString("dddd d MMMM"): @SchoolTimeController.Describe(day.Kind)@(day.Title is null ? "" : $", {day.Title}")">
-                    <span class="cg-cal__num">@day.Date.Day</span>
-                    @if (day.IsSchoolDay)
-                    {
-                        <span class="cg-cal__times">@T(day.StartTime)–@T(day.DismissalTime)</span>
-                    }
-                    @if (day.Kind != SchoolDayKind.Regular)
-                    {
-                        <span class="cg-cal__tag">@(day.Title ?? SchoolTimeController.Describe(day.Kind))</span>
-                    }
-                </button>
-            }
-        </div>
-        <div class="cg-cal__legend">
-            <span><i class="cg-cal__swatch"></i>School day</span>
-            <span><i class="cg-cal__swatch cg-cal__day--closed"></i>Closed</span>
-            <span><i class="cg-cal__swatch cg-cal__day--holiday"></i>Holiday</span>
-            <span><i class="cg-cal__swatch cg-cal__day--half"></i>Half day</span>
-            <span><i class="cg-cal__swatch cg-cal__day--special"></i>Special timing</span>
-            <span><i class="cg-cal__swatch cg-cal__day--extra"></i>Extra working day</span>
-        </div>
-        <p class="cg-hint">Click a date to add or edit its entry.</p>
-    </section>
-
-    <div>
-        <section class="cg-card">
-            <div class="cg-card__head">
-                <div>
-                    <h2 class="cg-card__title">Today</h2>
-                    <div class="cg-card__sub">@Model.Today.ToString("dddd d MMMM yyyy")</div>
-                </div>
-                @if (todayInfo is not null)
+        <div class="cg-card__body">
+            <div class="cg-cal" role="grid" aria-label="School calendar for @Model.Month.ToString("MMMM yyyy")">
+                @foreach (var d in weekOrder)
                 {
-                    <span class="cg-badge @(todayInfo.IsSchoolDay ? "cg-badge--success" : "cg-badge--neutral")">
-                        <span class="cg-badge__dot"></span>@(todayInfo.Title ?? SchoolTimeController.Describe(todayInfo.Kind))
-                    </span>
+                    <div class="cg-cal__head" role="columnheader">@d.ToString()[..3]</div>
+                }
+                @for (var i = 0; i < ((int)Model.Month.DayOfWeek + 6) % 7; i++)
+                {
+                    <div class="cg-cal__pad" aria-hidden="true"></div>
+                }
+                @foreach (var day in cal.Days)
+                {
+                    var isToday = day.Date == Model.Today;
+                    var isPast = day.Date < Model.Today;
+                    // Times are shown only where they differ from the regular day, so exceptions stand out.
+                    var changedTimes = day.IsSchoolDay && (day.StartTime != s.StartTime || day.DismissalTime != s.DismissalTime);
+                    <button type="button" role="gridcell"
+                            class="cg-cal__day @KindClass(day.Kind) @(isToday ? "is-today" : "") @(isPast ? "is-past" : "")"
+                            data-cg-modal-open="dayModal"
+                            data-st-id="@(day.CalendarDayId?.ToString() ?? "")"
+                            data-st-date="@day.Date.ToString("yyyy-MM-dd")"
+                            data-st-type="@EntryType(day.Kind)"
+                            data-st-title="@(day.Title ?? "")"
+                            data-st-start="@(day.CalendarDayId is null ? "" : T(day.StartTime))"
+                            data-st-late="@(day.CalendarDayId is null ? "" : T(day.LateArrivalAfter))"
+                            data-st-dismissal="@(day.CalendarDayId is null ? "" : T(day.DismissalTime))"
+                            title="@SchoolTimeController.Describe(day.Kind)@(day.Title is null ? "" : $": {day.Title}")@(day.IsSchoolDay ? $" ({T(day.StartTime)}–{T(day.DismissalTime)})" : "")"
+                            aria-label="@day.Date.ToString("dddd d MMMM"): @SchoolTimeController.Describe(day.Kind)@(day.Title is null ? "" : $", {day.Title}")">
+                        <span class="cg-cal__num">@day.Date.Day</span>
+                        @if (day.Kind != SchoolDayKind.Regular && day.Kind != SchoolDayKind.NonWorkingDay)
+                        {
+                            <span class="cg-cal__tag">@(day.Title ?? SchoolTimeController.Describe(day.Kind))</span>
+                        }
+                        @if (changedTimes)
+                        {
+                            <span class="cg-cal__times">@T(day.StartTime)–@T(day.DismissalTime)</span>
+                        }
+                    </button>
                 }
             </div>
-            @if (todayInfo is { IsSchoolDay: true })
-            {
-                <dl class="cg-st-times">
-                    <div><dt>Start</dt><dd>@T(todayInfo.StartTime)</dd></div>
-                    <div><dt>Late after</dt><dd>@T(todayInfo.LateArrivalAfter)</dd></div>
-                    <div><dt>Missing check-in after</dt><dd>@T(todayInfo.MissingCheckInAfter)</dd></div>
-                    <div><dt>Dismissal</dt><dd>@T(todayInfo.DismissalTime)</dd></div>
-                </dl>
-            }
-            else
-            {
-                <p class="cg-text-sm">The school is closed today. No absences or missing check-in alerts are raised.</p>
-            }
-        </section>
-
-        <section class="cg-card">
-            <div class="cg-card__head">
-                <div>
-                    <h2 class="cg-card__title">Regular week</h2>
-                    <div class="cg-card__sub">@(s.IsCustomized ? $"Last saved {s.UpdatedAt?.ToSchoolTime():d MMM yyyy, HH:mm}" : "Using the configured defaults")</div>
-                </div>
+            <div class="cg-cal__legend" aria-hidden="true">
+                <span><i class="cg-cal__swatch"></i>School day</span>
+                <span><i class="cg-cal__swatch cg-cal__swatch--closed"></i>Closed</span>
+                <span><i class="cg-cal__swatch cg-cal__swatch--holiday"></i>Holiday</span>
+                <span><i class="cg-cal__swatch cg-cal__swatch--half"></i>Half day</span>
+                <span><i class="cg-cal__swatch cg-cal__swatch--special"></i>Special timing</span>
+                <span><i class="cg-cal__swatch cg-cal__swatch--extra"></i>Extra working day</span>
             </div>
-            <form asp-action="SaveSettings" method="post" class="cg-form" data-cg-busy>
-                @Html.AntiForgeryToken()
-                <fieldset class="cg-field">
-                    <legend class="cg-label">School days <span class="cg-label__req">*</span></legend>
-                    <div class="cg-st-weekdays">
-                        @foreach (var d in weekOrder)
-                        {
-                            <label class="cg-check">
-                                <input type="checkbox" name="workingDays" value="@d" @(s.WorkingDays.Contains(d) ? "checked" : "") />
-                                <span class="cg-check__text">@d.ToString()[..3]</span>
-                            </label>
-                        }
-                    </div>
-                </fieldset>
-                <div class="cg-form-row">
-                    <div class="cg-field">
-                        <label class="cg-label" for="startTime">Start</label>
-                        <input class="cg-input" type="time" id="startTime" name="startTime" value="@T(s.StartTime)" required />
-                    </div>
-                    <div class="cg-field">
-                        <label class="cg-label" for="lateArrivalAfter">Late after</label>
-                        <input class="cg-input" type="time" id="lateArrivalAfter" name="lateArrivalAfter" value="@T(s.LateArrivalAfter)" required />
-                    </div>
-                </div>
-                <div class="cg-form-row">
-                    <div class="cg-field">
-                        <label class="cg-label" for="missingCheckInAfter">Missing check-in after</label>
-                        <input class="cg-input" type="time" id="missingCheckInAfter" name="missingCheckInAfter" value="@T(s.MissingCheckInAfter)" required />
-                    </div>
-                    <div class="cg-field">
-                        <label class="cg-label" for="dismissalTime">Dismissal</label>
-                        <input class="cg-input" type="time" id="dismissalTime" name="dismissalTime" value="@T(s.DismissalTime)" required />
-                    </div>
-                </div>
-                <div class="cg-form-row">
-                    <div class="cg-field">
-                        <label class="cg-label" for="pickupGraceMinutes">Pickup grace (minutes)</label>
-                        <input class="cg-input" type="number" min="0" max="240" id="pickupGraceMinutes" name="pickupGraceMinutes" value="@s.PickupGraceMinutes" required />
-                        <p class="cg-hint">After dismissal, before a "not picked up" alert.</p>
-                    </div>
-                    <div class="cg-field">
-                        <label class="cg-label" for="attendanceWindowDays">Attendance window (days)</label>
-                        <input class="cg-input" type="number" min="1" max="366" id="attendanceWindowDays" name="attendanceWindowDays" value="@s.AttendanceWindowDays" required />
-                        <p class="cg-hint">Period behind a student's attendance rate.</p>
-                    </div>
-                </div>
-                <button type="submit" class="cg-btn cg-btn--primary"><span class="cg-btn__label">Save timings</span></button>
-            </form>
-        </section>
-    </div>
-</div>
-
-<section class="cg-card">
-    <div class="cg-card__head">
-        <div>
-            <h2 class="cg-card__title">Upcoming calendar entries</h2>
-            <div class="cg-card__sub">Next 180 days</div>
+            <p class="cg-hint cg-st-hint">Select a date to add a holiday or change its timings.</p>
         </div>
-    </div>
-    @if (Model.Upcoming.Count == 0)
-    {
-        @await Html.PartialAsync("_EmptyState", ("calendar", "No holidays or special days planned",
-            "Add holidays, half days and special timings so attendance and alerts follow them.", (string?)null, (string?)null))
-    }
-    else
-    {
-        <div class="cg-table-wrap">
-            <table class="cg-table">
-                <thead><tr><th>Date</th><th>Type</th><th>Title</th><th>Timings</th><th class="cg-table__actions">Actions</th></tr></thead>
-                <tbody>
+    </section>
+
+    @* ---------- Upcoming entries ---------- *@
+    <section class="cg-card">
+        <div class="cg-card__head">
+            <div>
+                <h2 class="cg-card__title">Coming up</h2>
+                <div class="cg-card__sub">Holidays and special days, next 180 days</div>
+            </div>
+        </div>
+        @if (Model.Upcoming.Count == 0)
+        {
+            <div class="cg-card__body">
+                @await Html.PartialAsync("_EmptyState", ("calendar", "Nothing planned",
+                    "Add holidays, half days and special timings so attendance and alerts follow them.", (string?)null, (string?)null))
+            </div>
+        }
+        else
+        {
+            <ul class="cg-st-list">
                 @foreach (var u in Model.Upcoming)
                 {
-                    <tr>
-                        <td>@u.Date.ToString("ddd d MMM yyyy")</td>
-                        <td>@SchoolTimeController.Describe(u.DayType)</td>
-                        <td>@u.Title</td>
-                        <td>
-                            @if (u.DayType == SchoolDayType.Holiday) { <span class="cg-muted">Closed</span> }
-                            else
-                            {
-                                var parts = new List<string>();
-                                if (u.StartTime is not null) parts.Add($"start {T(u.StartTime)}");
-                                if (u.LateArrivalAfter is not null) parts.Add($"late after {T(u.LateArrivalAfter)}");
-                                if (u.DismissalTime is not null) parts.Add($"dismissal {T(u.DismissalTime)}");
-                                @(parts.Count == 0 ? "Regular timings" : string.Join(" · ", parts))
-                            }
-                        </td>
-                        <td class="cg-table__actions">
-                            <button type="button" class="cg-btn cg-btn--secondary cg-btn--sm" data-cg-modal-open="dayModal"
+                    <li class="cg-st-item">
+                        <div class="cg-st-date cg-st-date--@u.DayType.ToString().ToLowerInvariant()" aria-hidden="true">
+                            <span class="cg-st-date__mon">@u.Date.ToString("MMM")</span>
+                            <span class="cg-st-date__day">@u.Date.Day</span>
+                        </div>
+                        <div class="cg-st-item__body">
+                            <div class="cg-st-item__title">@u.Title</div>
+                            <div class="cg-st-item__meta">
+                                <span class="cg-badge @TypeBadge(u.DayType)">@SchoolTimeController.Describe(u.DayType)</span>
+                                <span>@u.Date.ToString("ddd d MMM")</span>
+                            </div>
+                            <div class="cg-st-item__time">@Timings(u)</div>
+                        </div>
+                        <div class="cg-st-item__actions">
+                            <button type="button" class="cg-iconbtn" data-cg-modal-open="dayModal" aria-label="Edit @u.Title" title="Edit"
                                     data-st-id="@u.Id" data-st-date="@u.Date.ToString("yyyy-MM-dd")" data-st-type="@u.DayType"
                                     data-st-title="@u.Title" data-st-start="@T(u.StartTime)" data-st-late="@T(u.LateArrivalAfter)" data-st-dismissal="@T(u.DismissalTime)">
-                                @await Html.PartialAsync("_Icon", "edit") Edit
+                                @await Html.PartialAsync("_Icon", "edit")
                             </button>
-                            <form asp-action="RemoveDay" method="post" style="display:inline" data-cg-busy
+                            <form asp-action="RemoveDay" method="post" data-cg-busy
                                   onsubmit="return confirm('Remove @u.Title on @u.Date.ToString("d MMM yyyy")? The date goes back to its regular timings.');">
                                 @Html.AntiForgeryToken()
                                 <input type="hidden" name="id" value="@u.Id" />
                                 <input type="hidden" name="year" value="@Model.Month.Year" />
                                 <input type="hidden" name="month" value="@Model.Month.Month" />
-                                <button type="submit" class="cg-btn cg-btn--secondary cg-btn--sm">@await Html.PartialAsync("_Icon", "trash") Remove</button>
+                                <button type="submit" class="cg-iconbtn" aria-label="Remove @u.Title" title="Remove">@await Html.PartialAsync("_Icon", "trash")</button>
                             </form>
-                        </td>
-                    </tr>
+                        </div>
+                    </li>
                 }
-                </tbody>
-            </table>
+            </ul>
+        }
+    </section>
+</div>
+
+@* ---------- Regular week ---------- *@
+<section class="cg-card">
+    <div class="cg-card__head">
+        <div>
+            <h2 class="cg-card__title">Regular week</h2>
+            <div class="cg-card__sub">@(s.IsCustomized ? $"Last saved {s.UpdatedAt?.ToSchoolTime():d MMM yyyy, HH:mm}" : "Using the configured defaults. Save to make them your own.")</div>
         </div>
-    }
+    </div>
+    <form asp-action="SaveSettings" method="post" data-cg-busy>
+        @Html.AntiForgeryToken()
+        <div class="cg-card__body">
+            <fieldset class="cg-st-fieldset">
+                <legend class="cg-label">School days <span class="cg-label__req">*</span></legend>
+                <div class="cg-st-weekdays">
+                    @foreach (var d in weekOrder)
+                    {
+                        <label class="cg-st-daypill">
+                            <input type="checkbox" name="workingDays" value="@d" @(s.WorkingDays.Contains(d) ? "checked" : "") />
+                            <span>@d.ToString()[..3]</span>
+                        </label>
+                    }
+                </div>
+            </fieldset>
+
+            <div class="cg-st-fields">
+                <div class="cg-field">
+                    <label class="cg-label" for="startTime">School starts</label>
+                    <input class="cg-input" type="time" id="startTime" name="startTime" value="@T(s.StartTime)" required />
+                </div>
+                <div class="cg-field">
+                    <label class="cg-label" for="lateArrivalAfter">Late after</label>
+                    <input class="cg-input" type="time" id="lateArrivalAfter" name="lateArrivalAfter" value="@T(s.LateArrivalAfter)" required />
+                    <p class="cg-hint">Arrivals after this are marked late.</p>
+                </div>
+                <div class="cg-field">
+                    <label class="cg-label" for="missingCheckInAfter">Missing check-in after</label>
+                    <input class="cg-input" type="time" id="missingCheckInAfter" name="missingCheckInAfter" value="@T(s.MissingCheckInAfter)" required />
+                    <p class="cg-hint">Students not scanned in by then raise an alert.</p>
+                </div>
+                <div class="cg-field">
+                    <label class="cg-label" for="dismissalTime">Dismissal</label>
+                    <input class="cg-input" type="time" id="dismissalTime" name="dismissalTime" value="@T(s.DismissalTime)" required />
+                </div>
+                <div class="cg-field">
+                    <label class="cg-label" for="pickupGraceMinutes">Pickup grace</label>
+                    <div class="cg-st-suffix">
+                        <input class="cg-input" type="number" min="0" max="240" id="pickupGraceMinutes" name="pickupGraceMinutes" value="@s.PickupGraceMinutes" required />
+                        <span>min</span>
+                    </div>
+                    <p class="cg-hint">After dismissal, before a "not picked up" alert.</p>
+                </div>
+                <div class="cg-field">
+                    <label class="cg-label" for="attendanceWindowDays">Attendance window</label>
+                    <div class="cg-st-suffix">
+                        <input class="cg-input" type="number" min="1" max="366" id="attendanceWindowDays" name="attendanceWindowDays" value="@s.AttendanceWindowDays" required />
+                        <span>days</span>
+                    </div>
+                    <p class="cg-hint">Period behind a student's attendance rate.</p>
+                </div>
+            </div>
+        </div>
+        <div class="cg-card__foot cg-st-foot">
+            <span class="cg-text-sm cg-muted">Applies to every regular school day. Holidays and special days override it.</span>
+            <button type="submit" class="cg-btn cg-btn--primary"><span class="cg-btn__label">Save timings</span></button>
+        </div>
+    </form>
 </section>
 
+@* ---------- Add / edit a calendar day ---------- *@
 <div class="cg-modal" id="dayModal" hidden role="dialog" aria-modal="true" aria-labelledby="dayModalTitle">
     <div class="cg-modal__panel">
         <div class="cg-modal__head">
             <div>
                 <h2 class="cg-modal__title" id="dayModalTitle" data-st-modal-title>Add calendar day</h2>
-                <div class="cg-modal__sub">Leave a time empty to keep the regular one.</div>
+                <div class="cg-modal__sub" data-st-modal-sub>Mark a holiday, or change one date's timings.</div>
             </div>
             <button type="button" class="cg-iconbtn" data-cg-modal-close aria-label="Close">@await Html.PartialAsync("_Icon", "x")</button>
         </div>
@@ -276,26 +328,29 @@
                 </div>
                 <div class="cg-field">
                     <label class="cg-label" for="stTitle">Title <span class="cg-label__req">*</span></label>
-                    <input class="cg-input" id="stTitle" name="title" required maxlength="100" placeholder="Diwali" data-st-field="title" />
+                    <input class="cg-input" id="stTitle" name="title" required maxlength="100" placeholder="e.g. Diwali, Sports day" data-st-field="title" />
                 </div>
-                <div class="cg-form-row" data-st-times>
-                    <div class="cg-field">
-                        <label class="cg-label" for="stStart">Start</label>
-                        <input class="cg-input" type="time" id="stStart" name="startTime" data-st-field="start" />
+                <div data-st-times>
+                    <div class="cg-st-fields cg-st-fields--3">
+                        <div class="cg-field">
+                            <label class="cg-label" for="stStart">Starts</label>
+                            <input class="cg-input" type="time" id="stStart" name="startTime" data-st-field="start" />
+                        </div>
+                        <div class="cg-field">
+                            <label class="cg-label" for="stLate">Late after</label>
+                            <input class="cg-input" type="time" id="stLate" name="lateArrivalAfter" data-st-field="late" />
+                        </div>
+                        <div class="cg-field">
+                            <label class="cg-label" for="stDismissal">Dismissal <span class="cg-label__req" data-st-dismissal-req hidden>*</span></label>
+                            <input class="cg-input" type="time" id="stDismissal" name="dismissalTime" data-st-field="dismissal" />
+                        </div>
                     </div>
-                    <div class="cg-field">
-                        <label class="cg-label" for="stLate">Late after</label>
-                        <input class="cg-input" type="time" id="stLate" name="lateArrivalAfter" data-st-field="late" />
-                    </div>
-                    <div class="cg-field">
-                        <label class="cg-label" for="stDismissal">Dismissal <span class="cg-label__req" data-st-dismissal-req hidden>*</span></label>
-                        <input class="cg-input" type="time" id="stDismissal" name="dismissalTime" data-st-field="dismissal" />
-                    </div>
+                    <p class="cg-hint" data-st-times-hint>Leave a time empty to keep the regular one (@T(s.StartTime) · late after @T(s.LateArrivalAfter) · ends @T(s.DismissalTime)).</p>
                 </div>
             </div>
             <div class="cg-modal__foot">
                 <button type="button" class="cg-btn cg-btn--secondary" data-cg-modal-close>Cancel</button>
-                <button type="submit" class="cg-btn cg-btn--primary"><span class="cg-btn__label">Save</span></button>
+                <button type="submit" class="cg-btn cg-btn--primary"><span class="cg-btn__label" data-st-submit>Save</span></button>
             </div>
         </form>
     </div>
