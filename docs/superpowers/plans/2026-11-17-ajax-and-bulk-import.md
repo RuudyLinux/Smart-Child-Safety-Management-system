@@ -33,14 +33,15 @@
 
 ---
 
-## Phase 0 — Integrate auto-checkpoint (PR #5) — in progress
+## Phase 0 — Integrate auto-checkpoint (PR #5) — done, merged as `34807f2`
 
 - [x] Review `feat/auto-checkpoint` (resolver uses `SchoolClock` + `ISchoolScheduleProvider`; endpoint read-only, `AdminOnly`, scan rate limit; DI resolves the real provider).
 - [x] No conflicts with `feature/production-free`; merged build OK; unit 435/435.
 - [x] Added E2E `automatic checkpoint` tests to the PR branch.
 - [x] Integration suite (MySQL) green on the merged result: 368/368. Postgres runs in CI on the PR.
-- [ ] Full Playwright suite green on the merged result.
-- [ ] Merge PR #5 with a merge commit (history kept).
+- [x] Full Playwright suite green on the merged result: 214/214 (first run found 2 failures: an unknown-card label regression in automatic mode, fixed; a flaky dashboard count test, deflaked).
+- [x] CI on PR #5 green: build + unit, integration MySQL + Postgres, migration drift both providers.
+- [x] Merged PR #5 with a merge commit (history kept).
 
 ---
 
