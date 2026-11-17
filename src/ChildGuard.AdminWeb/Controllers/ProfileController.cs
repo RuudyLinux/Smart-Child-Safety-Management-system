@@ -19,7 +19,6 @@ public class ProfileController : BaseAdminController
     public async Task<IActionResult> ChangePassword(string currentPassword, string newPassword, CancellationToken ct)
     {
         var result = await Api.PostAsync<object?>("/api/auth/change-password", new ChangePasswordRequest(currentPassword, newPassword), ct);
-        TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded ? "Password updated." : result.Error;
-        return RedirectToAction(nameof(Index));
+        return FromApi(result, "Password updated.", "/Profile", "password-card");
     }
 }

@@ -44,6 +44,7 @@
     }
 }
 
+<div data-cg-region="school-time-page">
 <div class="cg-page-head">
     <div class="cg-page-head__text">
         <h1 class="cg-page-head__title">School time</h1>
@@ -213,7 +214,7 @@
                                     data-st-title="@u.Title" data-st-start="@T(u.StartTime)" data-st-late="@T(u.LateArrivalAfter)" data-st-dismissal="@T(u.DismissalTime)">
                                 @await Html.PartialAsync("_Icon", "edit")
                             </button>
-                            <form asp-action="RemoveDay" method="post" data-cg-busy
+                            <form data-cg-ajax asp-action="RemoveDay" method="post" data-cg-busy
                                   onsubmit="return confirm('Remove @u.Title on @u.Date.ToString("d MMM yyyy")? The date goes back to its regular timings.');">
                                 @Html.AntiForgeryToken()
                                 <input type="hidden" name="id" value="@u.Id" />
@@ -237,7 +238,7 @@
             <div class="cg-card__sub">@(s.IsCustomized ? $"Last saved {s.UpdatedAt?.ToSchoolTime():d MMM yyyy, HH:mm}" : "Using the configured defaults. Save to make them your own.")</div>
         </div>
     </div>
-    <form asp-action="SaveSettings" method="post" data-cg-busy>
+    <form data-cg-ajax asp-action="SaveSettings" method="post" data-cg-busy>
         @Html.AntiForgeryToken()
         <div class="cg-card__body">
             <fieldset class="cg-st-fieldset">
@@ -307,9 +308,11 @@
             </div>
             <button type="button" class="cg-iconbtn" data-cg-modal-close aria-label="Close">@await Html.PartialAsync("_Icon", "x")</button>
         </div>
-        <form asp-action="SaveDay" method="post" data-cg-busy data-st-form>
+        <form data-cg-ajax asp-action="SaveDay" method="post" data-cg-busy data-st-form>
             @Html.AntiForgeryToken()
             <input type="hidden" name="id" data-st-field="id" />
+            <input type="hidden" name="viewYear" value="@Model.Month.Year" />
+            <input type="hidden" name="viewMonth" value="@Model.Month.Month" />
             <div class="cg-modal__body">
                 <div class="cg-form-row">
                     <div class="cg-field">
@@ -354,6 +357,7 @@
             </div>
         </form>
     </div>
+</div>
 </div>
 
 @section Scripts {

@@ -17,6 +17,11 @@ public class SchoolTimeController : BaseAdminController
 
     public SchoolTimeController(ApiClient api) : base(api) { }
 
+    private static readonly string[] Page = { "school-time-page" };
+
+    private static string MonthUrl(int? year, int? month) =>
+        year is not null && month is not null ? $"/SchoolTime?year={year}&month={month}" : "/SchoolTime";
+
     [HttpGet]
     public async Task<IActionResult> Index(int? year, int? month, CancellationToken ct)
     {
@@ -50,23 +55,24 @@ public class SchoolTimeController : BaseAdminController
         var request = new UpdateSchoolTimingSettingsRequest(workingDays ?? new List<DayOfWeek>(), startTime, lateArrivalAfter,
             missingCheckInAfter, dismissalTime, pickupGraceMinutes, attendanceWindowDays);
         var result = await Api.PutAsync<SchoolTimingSettingsDto>("/api/school-calendar/settings", request, ct);
-        TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded ? "School timings saved." : result.Error;
-        return RedirectToAction(nameof(Index));
+        return FromApi(result, "School timings saved.", "/SchoolTime", Page);
     }
 
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> SaveDay(int? id, DateOnly date, SchoolDayType dayType, string? title,
-        TimeOnly? startTime, TimeOnly? lateArrivalAfter, TimeOnly? dismissalTime, CancellationToken ct)
+        TimeOnly? startTime, TimeOnly? lateArrivalAfter, TimeOnly? dismissalTime, int? viewYear, int? viewMonth, CancellationToken ct)
     {
         var request = new SchoolCalendarDayRequest(date, dayType, title ?? string.Empty, startTime, lateArrivalAfter, dismissalTime);
         var result = id is > 0
             ? await Api.PutAsync<SchoolCalendarDayDto>($"/api/school-calendar/days/{id}", request, ct)
             : await Api.PostAsync<SchoolCalendarDayDto>("/api/school-calendar/days", request, ct);
-        TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded
-            ? $"{Describe(dayType)} on {date:d MMM yyyy} saved."
-            : result.Error;
-        return RedirectToAction(nameof(Index), new { year = date.Year, month = date.Month });
+        // The saved date's month, as before. If that is the month on screen the page refreshes in place;
+        // otherwise the browser goes to that month so the new entry is visible.
+        var monthUrl = MonthUrl(date.Year, date.Month);
+        if (!result.Succeeded) return FromApi(result, "", viewYear is not null && viewMonth is not null ? MonthUrl(viewYear, viewMonth) : monthUrl);
+        var message = $"{Describe(dayType)} on {date:d MMM yyyy} saved.";
+        return viewYear == date.Year && viewMonth == date.Month ? Done(message, monthUrl, Page) : Done(message, monthUrl);
     }
 
     [HttpPost]
@@ -74,8 +80,7 @@ public class SchoolTimeController : BaseAdminController
     public async Task<IActionResult> RemoveDay(int id, int? year, int? month, CancellationToken ct)
     {
         var result = await Api.PostAsync($"/api/school-calendar/days/{id}/deactivate", new { }, ct);
-        TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded ? "Calendar entry removed." : result.Error;
-        return RedirectToAction(nameof(Index), new { year, month });
+        return FromApi(result, "Calendar entry removed.", MonthUrl(year, month), Page);
     }
 
     public static string Describe(SchoolDayType type) => type switch

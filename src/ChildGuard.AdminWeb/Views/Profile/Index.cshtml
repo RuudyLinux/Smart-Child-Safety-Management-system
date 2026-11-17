@@ -40,7 +40,7 @@
 </section>
 
 <div class="cg-grid cg-grid--split">
-    <section class="cg-card">
+    <section class="cg-card" data-cg-region="password-card">
         <div class="cg-card__head">
             <div>
                 <h2 class="cg-card__title">Change password</h2>
@@ -48,7 +48,7 @@
             </div>
         </div>
         <div class="cg-card__body">
-            <form asp-action="ChangePassword" method="post" class="cg-form" data-cg-busy>
+            <form data-cg-ajax data-cg-reset-on-success asp-action="ChangePassword" method="post" class="cg-form" data-cg-busy>
                 @Html.AntiForgeryToken()
 
                 <div class="cg-field">

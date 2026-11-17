@@ -54,6 +54,8 @@ test.describe('RFID cards', () => {
 });
 
 test.describe('Settings (scanner keys)', () => {
+  // The duplicate-label refusal is an HTTP 400 answer to the form's request, which the browser logs.
+  test.use({ allowErrors: [/status of 400/] });
   test('issue a scanner key: shown once, then usable by the scanner, then revoked', async ({ page, data, request }) => {
     const device = await data.device();
     await page.goto('/Settings');
@@ -115,6 +117,8 @@ test.describe('Settings (scanner keys)', () => {
     await page.locator('#addDeviceModal input[name="deviceLabel"]').fill(label.toLowerCase());
     await page.locator('#addDeviceModal').getByRole('button', { name: 'Add scanner' }).click();
     await expect(page.locator('.cg-toast', { hasText: 'already exists' })).toBeVisible();
+    // The refusal keeps the form open so the label can be corrected; close it before moving on.
+    await page.locator('#addDeviceModal').getByRole('button', { name: 'Cancel' }).click();
 
     const renamed = label.replace('GATE', 'NORTH');
     await page.getByRole('button', { name: `Rename ${label}` }).click();

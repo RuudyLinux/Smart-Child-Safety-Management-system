@@ -66,6 +66,10 @@ public class SettingsController : BaseAdminController
         return Json(new { message = result.Value.Message });
     }
 
+    // The scanner cards and their modals (data-cg-region in Settings/Index.cshtml). The database card is not part of
+    // them: its import and reset replace all data and are handled by database.js.
+    private static readonly string[] ScannerRegions = { "scanners", "scanner-modals" };
+
     public async Task<IActionResult> Index(CancellationToken ct)
     {
         await LoadAsync(ct);
@@ -98,8 +102,7 @@ public class SettingsController : BaseAdminController
     public async Task<IActionResult> RevokeKey(int id, CancellationToken ct)
     {
         var result = await Api.DeleteAsync<object?>($"/api/rfid/devices/{id}/credentials", ct);
-        TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded ? "Scanner key revoked." : result.Error;
-        return RedirectToAction(nameof(Index));
+        return FromApi(result, "Scanner key revoked.", "/Settings", ScannerRegions);
     }
 
     [HttpPost]
@@ -107,10 +110,8 @@ public class SettingsController : BaseAdminController
     public async Task<IActionResult> AddDevice(string deviceLabel, CancellationToken ct)
     {
         var result = await Api.PostAsync<RfidDeviceDto>("/api/rfid/devices", new CreateRfidDeviceRequest(deviceLabel), ct);
-        TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded
-            ? $"Scanner {deviceLabel.Trim()} added. Issue it a key if it connects on its own; the pickup desk can use it right away."
-            : result.Error;
-        return RedirectToAction(nameof(Index));
+        return FromApi(result, $"Scanner {deviceLabel.Trim()} added. Issue it a key if it connects on its own; the pickup desk can use it right away.",
+            "/Settings", ScannerRegions);
     }
 
     [HttpPost]
@@ -118,8 +119,7 @@ public class SettingsController : BaseAdminController
     public async Task<IActionResult> RenameDevice(int id, string deviceLabel, CancellationToken ct)
     {
         var result = await Api.PutAsync<object?>($"/api/rfid/devices/{id}", new UpdateRfidDeviceRequest(deviceLabel), ct);
-        TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded ? $"Scanner renamed to {deviceLabel.Trim()}." : result.Error;
-        return RedirectToAction(nameof(Index));
+        return FromApi(result, $"Scanner renamed to {deviceLabel.Trim()}.", "/Settings", ScannerRegions);
     }
 
     private async Task LoadAsync(CancellationToken ct)
