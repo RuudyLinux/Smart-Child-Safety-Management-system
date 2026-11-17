@@ -67,6 +67,21 @@ public class ListQueryTests
     [InlineData("99999999999999", 1)]   // beyond int: not a page number at all
     public void Page_IsClamped(string raw, int expected) => Assert.Equal(expected, Q(("page", raw)).CurrentPage);
 
+    [Theory]
+    [InlineData("12", "studentId=12&", true)]
+    [InlineData("abc", "", false)]
+    [InlineData("-3", "", false)]
+    [InlineData("1; DROP", "", false)]
+    public void TextFilterWithAValidator_IgnoresValuesItRefuses(string raw, string expectedPart, bool keeps)
+    {
+        var def = new ListDefinition("/V", "/api/v", new HashSet<string> { "when" },
+            new[] { ListFilter.Text("studentId", "studentId", v => int.TryParse(v, System.Globalization.NumberStyles.None, null, out _)) });
+        var q = new ListQuery(def, new QueryCollection(new Dictionary<string, StringValues> { ["studentId"] = raw }));
+        Assert.Equal(keeps, q.HasFilters);
+        Assert.Equal($"{expectedPart}page=1&pageSize=25", q.ToApiQuery());
+        Assert.Equal(keeps ? "12" : null, q.Value("studentId"));
+    }
+
     [Fact]
     public void UnknownSortOrDirection_IsDropped()
     {

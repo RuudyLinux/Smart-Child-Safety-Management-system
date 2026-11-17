@@ -21,6 +21,20 @@ public static class ListDefinitions
             ListFilter.Choice("assigned", "assigned", ("yes", "true"), ("no", "false")),
         });
 
+    public static readonly ListDefinition VerificationHistory = new(
+        BasePath: "/Verification/History",
+        ApiPath: "/api/reports/verification",
+        Sorts: new HashSet<string> { "when", "score", "student", "guardian" },
+        Filters: new[]
+        {
+            ListFilter.Text("studentId", "studentId", ListFilter.IsNumber),
+            ListFilter.Choice("result", "result", ("Match", "Match"), ("NoMatch", "NoMatch")),
+            ListFilter.Choice("handover", "approved", ("approved", "true"), ("not", "false")),
+            ListFilter.Text("from", "from", ListFilter.IsDate),
+            ListFilter.Text("to", "to", ListFilter.IsDate),
+        },
+        PageSize: 50);
+
     public static readonly ListDefinition Guardians = new(
         BasePath: "/Guardians",
         ApiPath: "/api/guardians",

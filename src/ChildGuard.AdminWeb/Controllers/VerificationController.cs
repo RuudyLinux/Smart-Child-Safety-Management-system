@@ -1,3 +1,4 @@
+using ChildGuard.AdminWeb.Models.ViewModels;
 using ChildGuard.AdminWeb.Services;
 using ChildGuard.Application.DTOs;
 using Microsoft.AspNetCore.Mvc;
@@ -19,9 +20,10 @@ public class VerificationController : BaseAdminController
     {
         SetPage("Pickup & Drop-off", "Safety Operations");
         var devices = await Api.GetAsync<List<RfidDeviceDto>>("/api/rfid/devices", ct);
-        var recent = await Api.GetAsync<List<GuardianVerificationHistoryDto>>("/api/reports/verification", ct);
+        // Only the newest few are shown, so only the newest few are asked for.
+        var recent = await Api.GetAsync<List<GuardianVerificationHistoryDto>>("/api/reports/verification?page=1&pageSize=8", ct);
         ViewBag.Devices = devices.Value ?? new();
-        ViewBag.RecentVerifications = (recent.Value ?? new()).Take(8).ToList();
+        ViewBag.RecentVerifications = recent.Value ?? new();
         return View();
     }
 
@@ -29,17 +31,34 @@ public class VerificationController : BaseAdminController
     /// The audit trail behind the desk: every verification attempt, its match score
     /// and the handover decision that followed.
     /// </summary>
-    public async Task<IActionResult> History(int? studentId, CancellationToken ct)
+    public async Task<IActionResult> History(CancellationToken ct)
     {
         SetPage("Verification Log", "Safety Operations");
-        var url = studentId.HasValue ? $"/api/reports/verification?studentId={studentId}" : "/api/reports/verification";
-        var history = await Api.GetAsync<List<GuardianVerificationHistoryDto>>(url, ct);
-        if (!history.Succeeded) ViewBag.LoadError = history.Error;
+        var query = new ListQuery(ListDefinitions.VerificationHistory, Request.Query);
+        var rowsTask = Api.GetPagedAsync<GuardianVerificationHistoryDto>("/api/reports/verification?" + query.ToApiQuery(), ct);
 
-        var students = await Api.GetAsync<List<StudentListItemDto>>("/api/students", ct);
-        ViewBag.Students = students.Value ?? new();
-        ViewData["StudentId"] = studentId;
-        return View(history.Value ?? new());
+        // A list change re-renders only the list region: the header figures and the student picker are not part of it.
+        var listOnly = ListRegionOnly;
+        var summaryTask = listOnly ? null : Api.GetAsync<VerificationHistorySummaryDto>("/api/reports/verification/summary" + SummaryQuery(query), ct);
+        var studentsTask = listOnly ? null : Api.GetAsync<List<StudentListItemDto>>("/api/students", ct);
+        await Task.WhenAll(new Task?[] { rowsTask, summaryTask, studentsTask }.Where(t => t is not null)!);
+
+        var rows = rowsTask.Result;
+        if (!rows.Succeeded) ViewBag.LoadError = rows.Error;
+        ViewBag.Summary = summaryTask?.Result.Value;
+        ViewBag.Students = studentsTask?.Result.Value ?? new();
+        ViewData["Query"] = query;
+        var page = rows.Value ?? new ChildGuard.Application.Common.Paged<GuardianVerificationHistoryDto>(Array.Empty<GuardianVerificationHistoryDto>(), 0);
+        return View(new ListPageViewModel<GuardianVerificationHistoryDto>(page.Items, page.Total, query.CurrentPage, query.PageSize));
+    }
+
+    /// <summary>The header figures cover the student and the dates, not the search or the result filters.</summary>
+    private static string SummaryQuery(ListQuery q)
+    {
+        var parts = new List<string>();
+        foreach (var name in new[] { "studentId", "from", "to" })
+            if (q.Value(name) is { } v) parts.Add($"{name}={Uri.EscapeDataString(v)}");
+        return parts.Count == 0 ? "" : "?" + string.Join("&", parts);
     }
 
     [HttpPost]

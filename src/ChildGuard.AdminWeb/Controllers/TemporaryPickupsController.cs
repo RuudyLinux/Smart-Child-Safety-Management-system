@@ -59,10 +59,8 @@ public class TemporaryPickupsController : BaseAdminController
     private async Task<IActionResult> Decide(int id, string action, string? reason, CancellationToken ct)
     {
         var result = await Api.PostAsync<TemporaryPickupDto>($"/api/temporary-pickups/{id}/{action}", new { reason }, ct);
-        TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded
-            ? $"Temporary pickup {action}{(action.EndsWith('e') ? "d" : "ed")}."
-            : result.Error;
-        return RedirectToAction(nameof(Details), new { id });
+        // The page is one region (pickup-page): the state badge, the actions offered and the timeline change together.
+        return FromApi(result, $"Temporary pickup {action}{(action.EndsWith('e') ? "d" : "ed")}.", $"/TemporaryPickups/Details/{id}", "pickup-page");
     }
 
     // ---------------------------------------------------------------- desk

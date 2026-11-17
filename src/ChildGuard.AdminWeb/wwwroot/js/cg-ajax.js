@@ -441,7 +441,12 @@
     if (link.hasAttribute('data-cg-reset') && form.contains(link)) {
       // Clear resets the filters but keeps the search typed so far. The link's own href was rendered with
       // the page and may predate that search, so the URL is built from the form instead.
-      Array.prototype.forEach.call(form.querySelectorAll('select'), function (s) { s.selectedIndex = 0; });
+      // Every filter control: selects back to "any", dates and other inputs emptied. The search box and the
+      // hidden sort fields stay.
+      Array.prototype.forEach.call(form.elements, function (el) {
+        if (el.tagName === 'SELECT') el.selectedIndex = 0;
+        else if (el.tagName === 'INPUT' && el.type !== 'hidden' && el.type !== 'submit' && el.type !== 'button' && el.name !== 'search') el.value = '';
+      });
       loadList(form, filterUrl(form), 'push');
       return;
     }

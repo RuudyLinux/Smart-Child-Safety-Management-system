@@ -6,6 +6,7 @@
     var canRevoke = p.State is TemporaryPickupState.Scheduled or TemporaryPickupState.Active;
 }
 
+<div data-cg-region="pickup-page">
 <div class="cg-page-head">
     <div class="cg-page-head__text">
         <h1 class="cg-page-head__title">@p.FullName</h1>
@@ -18,7 +19,7 @@
         <partial name="_StateBadge" model="p.State" />
         @if (canDecide)
         {
-            <form asp-action="Approve" asp-route-id="@p.Id" method="post" data-cg-busy>
+            <form data-cg-ajax asp-action="Approve" asp-route-id="@p.Id" method="post" data-cg-busy>
                 @Html.AntiForgeryToken()
                 <button type="submit" class="cg-btn cg-btn--success"><span class="cg-btn__label">Approve</span></button>
             </form>
@@ -121,7 +122,7 @@
     <div class="cg-modal__panel">
         <div class="cg-modal__head"><h2 class="cg-modal__title" id="rejectTitle">Reject this request</h2>
             <button type="button" class="cg-iconbtn" data-cg-modal-close aria-label="Close">@await Html.PartialAsync("_Icon", "x")</button></div>
-        <form asp-action="Reject" asp-route-id="@p.Id" method="post" data-cg-busy>
+        <form data-cg-ajax asp-action="Reject" asp-route-id="@p.Id" method="post" data-cg-busy>
             @Html.AntiForgeryToken()
             <div class="cg-modal__body">
                 <label class="cg-label" for="rejectReason">Reason (shown to the guardian)</label>
@@ -139,7 +140,7 @@
     <div class="cg-modal__panel">
         <div class="cg-modal__head"><h2 class="cg-modal__title" id="revokeTitle">Revoke this pickup</h2>
             <button type="button" class="cg-iconbtn" data-cg-modal-close aria-label="Close">@await Html.PartialAsync("_Icon", "x")</button></div>
-        <form asp-action="Revoke" asp-route-id="@p.Id" method="post" data-cg-busy>
+        <form data-cg-ajax asp-action="Revoke" asp-route-id="@p.Id" method="post" data-cg-busy>
             @Html.AntiForgeryToken()
             <div class="cg-modal__body">
                 <p class="cg-muted">Any QR code already shared stops working immediately and every linked guardian is notified.</p>
@@ -152,4 +153,5 @@
             </div>
         </form>
     </div>
+</div>
 </div>

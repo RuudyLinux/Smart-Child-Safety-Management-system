@@ -5,14 +5,21 @@ namespace ChildGuard.AdminWeb.Models.ViewModels;
 /// <summary>
 /// One filter of a server-paged list. <c>Name</c> is the page URL and form field name; <c>ApiName</c> the API
 /// query parameter. A choice filter maps the select's values to API values (anything else is "no filter");
-/// a text filter passes what was typed or picked through.
+/// a text filter passes what was typed or picked through, once <c>Valid</c> (when given) accepts it: a value
+/// the API would refuse (an id that is not a number, a date that is not a date) is no filter at all.
 /// </summary>
-public sealed record ListFilter(string Name, string ApiName, IReadOnlyDictionary<string, string>? Map)
+public sealed record ListFilter(string Name, string ApiName, IReadOnlyDictionary<string, string>? Map, Func<string, bool>? Valid = null)
 {
     public static ListFilter Choice(string name, string apiName, params (string Ui, string Api)[] choices) =>
         new(name, apiName, choices.ToDictionary(c => c.Ui, c => c.Api, StringComparer.Ordinal));
 
-    public static ListFilter Text(string name, string apiName) => new(name, apiName, null);
+    public static ListFilter Text(string name, string apiName, Func<string, bool>? valid = null) => new(name, apiName, null, valid);
+
+    /// <summary>A whole number (an id).</summary>
+    public static bool IsNumber(string v) => int.TryParse(v, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out _);
+
+    /// <summary>A calendar date as yyyy-MM-dd (what a date input sends).</summary>
+    public static bool IsDate(string v) => DateOnly.TryParseExact(v, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out _);
 }
 
 /// <summary>What one server-paged list is: its page, its API endpoint, its sorts and filters.</summary>
@@ -62,6 +69,7 @@ public sealed class ListQuery
             var value = string.IsNullOrWhiteSpace(raw) || raw == "__all" ? null : raw.Trim();
             if (value is null) continue;
             if (filter.Map is not null && !filter.Map.ContainsKey(value)) continue;   // an unknown choice selects nothing
+            if (filter.Valid is not null && !filter.Valid(value)) continue;            // a value the API would refuse
             _filters[name] = value;
         }
     }
