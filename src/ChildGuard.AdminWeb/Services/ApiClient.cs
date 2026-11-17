@@ -148,7 +148,29 @@ public class ApiClient
         }
 
         var message = TryExtractMessage(raw) ?? $"Request failed ({(int)response.StatusCode}).";
-        return ApiResult<T>.Fail(message, (int)response.StatusCode);
+        return ApiResult<T>.Fail(message, (int)response.StatusCode, TryExtractFieldErrors(raw));
+    }
+
+    /// <summary>The API's <c>errors: [{ PropertyName, ErrorMessage }]</c> grouped by property; null when absent.</summary>
+    private static IReadOnlyDictionary<string, string[]>? TryExtractFieldErrors(string raw)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(raw);
+            if (!doc.RootElement.TryGetProperty("errors", out var errs) || errs.ValueKind != JsonValueKind.Array) return null;
+            var map = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+            foreach (var e in errs.EnumerateArray())
+            {
+                if (e.ValueKind != JsonValueKind.Object) continue;
+                var name = (e.TryGetProperty("PropertyName", out var p) || e.TryGetProperty("propertyName", out p)) ? p.GetString() : null;
+                var text = (e.TryGetProperty("ErrorMessage", out var m) || e.TryGetProperty("errorMessage", out m)) ? m.GetString() : null;
+                if (string.IsNullOrEmpty(name) || string.IsNullOrEmpty(text)) continue;
+                if (!map.TryGetValue(name, out var list)) map[name] = list = new List<string>();
+                list.Add(text);
+            }
+            return map.Count == 0 ? null : map.ToDictionary(kv => kv.Key, kv => kv.Value.ToArray());
+        }
+        catch (JsonException) { return null; }
     }
 
     private static string? TryExtractMessage(string raw)
@@ -186,6 +208,10 @@ public class ApiResult<T>
     public string? Error { get; private init; }
     public int StatusCode { get; private init; }
 
+    /// <summary>The API's validation errors by property name (null when it sent none), for inline form errors.</summary>
+    public IReadOnlyDictionary<string, string[]>? FieldErrors { get; private init; }
+
     public static ApiResult<T> Ok(T value) => new() { Succeeded = true, Value = value, StatusCode = 200 };
-    public static ApiResult<T> Fail(string error, int statusCode) => new() { Succeeded = false, Error = error, StatusCode = statusCode };
+    public static ApiResult<T> Fail(string error, int statusCode, IReadOnlyDictionary<string, string[]>? fieldErrors = null) =>
+        new() { Succeeded = false, Error = error, StatusCode = statusCode, FieldErrors = fieldErrors };
 }

@@ -60,8 +60,24 @@ public class AjaxEnvelopeTests
     [Fact]
     public void Done_Ajax_WithoutRegions_RedirectsTheBrowser()
     {
-        var e = Envelope(Controller(ajax: true).CallDone("Student added.", "/Students/Details/9"));
+        var c = Controller(ajax: true);
+        var e = Envelope(c.CallDone("Student added.", "/Students/Details/9"));
         Assert.Equal("/Students/Details/9", e.Redirect);
+        // The browser loads a new page, so the toast travels the classic way.
+        Assert.Equal("Student added.", c.TempData["Success"]);
+    }
+
+    [Fact]
+    public void FromApi_400WithFieldErrors_IsInvalidKeyedByField()
+    {
+        var api = ApiResult<object>.Fail("Full name is required.", 400,
+            new Dictionary<string, string[]> { ["FullName"] = new[] { "Full name is required." } });
+        var result = Controller(ajax: true).CallFromApi(api, "Saved.", null);
+
+        Assert.Equal(400, Status(result));
+        var e = Envelope(result);
+        Assert.Equal(new[] { "Full name is required." }, e.Errors!["FullName"]);
+        Assert.Equal(BaseAdminController.InvalidFormMessage, e.Message);
     }
 
     [Fact]

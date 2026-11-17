@@ -1,4 +1,5 @@
 @model AddressFormModel
+@{ /* "on" when the page's controller answers AJAX envelopes (cg-ajax.js). An explicit value, not null: tag-helper forms render a null attribute as present. */ var cgAjax = ViewData["AjaxForms"] is true ? "on" : "off"; }
 @{
     var a = Model.Address;
 }
@@ -10,7 +11,7 @@
         </div>
     </div>
     <div class="cg-card__body">
-        <form action="@Model.Action" method="post" class="cg-form" data-cg-busy data-address-form>
+        <form action="@Model.Action" method="post" class="cg-form" data-cg-busy data-address-form data-cg-ajax="@cgAjax">
             @Html.AntiForgeryToken()
             <div class="cg-form-row">
                 <div class="cg-field">

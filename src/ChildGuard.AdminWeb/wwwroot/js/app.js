@@ -395,7 +395,7 @@
 
   function initSubmitStates(root) {
     // AJAX forms show their own busy state (cg-ajax.js); this is the full-page post.
-    each(root, 'form[data-cg-busy]:not([data-cg-ajax])', 'Busy', function (form) {
+    each(root, 'form[data-cg-busy]:not([data-cg-ajax]), form[data-cg-busy][data-cg-ajax="off"]', 'Busy', function (form) {
       on(form, 'submit', function (e) {
         // Decide after every submit handler has run: a declined confirmation cancels
         // the event, and a button left "loading" then could never be pressed again.
@@ -950,7 +950,8 @@
     on(document, 'submit', function (e) {
       var form = e.target;
       // An AJAX form never unloads the page; it shows its own busy state.
-      if (e.defaultPrevented || !form || form.hasAttribute('data-cg-no-progress') || form.hasAttribute('data-cg-ajax')) return;
+      var ajax = form && form.hasAttribute('data-cg-ajax') && form.getAttribute('data-cg-ajax') !== 'off';
+      if (e.defaultPrevented || !form || form.hasAttribute('data-cg-no-progress') || ajax) return;
       start();
     });
     var safety;

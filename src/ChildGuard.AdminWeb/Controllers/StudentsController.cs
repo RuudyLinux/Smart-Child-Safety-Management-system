@@ -46,12 +46,12 @@ public class StudentsController : BaseAdminController
         var result = await Api.PostAsync<StudentDetailDto>("/api/students", request, ct);
         if (!result.Succeeded)
         {
+            if (!AddApiErrors(result)) ModelState.AddModelError("", result.Error!);
             SetPage("Add student", "People");
-            ModelState.AddModelError("", result.Error!);
-            return View(request);
+            return Invalid(ModelState) ?? View(request);
         }
-        TempData["Success"] = $"{result.Value!.FullName} added. Assign an RFID card and a guardian to complete the record.";
-        return RedirectToAction(nameof(Details), new { id = result.Value.StudentId });
+        return Done($"{result.Value!.FullName} added. Assign an RFID card and a guardian to complete the record.",
+            DetailsUrl(result.Value.StudentId));
     }
 
     public async Task<IActionResult> Details(int id, CancellationToken ct)
@@ -89,8 +89,7 @@ public class StudentsController : BaseAdminController
     public async Task<IActionResult> Archive(int id, string? reason, CancellationToken ct)
     {
         var result = await Api.PostAsync<LifecycleResultDto>($"/api/students/{id}/archive", new ArchiveRecordRequest(reason ?? ""), ct);
-        TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded ? Message(result.Value!) : result.Error;
-        return RedirectToAction(nameof(Details), new { id });
+        return FromApi(result, result.Succeeded ? Message(result.Value!) : "", DetailsUrl(id), RecordRegions);
     }
 
     [HttpPost]
@@ -98,8 +97,7 @@ public class StudentsController : BaseAdminController
     public async Task<IActionResult> Restore(int id, string? reason, CancellationToken ct)
     {
         var result = await Api.PostAsync<LifecycleResultDto>($"/api/students/{id}/restore", new RestoreRecordRequest(reason), ct);
-        TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded ? Message(result.Value!) : result.Error;
-        return RedirectToAction(nameof(Details), new { id });
+        return FromApi(result, result.Succeeded ? Message(result.Value!) : "", DetailsUrl(id), RecordRegions);
     }
 
     [HttpPost]
@@ -107,34 +105,29 @@ public class StudentsController : BaseAdminController
     public async Task<IActionResult> DeletePermanently(int id, string? reason, bool confirmed, CancellationToken ct)
     {
         if (!confirmed)
-        {
-            TempData["Error"] = "Confirm that you understand the deletion cannot be undone.";
-            return RedirectToAction(nameof(Details), new { id });
-        }
+            return Failed("Confirm that you understand the deletion cannot be undone.", 400, DetailsUrl(id));
         var result = await Api.DeleteAsync<LifecycleResultDto>($"/api/students/{id}", new DeleteRecordRequest(reason ?? ""), ct);
-        if (!result.Succeeded)
-        {
-            TempData["Error"] = result.Error;
-            return RedirectToAction(nameof(Details), new { id });
-        }
-        TempData["Success"] = result.Value!.Message;
-        return RedirectToAction(nameof(Index));
+        // The record is gone: the browser leaves its page for the list.
+        return FromApi(result, result.Succeeded ? result.Value!.Message : "", result.Succeeded ? "/Students" : DetailsUrl(id));
     }
 
     private static string Message(LifecycleResultDto r) => r.Effects.Count == 0 ? r.Message : $"{r.Message} {string.Join(" ", r.Effects)}";
+
+    private static string DetailsUrl(int id, string? tab = null) => $"/Students/Details/{id}" + (tab is null ? "" : "#" + tab);
+
+    // Page parts on Details that each kind of change affects (data-cg-region names in Details.cshtml).
+    private static readonly string[] RecordRegions = { "student-header", "archived-banner", "lifecycle" };
+    private static readonly string[] GuardianRegions = { "guardians", "guardian-modal", "guardian-count", "student-header" };
+    private static readonly string[] PhotoRegions = { "photo", "student-header" };
 
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> EditAddress(int id, AddressDto address, CancellationToken ct)
     {
         var result = await Api.PutAsync<StudentDetailDto>($"/api/students/{id}/address", address, ct);
-        if (!result.Succeeded)
-        {
-            TempData["Error"] = result.Error;
-            return RedirectToAction(nameof(Edit), null, new { id }, "address");
-        }
-        TempData["Success"] = "Address saved.";
-        return RedirectToAction(nameof(Details), new { id });
+        if (!result.Succeeded) return FromApi(result, "", $"/Students/Edit/{id}#address");
+        // AJAX: the Edit page stays and its address card refreshes. Without JavaScript: back to the profile, as before.
+        return Done("Address saved.", DetailsUrl(id), "address");
     }
 
     [HttpPost]
@@ -144,13 +137,12 @@ public class StudentsController : BaseAdminController
         var result = await Api.PutAsync<StudentDetailDto>($"/api/students/{id}/record", request, ct);
         if (!result.Succeeded)
         {
+            if (!AddApiErrors(result)) ModelState.AddModelError("", result.Error!);
             SetPage("Edit student", "People");
             ViewData["StudentId"] = id;
-            ModelState.AddModelError("", result.Error!);
-            return View(request);
+            return Invalid(ModelState) ?? View(request);
         }
-        TempData["Success"] = "Student details updated.";
-        return RedirectToAction(nameof(Details), new { id });
+        return Done("Student details updated.", DetailsUrl(id));
     }
 
     [HttpPost]
@@ -158,10 +150,7 @@ public class StudentsController : BaseAdminController
     public async Task<IActionResult> UpdateStatus(int id, RecordStatus status, CancellationToken ct)
     {
         var result = await Api.PatchAsync<object?>($"/api/students/{id}/status", new UpdateStudentStatusRequest(status), ct);
-        TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded
-            ? $"Student record {(status == RecordStatus.Active ? "activated" : "deactivated")}."
-            : result.Error;
-        return RedirectToAction(nameof(Details), new { id });
+        return FromApi(result, $"Student record {(status == RecordStatus.Active ? "activated" : "deactivated")}.", DetailsUrl(id), RecordRegions);
     }
 
     [HttpPost]
@@ -170,8 +159,7 @@ public class StudentsController : BaseAdminController
     {
         var result = await Api.PostAsync<object?>($"/api/students/{id}/guardians",
             new AssignGuardianRequest(guardianId, relationship, isAuthorizedForPickup), ct);
-        TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded ? "Guardian linked to this student." : result.Error;
-        return RedirectToAction(nameof(Details), null, new { id }, "guardians");
+        return FromApi(result, "Guardian linked to this student.", DetailsUrl(id, "guardians"), GuardianRegions);
     }
 
     [HttpPost]
@@ -180,8 +168,7 @@ public class StudentsController : BaseAdminController
     {
         var result = await Api.PutAsync<object?>($"/api/students/{id}/guardians/{guardianId}",
             new UpdateStudentGuardianRequest(relationship, isAuthorizedForPickup), ct);
-        TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded ? "Guardian link updated." : result.Error;
-        return RedirectToAction(nameof(Details), null, new { id }, "guardians");
+        return FromApi(result, "Guardian link updated.", DetailsUrl(id, "guardians"), GuardianRegions);
     }
 
     [HttpPost]
@@ -189,10 +176,7 @@ public class StudentsController : BaseAdminController
     public async Task<IActionResult> RemoveGuardianLink(int id, int guardianId, CancellationToken ct)
     {
         var result = await Api.DeleteAsync<object?>($"/api/students/{id}/guardians/{guardianId}", ct);
-        TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded
-            ? "Guardian unlinked. The guardian account itself was not deleted."
-            : result.Error;
-        return RedirectToAction(nameof(Details), null, new { id }, "guardians");
+        return FromApi(result, "Guardian unlinked. The guardian account itself was not deleted.", DetailsUrl(id, "guardians"), GuardianRegions);
     }
 
     // ---- Profile photo ----
@@ -212,17 +196,13 @@ public class StudentsController : BaseAdminController
     public async Task<IActionResult> UploadPhoto(int id, IFormFile? file, CancellationToken ct)
     {
         if (file is null || file.Length == 0)
-        {
-            TempData["Error"] = "Select an image to upload.";
-            return RedirectToAction(nameof(Details), null, new { id }, "photo");
-        }
+            return Failed("Select an image to upload.", 400, DetailsUrl(id, "photo"));
 
         await using var stream = file.OpenReadStream();
         var result = await Api.PostFileAsync<PhotoStateDto>(
             $"/api/students/{id}/photo", stream, file.FileName, file.ContentType, ct);
 
-        TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded ? "Student photo saved." : result.Error;
-        return RedirectToAction(nameof(Details), null, new { id }, "photo");
+        return FromApi(result, "Student photo saved.", DetailsUrl(id, "photo"), PhotoRegions);
     }
 
     [HttpPost]
@@ -230,7 +210,6 @@ public class StudentsController : BaseAdminController
     public async Task<IActionResult> DeletePhoto(int id, CancellationToken ct)
     {
         var result = await Api.DeleteAsync<object?>($"/api/students/{id}/photo", ct);
-        TempData[result.Succeeded ? "Success" : "Error"] = result.Succeeded ? "Student photo removed." : result.Error;
-        return RedirectToAction(nameof(Details), null, new { id }, "photo");
+        return FromApi(result, "Student photo removed.", DetailsUrl(id, "photo"), PhotoRegions);
     }
 }

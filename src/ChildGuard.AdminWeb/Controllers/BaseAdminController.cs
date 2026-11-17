@@ -34,6 +34,8 @@ public abstract class BaseAdminController : Controller
         if (AjaxRequest.IsAjax(Request))
         {
             var refresh = regions is { Length: > 0 };
+            // A redirect loads a new page: the toast goes with it the classic way.
+            if (!refresh && redirectUrl is not null) TempData["Success"] = message;
             return Envelope(200, new AjaxEnvelope(true, message, refresh ? null : redirectUrl, refresh ? regions : null, null));
         }
         TempData["Success"] = message;
@@ -63,10 +65,21 @@ public abstract class BaseAdminController : Controller
     }
 
     /// <summary>Maps an API call's outcome to <see cref="Done"/> or <see cref="Failed"/> with the API's own status.</summary>
-    protected IActionResult FromApi<T>(ApiResult<T> result, string successMessage, string? redirectUrl = null, params string[] regions) =>
-        result.Succeeded
-            ? Done(successMessage, redirectUrl, regions)
-            : Failed(result.Error ?? "The request failed.", result.StatusCode is >= 400 and <= 599 ? result.StatusCode : 502, redirectUrl);
+    protected IActionResult FromApi<T>(ApiResult<T> result, string successMessage, string? redirectUrl = null, params string[] regions)
+    {
+        if (result.Succeeded) return Done(successMessage, redirectUrl, regions);
+        if (AjaxRequest.IsAjax(Request) && AddApiErrors(result)) return Invalid(ModelState)!;
+        return Failed(result.Error ?? "The request failed.", result.StatusCode is >= 400 and <= 599 ? result.StatusCode : 502, redirectUrl);
+    }
+
+    /// <summary>Copies the API's field validation errors into ModelState; false when it sent none.</summary>
+    protected bool AddApiErrors<T>(ApiResult<T> result)
+    {
+        if (result.StatusCode != 400 || result.FieldErrors is not { Count: > 0 }) return false;
+        foreach (var (field, messages) in result.FieldErrors)
+            foreach (var message in messages) ModelState.AddModelError(field, message);
+        return true;
+    }
 
     private static JsonResult Envelope(int status, AjaxEnvelope envelope) => new(envelope) { StatusCode = status };
 

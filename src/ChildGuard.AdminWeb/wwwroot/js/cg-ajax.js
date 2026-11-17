@@ -250,9 +250,14 @@
     return !!form.querySelector('input[type="file"]');
   }
 
+  /** data-cg-ajax (any value but "off"): shared partials render "off" on pages that are not converted yet. */
+  function isAjaxForm(form) {
+    return form instanceof HTMLFormElement && form.hasAttribute('data-cg-ajax') && form.getAttribute('data-cg-ajax') !== 'off';
+  }
+
   document.addEventListener('submit', function (e) {
     var form = e.target;
-    if (!(form instanceof HTMLFormElement) || !form.hasAttribute('data-cg-ajax')) return;
+    if (!isAjaxForm(form)) return;
     // A handler before us (the destructive confirmation) declined: do nothing.
     if (e.defaultPrevented) return;
     e.preventDefault();

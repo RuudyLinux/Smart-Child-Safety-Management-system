@@ -2,14 +2,7 @@
 // widgets inside refreshed regions keep working, and double submits / network loss are handled.
 // Exercised through the Students Details guardian forms, the pilot pages for the layer.
 import { test, expect, toast } from '../support/fixtures';
-import type { Page } from '@playwright/test';
-
-/** Counts full page loads of the main frame after the call (a region refresh is not one). */
-function countNavigations(page: Page) {
-  const box = { count: 0 };
-  page.on('framenavigated', f => { if (f === page.mainFrame()) box.count++; });
-  return box;
-}
+import { countNavigations } from '../support/ajax';
 
 test.describe('AJAX layer', () => {
   test('linking a guardian refreshes the guardians region without a page load @smoke', async ({ page, data }) => {
@@ -79,7 +72,9 @@ test.describe('AJAX layer', () => {
   });
 
   test.describe('offline', () => {
-    test.use({ allowErrors: [/\/Students\/UpdateGuardianLink\//] });
+    // The browser logs the blocked request itself; that is the point of this test.
+    // One pattern: Playwright reads a two-element option array as [value, options].
+    test.use({ allowErrors: [/\/Students\/UpdateGuardianLink\/|ERR_INTERNET_DISCONNECTED/] });
 
     test('offline save shows offline toast and re-enables the form', async ({ page, data, context }) => {
       const s = await data.student();
