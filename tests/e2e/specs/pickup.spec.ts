@@ -346,6 +346,7 @@ test.describe('Pickup & Drop-off desk', () => {
 
     test('an unknown card is reported and nothing is recorded', async ({ page }) => {
       await scanAuto(page, 'FFEE' + Date.now().toString(16).toUpperCase());
+      await expect(page.locator('#studentName')).toHaveText('Unknown card');
       await expect(page.locator('#studentMessage')).toContainText('Card not recognised');
       await expect(page.locator('#pickupCard')).toBeHidden();
     });

@@ -305,7 +305,10 @@
         setStep('step-student', autoDecision.studentIdentified ? 'done' : 'failed',
           autoDecision.studentName || 'Not recognised');
         $('studentCard').hidden = false;
-        if (autoDecision.studentName) $('studentName').textContent = autoDecision.studentName;
+        // Same label as a manual-mode scan of an unknown card.
+        $('studentName').textContent = autoDecision.studentIdentified
+          ? (autoDecision.studentName || '')
+          : 'Unknown card';
         $('studentRfid').textContent = autoDecision.maskedCardUid || '';
         $('studentMessage').innerHTML = banner('warning',
           autoDecision.studentIdentified ? 'No checkpoint to record' : 'Card not recognised',
