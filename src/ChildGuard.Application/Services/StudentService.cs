@@ -18,6 +18,7 @@ public class StudentService : IStudentService
     private readonly ISafetyReadService _safety;
     private readonly SchoolClock _clock;
     private readonly IAuditTrail _audit;
+    private readonly ISchoolScheduleProvider _schedule;
 
     public StudentService(
         IStudentRepository students,
@@ -26,9 +27,11 @@ public class StudentService : IStudentService
         IPhotoRepository photos,
         ISafetyReadService safety,
         SchoolClock clock,
-        IAuditTrail? audit = null)
+        IAuditTrail? audit = null,
+        ISchoolScheduleProvider? schedule = null)
     {
         _clock = clock;
+        _schedule = schedule ?? new ConfiguredSchoolScheduleProvider(new SchoolOptions());
         _audit = audit ?? NullAuditTrail.Instance;
         _students = students;
         _guardians = guardians;
@@ -275,11 +278,18 @@ public class StudentService : IStudentService
             .Select(e => new JourneyEventDto(e.JourneyEventId, e.StudentId, s.FullName, e.EventType, e.Timestamp, e.Source, e.BusId, e.Bus?.BusNumber, e.Route?.RouteName))
             .ToList();
 
-        var attendance = (await _journey.GetAttendanceAsync(s.StudentId, null, null, ct))
+        var attendanceRows = (await _journey.GetAttendanceAsync(s.StudentId, null, null, ct))
             .Take(ProfileHistoryRows)
+            .ToList();
+        // Each arrival is judged against its own date's timings, so past late arrivals stay flagged.
+        var schedule = attendanceRows.Count == 0
+            ? null
+            : await _schedule.GetAsync(attendanceRows.Min(a => a.Date), attendanceRows.Max(a => a.Date), ct);
+        var attendance = attendanceRows
             .Select(a => new AttendanceRecordDto(
                 a.AttendanceId, a.StudentId, s.FullName, s.Grade, a.EventType, a.Date, a.Time, a.Status,
-                a.EventType == AttendanceEventType.SchoolArrival && a.Time > TimeOnly.MinValue && IsLate(a, snap)))
+                a.EventType == AttendanceEventType.SchoolArrival && schedule!.IsLate(a.Date, a.Time),
+                !schedule!.IsSchoolDay(a.Date)))
             .ToList();
 
         var assignments = await _students.GetTransportHistoryAsync(s.StudentId, ct);
@@ -311,14 +321,6 @@ public class StudentService : IStudentService
             s.ArchivedAt, s.ArchiveReason,
             transport, history);
     }
-
-    /// <summary>
-    /// A historic arrival is only flagged late when it is today's — the school's late
-    /// cutoff lives in the safety read model, and back-dating it row by row here would
-    /// duplicate that policy in a second place.
-    /// </summary>
-    private bool IsLate(Attendance a, StudentSafetySnapshot snap) =>
-        snap.LateToday && a.Date == _clock.Today && a.Time == snap.CheckInTime;
 
     private static StudentSafetySnapshot Snapshot(IReadOnlyDictionary<int, StudentSafetySnapshot> map, int studentId) =>
         map.TryGetValue(studentId, out var found) ? found : StudentSafetySnapshot.Unknown(studentId);

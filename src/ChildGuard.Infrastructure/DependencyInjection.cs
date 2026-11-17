@@ -62,6 +62,11 @@ public static class DependencyInjection
         // School calendar (time zone, "today", day boundaries). Resolving it validates
         // School:TimeZone, so a bad id fails at startup rather than on the first scan.
         services.AddSingleton<SchoolClock>();
+        // School days and per-date timings (regular week + holidays/half days). Every late,
+        // absent and dismissal rule reads them through ISchoolScheduleProvider.
+        services.AddScoped<ISchoolCalendarRepository, SchoolCalendarRepository>();
+        services.AddScoped<ISchoolScheduleProvider, SchoolScheduleProvider>();
+        services.AddScoped<ISchoolCalendarService, SchoolCalendarService>();
         services.AddScoped<IAuthService, AuthService>();
 
         services.AddScoped<IStudentRepository, StudentRepository>();

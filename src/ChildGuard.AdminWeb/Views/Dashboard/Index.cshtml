@@ -61,6 +61,23 @@
                     <div class="cg-hero__stat-label">Checkpoints today</div>
                     <div class="cg-hero__stat-value">@Model.TodaysJourneyEventCount</div>
                 </div>
+                @if (Model.SchoolDay is { } schoolDay)
+                {
+                    <div>
+                        <div class="cg-hero__stat-label"><a href="/SchoolTime" style="color:inherit">School day</a></div>
+                        <div class="cg-hero__stat-value">
+                            @if (schoolDay.IsSchoolDay)
+                            {
+                                @($"{schoolDay.StartTime:HH:mm}–{schoolDay.DismissalTime:HH:mm}")
+                                @if (schoolDay.Title is not null) { <span> · @schoolDay.Title</span> }
+                            }
+                            else
+                            {
+                                @($"Closed{(schoolDay.Title is null ? "" : $" · {schoolDay.Title}")}")
+                            }
+                        </div>
+                    </div>
+                }
             </div>
         </div>
 

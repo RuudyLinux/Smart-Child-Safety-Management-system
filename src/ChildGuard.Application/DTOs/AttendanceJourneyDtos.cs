@@ -4,7 +4,9 @@ namespace ChildGuard.Application.DTOs;
 
 public record AttendanceRecordDto(
     int AttendanceId, int StudentId, string StudentName, string? Grade,
-    AttendanceEventType EventType, DateOnly Date, TimeOnly Time, RecordStatus Status, bool IsLate);
+    AttendanceEventType EventType, DateOnly Date, TimeOnly Time, RecordStatus Status, bool IsLate,
+    // Recorded on a day the school calendar has closed (weekend, holiday). Recorded, never rejected.
+    bool OffSchedule = false);
 
 /// <param name="BusNumber">The bus the student was assigned to when the event was recorded (null if none).</param>
 /// <param name="RouteName">The route of that assignment at the time, unaffected by later bus edits.</param>

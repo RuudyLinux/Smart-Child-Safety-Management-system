@@ -1,6 +1,7 @@
 using ChildGuard.Application.Common;
 using ChildGuard.Application.DTOs;
 using ChildGuard.Application.Interfaces;
+using ChildGuard.Application.Services;
 using ChildGuard.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
@@ -23,10 +24,13 @@ public class GuardianPortalReadService : IGuardianPortalReadService
     private readonly SchoolClock _clock;
     private readonly SchoolOptions _school;
     private readonly VerificationOptions _verification;
+    private readonly ISchoolScheduleProvider _schedule;
 
     public GuardianPortalReadService(
-        ChildGuardDbContext db, ISafetyReadService safety, SchoolClock clock, SchoolOptions school, VerificationOptions verification)
+        ChildGuardDbContext db, ISafetyReadService safety, SchoolClock clock, SchoolOptions school, VerificationOptions verification,
+        ISchoolScheduleProvider? schedule = null)
     {
+        _schedule = schedule ?? new ConfiguredSchoolScheduleProvider(school);
         _db = db;
         _safety = safety;
         _clock = clock;
@@ -171,11 +175,15 @@ public class GuardianPortalReadService : IGuardianPortalReadService
             .Select(a => new { a.Date, a.Time, a.EventType })
             .ToListAsync(ct);
 
-        var observed = await _db.AttendanceRecords.AsNoTracking()
-            .Where(a => a.Date >= start && a.Date <= end && a.EventType == AttendanceEventType.SchoolArrival)
-            .Select(a => a.Date)
-            .Distinct()
-            .CountAsync(ct);
+        // Scheduled school days in the range (SchoolDaysObserved keeps its name for the app).
+        // Future dates are not counted, and today only once it is decided.
+        var schedule = await _schedule.GetAsync(start, end, ct);
+        var today = _clock.Today;
+        var observed = schedule.CountSchoolDays(start, end < today ? end : today.AddDays(-1));
+        if (start <= today && today <= end && schedule.For(today) is { IsSchoolDay: true } todayInfo &&
+            (attendance.Any(a => a.Date == today && a.EventType == AttendanceEventType.SchoolArrival)
+             || TimeOnly.FromDateTime(_clock.LocalNow) > todayInfo.MissingCheckInAfter))
+            observed++;
 
         var (fromUtc, toUtc) = _clock.RangeUtc(start, end);
         var busEvents = await _db.JourneyEvents.AsNoTracking()
@@ -187,7 +195,6 @@ public class GuardianPortalReadService : IGuardianPortalReadService
         var pickups = await _db.GuardianVerifications.AsNoTracking()
             .CountAsync(v => v.StudentId == studentId && v.PickupApproved && v.AttemptedAt >= fromUtc && v.AttemptedAt < toUtc, ct);
 
-        var lateAfter = _school.LateAfterTime;
         var busByDay = busEvents
             .Select(e => new { e.EventType, e.Timestamp, Date = _clock.ToSchoolDateTime(e.Timestamp).Date })
             .GroupBy(e => e.Date)
@@ -204,16 +211,18 @@ public class GuardianPortalReadService : IGuardianPortalReadService
                 date,
                 checkIn,
                 departures.Count == 0 ? null : departures.Max(),
-                checkIn is not null && checkIn > lateAfter,
+                checkIn is not null && schedule.IsLate(date, checkIn.Value),
                 bus?.Where(b => b.EventType == JourneyEventType.BusBoarding).Select(b => (DateTime?)b.Timestamp).Min(),
-                bus?.Where(b => b.EventType == JourneyEventType.BusDropoff).Select(b => (DateTime?)b.Timestamp).Max());
+                bus?.Where(b => b.EventType == JourneyEventType.BusDropoff).Select(b => (DateTime?)b.Timestamp).Max(),
+                schedule.IsSchoolDay(date));
         }).ToList();
 
-        var present = days.Count(d => d.CheckIn is not null);
+        // Only school-day arrivals count toward the rate; an off-schedule arrival is listed, not counted.
+        var present = days.Count(d => d.CheckIn is not null && d.IsSchoolDay);
         var late = days.Count(d => d.Late);
         return Result<GuardianStudentReportDto>.Success(new GuardianStudentReportDto(
             studentId, name, start, end, observed, present, late,
-            observed == 0 ? 0 : Math.Round(present * 100.0 / observed, 1),
+            observed == 0 ? 0 : Math.Min(100, Math.Round(present * 100.0 / observed, 1)),
             busEvents.Count(e => e.EventType == JourneyEventType.BusBoarding),
             busEvents.Count(e => e.EventType == JourneyEventType.BusDropoff),
             pickups,

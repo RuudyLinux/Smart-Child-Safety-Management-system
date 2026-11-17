@@ -14,7 +14,9 @@ public record DashboardSummaryDto(
     IReadOnlyList<AttendanceTrendPointDto> AttendanceTrend,
     IReadOnlyList<SafetyAlertDto> Alerts,
     IReadOnlyList<GradeAttendanceDto> AttendanceByGrade,
-    AdminOverviewDto? Admin = null);
+    AdminOverviewDto? Admin = null,
+    // Today at the school: open or closed, and the timings it runs to.
+    SchoolDayDto? SchoolDay = null);
 
 /// <summary>Record-keeping KPIs for the admin: people, RFID inventory, fleet, and the gaps that need follow-up.</summary>
 public record AdminOverviewDto(PeopleOverviewDto People, RfidOverviewDto Rfid, FleetOverviewDto Fleet, CoverageGapsDto Gaps);
@@ -48,7 +50,10 @@ public record VerificationStatusDto(int Matched, int NoMatch, int PickupsApprove
 /// </summary>
 public record AttendanceOverviewDto(
     int RosterSize, int Present, int Late, int Absent,
-    double PresentRate, double? PreviousDayPresentRate, double? RateChange, string LateAfter);
+    double PresentRate, double? PreviousDayPresentRate, double? RateChange, string LateAfter,
+    // False on a weekend or holiday: nobody is counted absent and LateAfter is the regular cutoff.
+    bool IsSchoolDay = true,
+    string? DismissalTime = null);
 
 /// <summary>Where the active roster is right now, counted from each student's latest journey event.</summary>
 public record JourneyOverviewDto(
@@ -58,7 +63,7 @@ public record TransportOverviewDto(
     int ActiveBuses, int InactiveBuses, int Drivers, int Routes,
     int StudentsAssigned, int StudentsUnassigned, int ScannersConnected, int ScannersTotal);
 
-public record AttendanceTrendPointDto(DateOnly Date, int Present, int RosterSize, double PresentRate);
+public record AttendanceTrendPointDto(DateOnly Date, int Present, int RosterSize, double PresentRate, bool IsSchoolDay = true);
 
 public record GradeAttendanceDto(string Grade, int RosterSize, int Present, double PresentRate);
 

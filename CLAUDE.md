@@ -18,7 +18,8 @@
 - Run all locally: `start.bat` (API :5275, AdminWeb :5080, face :8001)
 
 ## Invariants (do not break)
-- Instants stored UTC. School calendar (today, day boundaries, Attendance.Date/Time, late cutoff, report ranges) only via `SchoolClock` (`School:TimeZone`, Asia/Kolkata). AdminWeb displays via `.ToSchoolTime()`.
+- Instants stored UTC. School calendar (today, day boundaries, Attendance.Date/Time, report ranges) only via `SchoolClock` (`School:TimeZone`, Asia/Kolkata). AdminWeb displays via `.ToSchoolTime()`.
+- School days and per-date timings (late cutoff, missing check-in, dismissal, holidays/half days) only via `ISchoolScheduleProvider` → `SchoolSchedule` (DB `SchoolTimingSettings` + `SchoolCalendarDays`; the `School` config section is the fallback until an admin saves). Never compare against `SchoolOptions` cutoffs directly.
 - Journey state changes (RFID scan, pickup approval) only inside `IJourneyRepository.RunSerializedForStudentAsync` (per-student row lock). Transitions in `JourneyValidationService`.
 - Pickup states derived by `GuardianVerification.GetState`: Rejected→Approved blocked, 15-min expiry, approval writes departure event + attendance in one transaction.
 - History tables use RESTRICT FKs; never hard-delete students/guardians/buses, set `Status`.

@@ -1,6 +1,7 @@
 using ChildGuard.Application.Common;
 using ChildGuard.Application.DTOs;
 using ChildGuard.Application.Interfaces;
+using ChildGuard.Application.Services;
 using ChildGuard.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,12 +18,14 @@ public class SafetyReadService : ISafetyReadService
     private readonly ChildGuardDbContext _db;
     private readonly SchoolOptions _school;
     private readonly SchoolClock _clock;
+    private readonly ISchoolScheduleProvider _schedule;
 
-    public SafetyReadService(ChildGuardDbContext db, SchoolOptions school, SchoolClock clock)
+    public SafetyReadService(ChildGuardDbContext db, SchoolOptions school, SchoolClock clock, ISchoolScheduleProvider? schedule = null)
     {
         _db = db;
         _school = school;
         _clock = clock;
+        _schedule = schedule ?? new ConfiguredSchoolScheduleProvider(school);
     }
 
     public async Task<IReadOnlyDictionary<int, StudentSafetySnapshot>> GetSnapshotsAsync(
@@ -74,7 +77,7 @@ public class SafetyReadService : ISafetyReadService
             .ToListAsync(ct);
         var withPhoto = photoIds.ToHashSet();
 
-        var lateAfter = _school.LateAfterTime;
+        var todaySchedule = await _schedule.GetAsync(today, today, ct);
         var result = new Dictionary<int, StudentSafetySnapshot>(ids.Count);
         foreach (var id in ids)
         {
@@ -90,7 +93,7 @@ public class SafetyReadService : ISafetyReadService
                 LastEventAt: last?.Timestamp,
                 CheckInTime: present ? checkIn : null,
                 PresentToday: present,
-                LateToday: present && checkIn > lateAfter,
+                LateToday: present && todaySchedule.IsLate(today, checkIn),
                 BusNumber: t?.BusNumber,
                 RouteName: t?.RouteName,
                 DriverName: t?.DriverName,
@@ -140,29 +143,36 @@ public class SafetyReadService : ISafetyReadService
 
     public async Task<AttendanceStatsDto> GetAttendanceStatsAsync(int studentId, CancellationToken ct = default)
     {
-        var windowDays = Math.Max(1, _school.AttendanceWindowDays);
-        var from = _clock.Today.AddDays(-windowDays);
+        var today = _clock.Today;
+        var regular = (await _schedule.GetAsync(today, today, ct)).Regular;
+        var windowDays = Math.Max(1, regular.AttendanceWindowDays);
+        var from = today.AddDays(-windowDays);
+        var schedule = await _schedule.GetAsync(from, today, ct);
 
         var arrivals = await _db.AttendanceRecords.AsNoTracking()
             .Where(a => a.StudentId == studentId && a.Date >= from && a.EventType == AttendanceEventType.SchoolArrival)
             .Select(a => new { a.Date, a.Time })
             .ToListAsync(ct);
 
-        // "School days observed" counts days this school actually recorded any
-        // arrival for anyone — the only evidence available that the school was open.
-        var observedDays = await _db.AttendanceRecords.AsNoTracking()
-            .Where(a => a.Date >= from && a.EventType == AttendanceEventType.SchoolArrival)
-            .Select(a => a.Date)
-            .Distinct()
-            .CountAsync(ct);
-
-        var lateAfter = _school.LateAfterTime;
-        var byDay = arrivals.GroupBy(a => a.Date).Select(g => g.Min(a => a.Time)).ToList();
+        // Only arrivals on scheduled school days count; one on a holiday is off-schedule.
+        var byDay = arrivals
+            .Where(a => schedule.IsSchoolDay(a.Date))
+            .GroupBy(a => a.Date)
+            .ToDictionary(g => g.Key, g => g.Min(a => a.Time));
         var present = byDay.Count;
-        var late = byDay.Count(t => t > lateAfter);
-        var rate = observedDays == 0 ? 0 : Math.Round(present * 100.0 / observedDays, 1);
+        var late = byDay.Count(d => schedule.IsLate(d.Key, d.Value));
 
-        return new AttendanceStatsDto(windowDays, present, late, observedDays, rate);
+        // The denominator is the school days the calendar scheduled (SchoolDaysObserved keeps
+        // its name for API compatibility). Today counts only once it is decided: the student
+        // has arrived, or the missing check-in time has passed.
+        var scheduledDays = schedule.CountSchoolDays(from, today.AddDays(-1));
+        var todayInfo = schedule.For(today);
+        if (todayInfo.IsSchoolDay &&
+            (byDay.ContainsKey(today) || TimeOnly.FromDateTime(_clock.LocalNow) > todayInfo.MissingCheckInAfter))
+            scheduledDays++;
+        var rate = scheduledDays == 0 ? 0 : Math.Min(100, Math.Round(present * 100.0 / scheduledDays, 1));
+
+        return new AttendanceStatsDto(windowDays, present, late, scheduledDays, rate);
     }
 
     /// <summary>Maps the last recorded checkpoint to a plain-language position.</summary>

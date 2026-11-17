@@ -40,6 +40,8 @@ public class ChildGuardDbContext : DbContext
     public DbSet<EnrollmentRequest> EnrollmentRequests => Set<EnrollmentRequest>();
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
     public DbSet<RouteStop> RouteStops => Set<RouteStop>();
+    public DbSet<SchoolTimingSettings> SchoolTimingSettings => Set<SchoolTimingSettings>();
+    public DbSet<SchoolCalendarDay> SchoolCalendarDays => Set<SchoolCalendarDay>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

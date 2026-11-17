@@ -11,24 +11,31 @@ public class AttendanceJourneyService : IAttendanceJourneyService
     private readonly ISafetyReadService _safety;
     private readonly SchoolOptions _school;
     private readonly SchoolClock _clock;
+    private readonly ISchoolScheduleProvider _schedule;
 
-    public AttendanceJourneyService(IJourneyRepository journey, ISafetyReadService safety, SchoolOptions school, SchoolClock clock)
+    public AttendanceJourneyService(IJourneyRepository journey, ISafetyReadService safety, SchoolOptions school, SchoolClock clock,
+        ISchoolScheduleProvider? schedule = null)
     {
         _journey = journey;
         _safety = safety;
         _school = school;
         _clock = clock;
+        _schedule = schedule ?? new ConfiguredSchoolScheduleProvider(school);
     }
 
     public async Task<List<AttendanceRecordDto>> GetAttendanceAsync(int? studentId, DateOnly? from, DateOnly? to, CancellationToken ct = default)
     {
-        var lateAfter = _school.LateAfterTime;
-        return (await _journey.GetAttendanceAsync(studentId, from, to, ct))
+        var records = await _journey.GetAttendanceAsync(studentId, from, to, ct);
+        if (records.Count == 0) return new List<AttendanceRecordDto>();
+        // Each record is judged against its own date's timings (half days, special timings).
+        var schedule = await _schedule.GetAsync(records.Min(a => a.Date), records.Max(a => a.Date), ct);
+        return records
             .Select(a => new AttendanceRecordDto(
                 a.AttendanceId, a.StudentId, a.Student.FullName, a.Student.Grade,
                 a.EventType, a.Date, a.Time, a.Status,
                 // Only an arrival can be late; a departure has no such policy.
-                a.EventType == AttendanceEventType.SchoolArrival && a.Time > lateAfter))
+                a.EventType == AttendanceEventType.SchoolArrival && schedule.IsLate(a.Date, a.Time),
+                !schedule.IsSchoolDay(a.Date)))
             .ToList();
     }
 

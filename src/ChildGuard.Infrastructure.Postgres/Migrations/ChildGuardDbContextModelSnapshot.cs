@@ -1164,6 +1164,88 @@ namespace ChildGuard.Infrastructure.Postgres.Migrations
                     b.ToTable("RouteStops");
                 });
 
+            modelBuilder.Entity("ChildGuard.Domain.Entities.SchoolCalendarDay", b =>
+                {
+                    b.Property<int>("SchoolCalendarDayId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("SchoolCalendarDayId"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<int>("DayType")
+                        .HasColumnType("integer");
+
+                    b.Property<TimeOnly?>("DismissalTime")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<TimeOnly?>("LateArrivalAfter")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<TimeOnly?>("StartTime")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("SchoolCalendarDayId");
+
+                    b.HasIndex("Date")
+                        .IsUnique();
+
+                    b.ToTable("SchoolCalendarDays");
+                });
+
+            modelBuilder.Entity("ChildGuard.Domain.Entities.SchoolTimingSettings", b =>
+                {
+                    b.Property<int>("SchoolTimingSettingsId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("AttendanceWindowDays")
+                        .HasColumnType("integer");
+
+                    b.Property<TimeOnly>("DismissalTime")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<TimeOnly>("LateArrivalAfter")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<TimeOnly>("MissingCheckInAfter")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<int>("PickupGraceMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<TimeOnly>("StartTime")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("UpdatedByAdminId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("WorkingDays")
+                        .HasColumnType("integer");
+
+                    b.HasKey("SchoolTimingSettingsId");
+
+                    b.ToTable("SchoolTimingSettings");
+                });
+
             modelBuilder.Entity("ChildGuard.Domain.Entities.Student", b =>
                 {
                     b.Property<int>("StudentId")

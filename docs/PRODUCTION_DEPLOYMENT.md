@@ -178,3 +178,21 @@ recorded before the migration have no transport snapshot; only new events carry 
 
 `Transport:AllowRouteOverride` (default `false`): a student's assignment always uses the bus's own route. Set it to `true`
 only if your buses serve several routes; an override must then name an active route.
+
+## School time management: rollout
+
+Migration `SchoolTimeManagement` (separate MySQL and PostgreSQL sets) adds two tables, `SchoolTimingSettings` (the regular
+week, one row) and `SchoolCalendarDays` (holidays, half days, special timings and extra working days, unique per date). It
+only creates tables and one index: nothing is dropped or rewritten, and existing tables are untouched.
+
+1. Back up, then review the script: `dotnet ef migrations script DriverPhotos SchoolTimeManagement --idempotent --project src/ChildGuard.Infrastructure --startup-project src/ChildGuard.Api`.
+2. Apply it **before** deploying the new API, then deploy the API and AdminWeb together. The Guardian app needs no new build: every DTO change is an added field.
+3. Until an admin saves the School Time page, the `School` configuration section supplies the regular week. New keys
+   (all optional): `StartTime` (`08:00`), `DismissalTime` (`14:30`), `PickupGraceMinutes` (`30`), `WorkingDays`
+   (`Monday,Tuesday,Wednesday,Thursday,Friday`). The existing `LateArrivalAfter`, `MissingCheckInAfter` and
+   `AttendanceWindowDays` keep their meaning.
+4. Behaviour after deploying: no absences or missing check-in alerts on weekends and holidays; the attendance rate divides by
+   scheduled school days (the API field is still `SchoolDaysObserved`); past arrivals are flagged late against that date's
+   cutoff; new dashboard alerts for leaving before dismissal, not being picked up after the grace period, and arrivals on a
+   closed day. Scans on a closed day are still recorded, never rejected.
+5. Rollback: `Down()` drops only the two new tables. The previous API ignores them.

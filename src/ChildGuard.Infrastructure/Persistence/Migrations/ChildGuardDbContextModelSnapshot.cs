@@ -1163,6 +1163,88 @@ namespace ChildGuard.Infrastructure.Persistence.Migrations
                     b.ToTable("RouteStops");
                 });
 
+            modelBuilder.Entity("ChildGuard.Domain.Entities.SchoolCalendarDay", b =>
+                {
+                    b.Property<int>("SchoolCalendarDayId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("SchoolCalendarDayId"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<int>("DayType")
+                        .HasColumnType("int");
+
+                    b.Property<TimeOnly?>("DismissalTime")
+                        .HasColumnType("time(6)");
+
+                    b.Property<TimeOnly?>("LateArrivalAfter")
+                        .HasColumnType("time(6)");
+
+                    b.Property<TimeOnly?>("StartTime")
+                        .HasColumnType("time(6)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("SchoolCalendarDayId");
+
+                    b.HasIndex("Date")
+                        .IsUnique();
+
+                    b.ToTable("SchoolCalendarDays");
+                });
+
+            modelBuilder.Entity("ChildGuard.Domain.Entities.SchoolTimingSettings", b =>
+                {
+                    b.Property<int>("SchoolTimingSettingsId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("AttendanceWindowDays")
+                        .HasColumnType("int");
+
+                    b.Property<TimeOnly>("DismissalTime")
+                        .HasColumnType("time(6)");
+
+                    b.Property<TimeOnly>("LateArrivalAfter")
+                        .HasColumnType("time(6)");
+
+                    b.Property<TimeOnly>("MissingCheckInAfter")
+                        .HasColumnType("time(6)");
+
+                    b.Property<int>("PickupGraceMinutes")
+                        .HasColumnType("int");
+
+                    b.Property<TimeOnly>("StartTime")
+                        .HasColumnType("time(6)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int?>("UpdatedByAdminId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("WorkingDays")
+                        .HasColumnType("int");
+
+                    b.HasKey("SchoolTimingSettingsId");
+
+                    b.ToTable("SchoolTimingSettings");
+                });
+
             modelBuilder.Entity("ChildGuard.Domain.Entities.Student", b =>
                 {
                     b.Property<int>("StudentId")

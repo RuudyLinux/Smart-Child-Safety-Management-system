@@ -158,6 +158,12 @@
                         <span class="cg-nav__tip">Profile</span>
                     </li>
                     <li class="cg-nav__item">
+                        <a class="@NavClass("SchoolTime")" href="/SchoolTime">
+                            @await Html.PartialAsync("_Icon", "calendar")<span class="cg-nav__label">School Time</span>
+                        </a>
+                        <span class="cg-nav__tip">School Time</span>
+                    </li>
+                    <li class="cg-nav__item">
                         <a class="@NavClass("Settings")" href="/Settings">
                             @await Html.PartialAsync("_Icon", "settings")<span class="cg-nav__label">Settings</span>
                         </a>

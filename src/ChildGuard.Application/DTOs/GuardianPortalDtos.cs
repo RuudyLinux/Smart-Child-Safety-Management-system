@@ -88,7 +88,9 @@ public record GuardianReportDayDto(
     TimeOnly? CheckOut,
     bool Late,
     DateTime? BusBoardingAt,
-    DateTime? BusDropoffAt);
+    DateTime? BusDropoffAt,
+    // False on a weekend or holiday the school calendar has closed.
+    bool IsSchoolDay = true);
 
 /// <summary>
 /// A pickup attempt for one of the guardian's children. <c>Kind</c> is "Guardian" for a face-verified

@@ -264,3 +264,43 @@ public enum ImportStatus
     /// <summary>Nothing was inserted.</summary>
     Failed = 3
 }
+
+/// <summary>The weekdays the school is open in a regular week. Stored as a bit mask.</summary>
+[Flags]
+public enum SchoolWeekdays
+{
+    None = 0,
+    Monday = 1,
+    Tuesday = 2,
+    Wednesday = 4,
+    Thursday = 8,
+    Friday = 16,
+    Saturday = 32,
+    Sunday = 64,
+    MondayToFriday = Monday | Tuesday | Wednesday | Thursday | Friday
+}
+
+/// <summary>How a calendar exception changes its date.</summary>
+public enum SchoolDayType
+{
+    /// <summary>The school is closed.</summary>
+    Holiday = 1,
+    /// <summary>The school opens but dismisses early; a dismissal time is required.</summary>
+    HalfDay = 2,
+    /// <summary>The school opens with different start, late or dismissal times.</summary>
+    SpecialTiming = 3,
+    /// <summary>A normally-closed weekday the school opens on (e.g. a make-up Saturday).</summary>
+    WorkingDay = 4
+}
+
+/// <summary>What kind of day a date is at the school, after the regular week and calendar exceptions.</summary>
+public enum SchoolDayKind
+{
+    Regular = 1,
+    /// <summary>A weekday the school is not open in its regular week.</summary>
+    NonWorkingDay = 2,
+    Holiday = 3,
+    HalfDay = 4,
+    SpecialTiming = 5,
+    WorkingDay = 6
+}
