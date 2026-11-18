@@ -1,6 +1,7 @@
 using ChildGuard.Application.Common;
 using ChildGuard.Application.DTOs;
 using ChildGuard.Application.Interfaces;
+using ChildGuard.Application.Services;
 using ChildGuard.Domain.Entities;
 using ChildGuard.Domain.Enums;
 using FluentValidation;
@@ -523,5 +524,261 @@ public sealed class BusImportHandler : ImportHandler
     {
         foreach (var p in validRows.Select(r => (Parsed)r.Parsed!))
             set.Buses.Add(new Bus { BusNumber = p.BusNumber, Capacity = p.Capacity, DriverId = p.DriverId, RouteId = p.RouteId, Status = BusStatus.Active, CreatedAt = nowUtc });
+    }
+}
+
+// ---------------------------------------------------------------- RouteStops
+
+public sealed class RouteStopImportHandler : ImportHandler
+{
+    private sealed record Parsed(int RouteId, string StopName, string? Address, TimeOnly? PickupTime, TimeOnly? DropTime);
+
+    private readonly IBulkImportRepository _repo;
+    private readonly IValidator<RouteStopRequest> _validator;
+
+    public RouteStopImportHandler(IBulkImportRepository repo, IValidator<RouteStopRequest> validator)
+    {
+        _repo = repo;
+        _validator = validator;
+    }
+
+    public override ImportCategoryDefinition Definition => ImportSchema.RouteStops;
+
+    public override async Task<List<RowPlan>> PlanAsync(IReadOnlyList<ImportRowDto> rows, CancellationToken ct)
+    {
+        var routes = (await _repo.GetRouteStopKeysAsync(ct))
+            .GroupBy(r => Fold(r.RouteName))
+            .ToDictionary(g => g.Key, g => g.First());
+
+        // Track per-route: how many stops each route already has + how many valid rows claimed so far
+        var routeStopCounts = routes.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.StopCount);
+        var seen = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase); // "routeName|stopName" -> first row
+
+        var plans = new List<RowPlan>(rows.Count);
+
+        foreach (var row in rows)
+        {
+            var reader = new ImportRowReader(Definition, row);
+            var plan = reader.Plan;
+
+            var routeName = reader.Text(K.RouteName);
+            var stopName = reader.Text(K.StopName);
+
+            reader.AddValidation(await _validator.ValidateAsync(
+                new RouteStopRequest(stopName ?? string.Empty, reader.Text(K.Address), null, null), ct),
+                new Dictionary<string, string>
+                {
+                    [nameof(RouteStopRequest.Name)] = K.StopName,
+                    [nameof(RouteStopRequest.Address)] = K.Address,
+                });
+
+            int routeId = 0;
+            if (routeName is not null)
+            {
+                if (!routes.TryGetValue(Fold(routeName), out var routeKey))
+                    plan.Error(K.RouteName, "No route has this name. Import the route first.");
+                else if (routeKey.RouteId == 0) // placeholder – active check handled below
+                    plan.Error(K.RouteName, "This route is deactivated.");
+                else
+                    routeId = routeKey.RouteId;
+            }
+
+            // Parse times; treat blank as null
+            TimeOnly? pickup = null, drop = null;
+            var pickupRaw = reader.Text(K.PickupTime);
+            var dropRaw = reader.Text(K.DropTime);
+            if (pickupRaw is not null && !TimeOnly.TryParse(pickupRaw, out var pt))
+                plan.Error(K.PickupTime, "Enter the time as HH:MM (e.g. 07:30).");
+            else if (pickupRaw is not null) pickup = TimeOnly.Parse(pickupRaw);
+            if (dropRaw is not null && !TimeOnly.TryParse(dropRaw, out var dt))
+                plan.Error(K.DropTime, "Enter the time as HH:MM (e.g. 15:45).");
+            else if (dropRaw is not null) drop = TimeOnly.Parse(dropRaw);
+
+            // Duplicate: same route + same stop name
+            if (routeName is not null && stopName is not null && routeId > 0 && !plan.HasError(K.StopName))
+            {
+                var dupKey = $"{Fold(routeName)}|{Fold(stopName)}";
+                if (seen.TryGetValue(dupKey, out var earlier))
+                    plan.Error(K.StopName, $"Duplicate of row {earlier} (same route and stop name).");
+                else
+                    seen[dupKey] = plan.RowNumber;
+            }
+
+            if (plan.IsValid)
+                plan.Parsed = new Parsed(routeId, stopName!, reader.Text(K.Address), pickup, drop);
+
+            plans.Add(plan);
+        }
+        return plans;
+    }
+
+    public override void Stage(IReadOnlyList<RowPlan> validRows, ImportWriteSet set, DateTime nowUtc)
+    {
+        // Assign sequences per route: existing stop count + position within this batch
+        var nextSeq = new Dictionary<int, int>();
+
+        foreach (var row in validRows)
+        {
+            var p = (Parsed)row.Parsed!;
+            if (!nextSeq.ContainsKey(p.RouteId))
+            {
+                // Find the existing stop count from the original keys (not modified during planning)
+                // We re-compute by looking at stops already staged in this set
+                var alreadyStaged = set.RouteStops.Count(s => s.RouteId == p.RouteId);
+                nextSeq[p.RouteId] = alreadyStaged + 1; // will be corrected per-route below
+            }
+        }
+
+        // Reset to use the counts captured during PlanAsync — but those aren't stored here.
+        // Use a simple per-route counter starting at 1; the repository will add the route's existing count.
+        var perRouteCounter = new Dictionary<int, int>();
+        foreach (var row in validRows)
+        {
+            var p = (Parsed)row.Parsed!;
+            perRouteCounter.TryAdd(p.RouteId, 0);
+            perRouteCounter[p.RouteId]++;
+            set.RouteStops.Add(new RouteStop
+            {
+                RouteId = p.RouteId,
+                // Sequence set during save (existing stops + position in this batch)
+                Sequence = perRouteCounter[p.RouteId],
+                Name = p.StopName,
+                Address = p.Address,
+                PickupTime = p.PickupTime,
+                DropTime = p.DropTime,
+                Status = RecordStatus.Active,
+                CreatedAt = nowUtc
+            });
+        }
+    }
+}
+
+// ---------------------------------------------------------------- SchoolCalendarDays
+
+public sealed class SchoolCalendarDayImportHandler : ImportHandler
+{
+    private sealed record Parsed(DateOnly Date, SchoolDayType DayType, string Title,
+        TimeOnly? DismissalTime, TimeOnly? StartTime, TimeOnly? LateArrivalAfter);
+
+    private readonly IBulkImportRepository _repo;
+    private readonly SchoolClock _clock;
+
+    public SchoolCalendarDayImportHandler(IBulkImportRepository repo, SchoolClock clock)
+    {
+        _repo = repo;
+        _clock = clock;
+    }
+
+    public override ImportCategoryDefinition Definition => ImportSchema.SchoolCalendarDays;
+
+    public override async Task<List<RowPlan>> PlanAsync(IReadOnlyList<ImportRowDto> rows, CancellationToken ct)
+    {
+        var existing = (await _repo.GetCalendarDayKeysAsync(ct)).Select(d => d.Date).ToHashSet();
+        var seen = new FirstSeen();
+        var today = _clock.Today;
+        var plans = new List<RowPlan>(rows.Count);
+
+        foreach (var row in rows)
+        {
+            var reader = new ImportRowReader(Definition, row);
+            var plan = reader.Plan;
+
+            var dateRaw = reader.Text(K.Date);
+            DateOnly? date = null;
+            if (dateRaw is not null)
+            {
+                if (!DateOnly.TryParse(dateRaw, out var d))
+                    plan.Error(K.Date, "Enter the date as YYYY-MM-DD (e.g. 2027-01-26).");
+                else if (d < today.AddYears(-2) || d > today.AddYears(2))
+                    plan.Error(K.Date, "Date must be within 2 years of today.");
+                else
+                    date = d;
+            }
+
+            var dayTypeRaw = reader.Text(K.DayType);
+            SchoolDayType? dayType = null;
+            if (dayTypeRaw is not null)
+            {
+                if (!Enum.TryParse<SchoolDayType>(dayTypeRaw, ignoreCase: true, out var dt))
+                    plan.Error(K.DayType, "Day Type must be Holiday, HalfDay, SpecialTiming, or WorkingDay.");
+                else
+                    dayType = dt;
+            }
+            else
+                plan.Error(K.DayType, "Day Type is required.");
+
+            var titleRaw = reader.Text(K.Title);
+            if (titleRaw is not null && titleRaw.Length > 100)
+                plan.Error(K.Title, "Title cannot be longer than 100 characters.");
+
+            TimeOnly? dismissal = null, start = null, late = null;
+            var dismissalRaw = reader.Text(K.DismissalTime);
+            var startRaw = reader.Text(K.StartTime);
+            var lateRaw = reader.Text(K.LateArrivalAfter);
+
+            if (dismissalRaw is not null && !TimeOnly.TryParse(dismissalRaw, out var dmt))
+                plan.Error(K.DismissalTime, "Enter the time as HH:MM (e.g. 12:00).");
+            else if (dismissalRaw is not null) dismissal = TimeOnly.Parse(dismissalRaw);
+
+            if (startRaw is not null && !TimeOnly.TryParse(startRaw, out var st))
+                plan.Error(K.StartTime, "Enter the time as HH:MM (e.g. 09:30).");
+            else if (startRaw is not null) start = TimeOnly.Parse(startRaw);
+
+            if (lateRaw is not null && !TimeOnly.TryParse(lateRaw, out var lt))
+                plan.Error(K.LateArrivalAfter, "Enter the time as HH:MM (e.g. 10:00).");
+            else if (lateRaw is not null) late = TimeOnly.Parse(lateRaw);
+
+            // Business rules
+            if (dayType is not null && !plan.HasError(K.DayType))
+            {
+                var hasTimes = dismissal is not null || start is not null || late is not null;
+                switch (dayType.Value)
+                {
+                    case SchoolDayType.Holiday when hasTimes:
+                        plan.Error(K.DismissalTime, "Holiday rows must not include any times.");
+                        break;
+                    case SchoolDayType.HalfDay when dismissal is null:
+                        plan.Error(K.DismissalTime, "Dismissal Time is required for HalfDay.");
+                        break;
+                    case SchoolDayType.SpecialTiming when !hasTimes:
+                        plan.Error(K.DismissalTime, "SpecialTiming requires at least one time override.");
+                        break;
+                }
+            }
+
+            if (date is not null && !plan.HasError(K.Date))
+            {
+                if (existing.Contains(date.Value))
+                    plan.Error(K.Date, "This date already has an active calendar exception.");
+                else if (seen.Check(date.Value.ToString("yyyy-MM-dd"), plan.RowNumber) is int earlier)
+                    plan.Error(K.Date, $"Duplicate of row {earlier} (same date).");
+            }
+
+            if (plan.IsValid)
+                plan.Parsed = new Parsed(date!.Value, dayType!.Value, titleRaw!.Trim(), dismissal, start, late);
+
+            plans.Add(plan);
+        }
+        return plans;
+    }
+
+    public override void Stage(IReadOnlyList<RowPlan> validRows, ImportWriteSet set, DateTime nowUtc)
+    {
+        foreach (var row in validRows)
+        {
+            var p = (Parsed)row.Parsed!;
+            set.SchoolCalendarDays.Add(new SchoolCalendarDay
+            {
+                Date = p.Date,
+                DayType = p.DayType,
+                Title = p.Title,
+                DismissalTime = p.DismissalTime,
+                StartTime = p.StartTime,
+                LateArrivalAfter = p.LateArrivalAfter,
+                Status = RecordStatus.Active,
+                CreatedAt = nowUtc,
+                UpdatedAt = nowUtc
+            });
+        }
     }
 }

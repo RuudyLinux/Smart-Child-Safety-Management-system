@@ -36,6 +36,8 @@ public class BulkImportServiceTests
                 new DriverImportHandler(Repo, new CreateDriverRequestValidator()),
                 new RouteImportHandler(Repo, new CreateRouteRequestValidator()),
                 new BusImportHandler(Repo, new CreateBusRequestValidator()),
+                new RouteStopImportHandler(Repo, new RouteStopRequestValidator()),
+                new SchoolCalendarDayImportHandler(Repo, clock),
             };
             Service = new BulkImportService(handlers, Repo, clock);
         }

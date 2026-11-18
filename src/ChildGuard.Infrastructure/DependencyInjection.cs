@@ -132,6 +132,8 @@ public static class DependencyInjection
         services.AddScoped<ChildGuard.Application.Import.ImportHandler, ChildGuard.Application.Import.DriverImportHandler>();
         services.AddScoped<ChildGuard.Application.Import.ImportHandler, ChildGuard.Application.Import.RouteImportHandler>();
         services.AddScoped<ChildGuard.Application.Import.ImportHandler, ChildGuard.Application.Import.BusImportHandler>();
+        services.AddScoped<ChildGuard.Application.Import.ImportHandler, ChildGuard.Application.Import.RouteStopImportHandler>();
+        services.AddScoped<ChildGuard.Application.Import.ImportHandler, ChildGuard.Application.Import.SchoolCalendarDayImportHandler>();
         services.AddScoped<IBulkImportService, BulkImportService>();
 
         var faceServiceBaseUrl = config["FaceService:BaseUrl"] ?? "http://localhost:8001";
