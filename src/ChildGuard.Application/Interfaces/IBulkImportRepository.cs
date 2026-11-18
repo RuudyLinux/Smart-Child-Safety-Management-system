@@ -9,6 +9,9 @@ public sealed record DriverImportKey(int DriverId, string FullName, string? Phon
 public sealed record RouteImportKey(int RouteId, string RouteName, RecordStatus Status = RecordStatus.Active);
 /// <param name="ActiveStudents">Seats already taken by active assignments.</param>
 public sealed record BusImportKey(int BusId, string BusNumber, int? RouteId, int Capacity = int.MaxValue, BusStatus Status = BusStatus.Active, int ActiveStudents = 0);
+/// <param name="StopCount">Number of active stops already on this route — used to assign import sequence numbers.</param>
+public sealed record RouteStopImportKey(int RouteId, string RouteName, int StopCount);
+public sealed record CalendarDayImportKey(DateOnly Date);
 
 /// <summary>Outcome of saving an import.</summary>
 public enum ImportSaveOutcome
@@ -28,8 +31,10 @@ public sealed class ImportWriteSet
     public List<Driver> Drivers { get; } = new();
     public List<Route> Routes { get; } = new();
     public List<Bus> Buses { get; } = new();
+    public List<RouteStop> RouteStops { get; } = new();
+    public List<SchoolCalendarDay> SchoolCalendarDays { get; } = new();
 
-    public int Count => Students.Count + Guardians.Count + Drivers.Count + Routes.Count + Buses.Count;
+    public int Count => Students.Count + Guardians.Count + Drivers.Count + Routes.Count + Buses.Count + RouteStops.Count + SchoolCalendarDays.Count;
 }
 
 /// <summary>
@@ -44,6 +49,8 @@ public interface IBulkImportRepository
     Task<List<DriverImportKey>> GetDriverKeysAsync(CancellationToken ct = default);
     Task<List<RouteImportKey>> GetRouteKeysAsync(CancellationToken ct = default);
     Task<List<BusImportKey>> GetBusKeysAsync(CancellationToken ct = default);
+    Task<List<RouteStopImportKey>> GetRouteStopKeysAsync(CancellationToken ct = default);
+    Task<List<CalendarDayImportKey>> GetCalendarDayKeysAsync(CancellationToken ct = default);
 
     /// <summary>
     /// Inserts the records and the history row in one transaction. Buses that receive new student

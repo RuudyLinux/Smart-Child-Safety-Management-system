@@ -243,7 +243,9 @@ public enum ImportCategory
     Guardians = 2,
     Drivers = 3,
     Routes = 4,
-    Buses = 5
+    Buses = 5,
+    RouteStops = 6,
+    SchoolCalendarDays = 7
 }
 
 /// <summary>How the rows of a bulk import were supplied.</summary>

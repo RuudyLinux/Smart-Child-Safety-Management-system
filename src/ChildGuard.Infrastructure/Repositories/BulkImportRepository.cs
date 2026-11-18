@@ -34,6 +34,19 @@ public class BulkImportRepository : IBulkImportRepository
         _db.Buses.AsNoTracking().Select(b => new BusImportKey(b.BusId, b.BusNumber, b.RouteId, b.Capacity, b.Status,
             b.StudentBusAssignments.Count(a => a.Status == RecordStatus.Active))).ToListAsync(ct);
 
+    public Task<List<RouteStopImportKey>> GetRouteStopKeysAsync(CancellationToken ct = default) =>
+        _db.Routes.AsNoTracking()
+            .Where(r => r.Status == RecordStatus.Active)
+            .Select(r => new RouteStopImportKey(r.RouteId, r.RouteName,
+                r.Stops.Count(s => s.Status == RecordStatus.Active)))
+            .ToListAsync(ct);
+
+    public Task<List<CalendarDayImportKey>> GetCalendarDayKeysAsync(CancellationToken ct = default) =>
+        _db.SchoolCalendarDays.AsNoTracking()
+            .Where(d => d.Status == RecordStatus.Active)
+            .Select(d => new CalendarDayImportKey(d.Date))
+            .ToListAsync(ct);
+
     public async Task<ImportSaveOutcome> SaveImportAsync(ImportWriteSet records, DataImport history, CancellationToken ct = default)
     {
         // Seats each bus needs for the new students, checked again under a lock below.
@@ -45,6 +58,30 @@ public class BulkImportRepository : IBulkImportRepository
         _db.Drivers.AddRange(records.Drivers);
         _db.Routes.AddRange(records.Routes);
         _db.Buses.AddRange(records.Buses);
+        _db.SchoolCalendarDays.AddRange(records.SchoolCalendarDays);
+
+        // Route stops: each stop's Sequence is its 1-based position within this batch;
+        // we offset by the number of active stops already on that route so it appends correctly.
+        if (records.RouteStops.Count > 0)
+        {
+            var routeIds = records.RouteStops.Select(s => s.RouteId).Distinct().ToList();
+            var existingCounts = await _db.RouteStops
+                .Where(s => routeIds.Contains(s.RouteId) && s.Status == RecordStatus.Active)
+                .GroupBy(s => s.RouteId)
+                .Select(g => new { RouteId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(g => g.RouteId, g => g.Count, ct);
+
+            var batchCounters = new Dictionary<int, int>();
+            foreach (var stop in records.RouteStops)
+            {
+                batchCounters.TryAdd(stop.RouteId, 0);
+                batchCounters[stop.RouteId]++;
+                var existing = existingCounts.GetValueOrDefault(stop.RouteId);
+                stop.Sequence = existing + batchCounters[stop.RouteId];
+            }
+            _db.RouteStops.AddRange(records.RouteStops);
+        }
+
         _db.DataImports.Add(history);
 
         // Explicit transaction: the records and the history row commit together or not at all,

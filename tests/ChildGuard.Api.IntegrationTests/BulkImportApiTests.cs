@@ -58,7 +58,7 @@ public class BulkImportApiTests : IClassFixture<ApiFactory>
         Assert.Contains("\"Full Name\",\"Email\",\"Contact Number\"", Encoding.UTF8.GetString(await csv.Content.ReadAsByteArrayAsync()));
 
         var categories = await Ok<List<ImportCategoryDto>>(await admin.GetAsync("/api/imports/categories"));
-        Assert.Equal(5, categories.Count);
+        Assert.Equal(7, categories.Count);
     }
 
     [Fact]
@@ -229,5 +229,102 @@ public class BulkImportApiTests : IClassFixture<ApiFactory>
         var commit = await guardian.PostAsJsonAsync("/api/imports/commit", new CommitImportRequest(
             ImportCategory.Routes, ImportSource.Manual, null, new List<ImportRowDto> { Row(1, (K.RouteName, "Nope")) }), Json.Options);
         Assert.Equal(HttpStatusCode.Forbidden, commit.StatusCode);
+    }
+
+    [Fact]
+    public async Task RouteStops_CommitWritesStopsInSequenceOrder()
+    {
+        var admin = await _api.AdminClientAsync();
+        var t = Tag();
+
+        // Seed a route
+        var routeName = $"Route-{t}";
+        var routeRows = new List<ImportRowDto> { Row(1, (K.RouteName, routeName), (K.Description, "Test")) };
+        var routeResult = await Ok<ImportSummaryDto>(await admin.PostAsJsonAsync("/api/imports/commit",
+            new CommitImportRequest(ImportCategory.Routes, ImportSource.Manual, null, routeRows), Json.Options));
+        Assert.Equal(1, routeResult.InsertedRows);
+
+        // Import 3 stops
+        var rows = new List<ImportRowDto>
+        {
+            Row(1, (K.RouteName, routeName), (K.StopName, $"Stop-A-{t}"), (K.PickupTime, "07:00"), (K.DropTime, "16:00")),
+            Row(2, (K.RouteName, routeName), (K.StopName, $"Stop-B-{t}"), (K.Address, "Main St")),
+            Row(3, (K.RouteName, routeName), (K.StopName, $"Stop-C-{t}")),
+        };
+
+        var preview = await Ok<ImportPreviewDto>(await admin.PostAsJsonAsync("/api/imports/validate",
+            new ValidateImportRequest(ImportCategory.RouteStops, rows), Json.Options));
+        Assert.Equal(3, preview.ValidRows);
+        Assert.Equal(0, preview.InvalidRows);
+
+        var summary = await Ok<ImportSummaryDto>(await admin.PostAsJsonAsync("/api/imports/commit",
+            new CommitImportRequest(ImportCategory.RouteStops, ImportSource.Manual, null, rows), Json.Options));
+        Assert.Equal(3, summary.InsertedRows);
+
+        // Verify via DB
+        await using var db = _api.NewDb();
+        var route = await db.Routes.FirstAsync(r => r.RouteName == routeName);
+        var stops = await db.RouteStops.Where(s => s.RouteId == route.RouteId).OrderBy(s => s.Sequence).ToListAsync();
+        Assert.Equal(3, stops.Count);
+        Assert.Equal(new[] { 1, 2, 3 }, stops.Select(s => s.Sequence).ToArray());
+        Assert.Contains(stops, s => s.Name == $"Stop-A-{t}" && s.PickupTime == new TimeOnly(7, 0));
+        Assert.Contains(stops, s => s.Name == $"Stop-B-{t}" && s.Address == "Main St");
+
+        // Within-batch duplicate stop name on same route is rejected
+        var dupRows = new List<ImportRowDto>
+        {
+            Row(1, (K.RouteName, routeName), (K.StopName, $"Dup-{t}")),
+            Row(2, (K.RouteName, routeName), (K.StopName, $"Dup-{t}")),
+        };
+        var dupPreview = await Ok<ImportPreviewDto>(await admin.PostAsJsonAsync("/api/imports/validate",
+            new ValidateImportRequest(ImportCategory.RouteStops, dupRows), Json.Options));
+        Assert.Equal(1, dupPreview.ValidRows);
+        Assert.Equal(1, dupPreview.InvalidRows);
+    }
+
+    [Fact]
+    public async Task SchoolCalendarDays_CommitWritesExceptionsAndRejectsDuplicates()
+    {
+        var admin = await _api.AdminClientAsync();
+        var t = Tag();
+
+        // Pick a date far in the future to avoid conflicts with real data
+        var date1 = DateOnly.FromDateTime(DateTime.Today.AddMonths(6)).ToString("yyyy-MM-dd");
+        var date2 = DateOnly.FromDateTime(DateTime.Today.AddMonths(7)).ToString("yyyy-MM-dd");
+
+        var rows = new List<ImportRowDto>
+        {
+            Row(1, (K.Date, date1), (K.DayType, "Holiday"), (K.Title, $"Test-Holiday-{t}")),
+            Row(2, (K.Date, date2), (K.DayType, "HalfDay"), (K.Title, $"Test-HalfDay-{t}"), (K.DismissalTime, "12:00")),
+        };
+
+        var preview = await Ok<ImportPreviewDto>(await admin.PostAsJsonAsync("/api/imports/validate",
+            new ValidateImportRequest(ImportCategory.SchoolCalendarDays, rows), Json.Options));
+        Assert.Equal(2, preview.ValidRows);
+
+        var summary = await Ok<ImportSummaryDto>(await admin.PostAsJsonAsync("/api/imports/commit",
+            new CommitImportRequest(ImportCategory.SchoolCalendarDays, ImportSource.Manual, null, rows), Json.Options));
+        Assert.Equal(2, summary.InsertedRows);
+
+        // Verify DB
+        await using var db = _api.NewDb();
+        var d1 = DateOnly.Parse(date1);
+        var cal = await db.SchoolCalendarDays.FirstOrDefaultAsync(d => d.Date == d1);
+        Assert.NotNull(cal);
+        Assert.Equal(SchoolDayType.Holiday, cal.DayType);
+
+        // Importing the same date again is a duplicate
+        var dupRows = new List<ImportRowDto> { Row(1, (K.Date, date1), (K.DayType, "Holiday"), (K.Title, "Dup")) };
+        var dupPreview = await Ok<ImportPreviewDto>(await admin.PostAsJsonAsync("/api/imports/validate",
+            new ValidateImportRequest(ImportCategory.SchoolCalendarDays, dupRows), Json.Options));
+        Assert.Equal(0, dupPreview.ValidRows);
+        Assert.Equal(1, dupPreview.InvalidRows);
+
+        // Validation: HalfDay without DismissalTime is rejected
+        var d3 = DateOnly.FromDateTime(DateTime.Today.AddMonths(8)).ToString("yyyy-MM-dd");
+        var badRows = new List<ImportRowDto> { Row(1, (K.Date, d3), (K.DayType, "HalfDay"), (K.Title, "Bad")) };
+        var badPreview = await Ok<ImportPreviewDto>(await admin.PostAsJsonAsync("/api/imports/validate",
+            new ValidateImportRequest(ImportCategory.SchoolCalendarDays, badRows), Json.Options));
+        Assert.Equal(0, badPreview.ValidRows);
     }
 }

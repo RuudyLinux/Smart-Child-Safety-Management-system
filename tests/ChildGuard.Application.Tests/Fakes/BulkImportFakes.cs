@@ -12,6 +12,8 @@ internal sealed class FakeBulkImportRepository : IBulkImportRepository
     public List<DriverImportKey> Drivers { get; } = new();
     public List<RouteImportKey> Routes { get; } = new();
     public List<BusImportKey> Buses { get; } = new();
+    public List<RouteStopImportKey> RouteStopKeys { get; } = new();
+    public List<CalendarDayImportKey> CalendarDayKeys { get; } = new();
 
     public List<DataImport> History { get; } = new();
     public List<ImportWriteSet> Saved { get; } = new();
@@ -28,6 +30,8 @@ internal sealed class FakeBulkImportRepository : IBulkImportRepository
     public Task<List<DriverImportKey>> GetDriverKeysAsync(CancellationToken ct = default) => Task.FromResult(Drivers.ToList());
     public Task<List<RouteImportKey>> GetRouteKeysAsync(CancellationToken ct = default) => Task.FromResult(Routes.ToList());
     public Task<List<BusImportKey>> GetBusKeysAsync(CancellationToken ct = default) => Task.FromResult(Buses.ToList());
+    public Task<List<RouteStopImportKey>> GetRouteStopKeysAsync(CancellationToken ct = default) => Task.FromResult(RouteStopKeys.ToList());
+    public Task<List<CalendarDayImportKey>> GetCalendarDayKeysAsync(CancellationToken ct = default) => Task.FromResult(CalendarDayKeys.ToList());
 
     public Task<ImportSaveOutcome> SaveImportAsync(ImportWriteSet records, DataImport history, CancellationToken ct = default)
     {

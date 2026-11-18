@@ -60,6 +60,18 @@ public static class ImportSchema
         public const string Description = "description";
         public const string Capacity = "capacity";
         public const string DriverLicenseNumber = "driverLicenseNumber";
+        // RouteStops
+        public const string StopName = "stopName";
+        public const string Address = "address";
+        public const string PickupTime = "pickupTime";
+        public const string DropTime = "dropTime";
+        // SchoolCalendarDays
+        public const string Date = "date";
+        public const string DayType = "dayType";
+        public const string Title = "title";
+        public const string StartTime = "startTime";
+        public const string LateArrivalAfter = "lateArrivalAfter";
+        public const string DismissalTime = "dismissalTime";
     }
 
     public static readonly ImportCategoryDefinition Students = new(
@@ -137,7 +149,48 @@ public static class ImportSchema
         },
         new[] { "Import drivers and routes first: they must already exist and be active." });
 
-    public static IReadOnlyList<ImportCategoryDefinition> All { get; } = new[] { Students, Guardians, Drivers, Routes, Buses };
+    public static readonly ImportCategoryDefinition RouteStops = new(
+        ImportCategory.RouteStops, "Route Stops",
+        "Stops along existing routes, in import order. Each stop is appended after the route's last existing stop.",
+        DefaultMaxRows,
+        new[]
+        {
+            new ImportColumn(Keys.RouteName, "Route Name", true, ImportColumnKind.Text, "Name of an existing, active route.", "North Loop", 100),
+            new ImportColumn(Keys.StopName, "Stop Name", true, ImportColumnKind.Text, "Name of the stop.", "Market Road Junction", 100),
+            new ImportColumn(Keys.Address, "Address", false, ImportColumnKind.Text, "Street address or landmark.", "Market Road, Sector 5", 200),
+            new ImportColumn(Keys.PickupTime, "Pickup Time", false, ImportColumnKind.Text, "Morning pickup time at this stop (HH:MM, 24-hour). Example: 07:30", "07:30", null),
+            new ImportColumn(Keys.DropTime, "Drop Time", false, ImportColumnKind.Text, "Afternoon drop-off time at this stop (HH:MM, 24-hour). Example: 15:45", "15:45", null),
+        },
+        new[]
+        {
+            "Route must already exist and be active. Import routes first.",
+            "Stops within the same route are appended in row order, after any stops already on the route.",
+            "A stop with the same name on the same route (not case-sensitive) is reported as a duplicate.",
+        });
+
+    public static readonly ImportCategoryDefinition SchoolCalendarDays = new(
+        ImportCategory.SchoolCalendarDays, "School Calendar Days",
+        "Calendar exceptions: holidays, half days, special timings, and extra working days.",
+        DefaultMaxRows,
+        new[]
+        {
+            new ImportColumn(Keys.Date, "Date", true, ImportColumnKind.Date, "YYYY-MM-DD. Must be within 2 years of today.", "2027-01-26", null),
+            new ImportColumn(Keys.DayType, "Day Type", true, ImportColumnKind.Text, "Holiday, HalfDay, SpecialTiming, or WorkingDay.", "Holiday", 20),
+            new ImportColumn(Keys.Title, "Title", true, ImportColumnKind.Text, "Label shown to admins and guardians (e.g. Republic Day).", "Republic Day", 100),
+            new ImportColumn(Keys.DismissalTime, "Dismissal Time", false, ImportColumnKind.Text, "Required for HalfDay and SpecialTiming. HH:MM, 24-hour.", "12:00", null),
+            new ImportColumn(Keys.StartTime, "Start Time", false, ImportColumnKind.Text, "Override the regular start time (SpecialTiming or WorkingDay). HH:MM.", "09:30", null),
+            new ImportColumn(Keys.LateArrivalAfter, "Late Arrival After", false, ImportColumnKind.Text, "Override the regular late cutoff. HH:MM.", "10:00", null),
+        },
+        new[]
+        {
+            "Holiday rows must not include any times.",
+            "HalfDay rows require Dismissal Time.",
+            "SpecialTiming rows require at least one of Dismissal Time, Start Time, or Late Arrival After.",
+            "One row per date; importing a date that already has an active exception is reported as a duplicate.",
+            "Dates must be within 2 years of today.",
+        });
+
+    public static IReadOnlyList<ImportCategoryDefinition> All { get; } = new[] { Students, Guardians, Drivers, Routes, Buses, RouteStops, SchoolCalendarDays };
 
     public static ImportCategoryDefinition? Find(ImportCategory category) => All.FirstOrDefault(d => d.Category == category);
 }
